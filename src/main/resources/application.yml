@@ -66,4 +66,6 @@ oauth:
 
 logging:
   level:
-    neko.fantasy.auth: INFO
+    neko.fantasy.auth: ${NEKO_LOG_LEVEL:INFO}
+    com.zaxxer.hikari: WARN
+    org.hibernate: WARN

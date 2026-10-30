@@ -503,6 +503,20 @@ docker compose down
 
 生产环境至少必须：使用 HTTPS、设置 `auth.cookie.secure: true`、保持 `auth.setup.enabled: false`、使用独立数据库账号、备份 `nekoauth-data`，并在反向代理层增加更严格的限流与审计。
 
+## 日志
+
+日志默认输出到标准输出，每行包含本地时间、级别、线程、应用名、请求 ID、简写 logger 和消息；终端支持 ANSI 时会自动着色。格式示例：
+
+```text
+2026-10-31 00:40:10.235 INFO  http-nio-65534-exec-1 [neko-auth:8fd30cb0-...] n.f.a.web.RequestLoggingFilter - GET /api/auth/me -> 200 (12 ms)
+```
+
+- 每个请求都会响应 `X-Request-Id`；调用方传入 8-64 位安全字符时会沿用，否则自动生成 UUID，CORS 已暴露该响应头。
+- API、OAuth、OIDC 和页面请求记录方法、路径、状态码与耗时；`/assets/**`、`/favicon.ico` 等静态资源不写访问日志。
+- 访问日志只记录路径，不记录查询字符串、请求体、令牌、Cookie 或密码。
+- 可通过 `NEKO_LOG_LEVEL` 调整业务日志级别，例如 `NEKO_LOG_LEVEL=DEBUG`；HikariCP 和 Hibernate 默认降到 `WARN`，减少启动噪声。
+- 服务不主动写日志文件，便于 Docker、systemd 或日志平台直接收集标准输出。
+
 ## 测试
 
 ```bash
