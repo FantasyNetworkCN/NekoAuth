@@ -137,6 +137,144 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 
 登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。登出只会撤销发起应用对应的 OAuth 刷新令牌，不影响其他平台。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。
 
+### NekoAI / New API 接入
+
+以下配置以 NekoAI 当前部署为例：认证服务位于 `https://auth.nekocore.cn`，New API 位于 `https://ai.nekocore.cn`，New API 自定义 OAuth Provider 的 `slug` 为 `nekoai`。部署到其他域名时只需替换对应根地址。
+
+#### 1. 在 NekoAuth 登记客户端
+
+在 NekoAuth 的 `/admin/clients` 新建一个**机密客户端**。New API 在服务端交换授权码并调用 UserInfo，因此必须保存 `client_secret`，不能登记为公共客户端。
+
+| NekoAuth 字段 | 值 |
+| --- | --- |
+| 名称 | `NekoAI`（可自定义） |
+| 回调地址 | `https://ai.nekocore.cn/oauth/nekoai` |
+| 客户端类型 | 机密客户端 |
+| Scopes | `openid profile email offline_access`；需要角色时再加 `roles` |
+
+回调地址必须与 NekoAI 实际回调**逐字符完全一致**。New API 的回调由 `ServerAddress + /oauth/ + slug` 组成，因此 `https://ai.nekocore.cn/oauth/{slug}` 只是说明模板，登记时不能保留字面量 `{slug}`。`slug` 是 New API Provider 的路由标识，不是 OAuth 的 `client_id`。
+
+创建客户端时会一次性返回 `client_secret`，之后列表接口不会再次显示。若丢失或泄露，请在 NekoAuth 中轮换密钥，并同步更新 NekoAI；只轮换一端会导致 `invalid_client`。
+
+#### 2. 在 NekoAI / New API 填写 Provider
+
+| New API 字段 | 值 |
+| --- | --- |
+| Provider Name | `NekoAI`（可自定义） |
+| Slug | `nekoai` |
+| Well-Known URL | `https://auth.nekocore.cn/.well-known/openid-configuration` |
+| Client ID | 在 NekoAuth 创建的 `fn_...` 客户端 ID |
+| Client Secret | 创建或轮换时返回的客户端密钥 |
+| Authorization Endpoint | `https://auth.nekocore.cn/oauth2/authorize` |
+| Token Endpoint | `https://auth.nekocore.cn/oauth2/token` |
+| User Info Endpoint | `https://auth.nekocore.cn/oauth2/userinfo` |
+| Scopes | `openid profile email offline_access` |
+| Auth Style | `Params (in body)` / `client_secret_post` |
+| User ID Field | `sub` |
+| Username Field | `preferred_username` |
+| Display Name Field | `name` |
+| Email Field | `email` |
+
+New API 的字段名区分大小写，且会按 `gjson` 路径读取 UserInfo JSON。NekoAuth **不会返回 `id` 字段**；User ID 固定使用 OIDC 标准声明 `sub`。把 User ID Field 填成 `id` 会导致 New API 报“获取用户信息为空，请检查设置”，即使邮箱与其他字段已经正常返回。
+
+New API 的 Well-Known 自动填充只会补全发现文档中的端点，通常不会自动填写 User ID Field，也可能只补全 `openid profile email` 而没有 `offline_access`。保存前必须手动确认以下字段：`User ID Field=sub`、`Username Field=preferred_username`、`Display Name Field=name`、`Email Field=email`，并确认 scopes 包含 `offline_access`。
+
+NekoAuth 同时支持 HTTP Basic 与表单参数两种客户端认证。New API 推荐使用 `Params (in body)`；两种方式不能同时提交，否则 NekoAuth 会返回 `invalid_request`。若使用 Basic，则 New API 的 Auth Style 应选择 `Header (Basic Auth)`。
+
+#### 3. Scope 与 UserInfo 返回字段
+
+NekoAuth 按 scope 最小化返回声明。UserInfo 无论如何都会返回 `sub` 和 `client_id`，其余字段如下：
+
+| Scope | UserInfo 字段 | ID Token 字段 | 说明 |
+| --- | --- | --- | --- |
+| `openid` | `sub`、`client_id` | `sub`、`iss`、`aud`、`azp`、`exp`、`iat`、`auth_time`、`at_hash` | 签发 ID Token；访问令牌仍会正常签发 |
+| `profile` | `preferred_username`、`name`、`updated_at` | `preferred_username`、`name` | 用户名、昵称与更新时间 |
+| `email` | `email`、`email_verified` | `email`、`email_verified` | 邮箱与验证状态 |
+| `roles` | `role` | `role` | 用户角色；访问令牌中也包含 `role` |
+| `offline_access` | 不增加 UserInfo 字段 | 不增加字段 | 授权码交换时额外签发 refresh token |
+
+`user:email` 是 GitHub 风格的兼容别名，会规范化为 `email`，不会同时启用 `profile`。因此只请求 `user:email` 时，UserInfo 只有：
+
+```json
+{
+  "sub": "1",
+  "email": "user@example.com",
+  "email_verified": true,
+  "client_id": "fn_your_client_id"
+}
+```
+
+如果 NekoAI 还需要用户名和显示名称，应使用：
+
+```text
+openid profile email offline_access
+```
+
+也可以保留别名写法：
+
+```text
+user:email profile openid offline_access
+```
+
+完整 scope 下的 UserInfo 示例：
+
+```json
+{
+  "sub": "1",
+  "preferred_username": "neko",
+  "name": "猫屋管理员小梦",
+  "updated_at": 1793370000,
+  "email": "user@example.com",
+  "email_verified": true,
+  "client_id": "fn_your_client_id"
+}
+```
+
+只有授权请求中包含 `offline_access` 时，令牌端点才会返回 `refresh_token`；之后再调用令牌端点也无法给已有访问令牌“补加”刷新令牌，必须重新发起授权。`roles` 是可选项，不需要角色声明时不要添加。
+
+#### 4. 刷新令牌与 NekoAI 会话
+
+NekoAI 的 `/api/user/auth/refresh` 是 New API 自己的登录会话刷新接口，不是 NekoAuth 的 `/oauth2/token`。OAuth 登录失败时，New API 尚未建立自己的会话 Cookie，前端调用 `/api/user/auth/refresh` 返回 `401 Unauthorized` 是预期结果，不应拿这个请求判断 NekoAuth 是否正常。
+
+NekoAuth 的刷新流程是：
+
+```bash
+curl -sS https://auth.nekocore.cn/oauth2/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode 'client_id=fn_your_client_id' \
+  --data-urlencode 'client_secret=YOUR_CLIENT_SECRET' \
+  --data-urlencode 'refresh_token=REFRESH_TOKEN'
+```
+
+机密客户端也可以使用 Basic 认证。每次刷新都会轮换 refresh token；旧令牌再次出现会触发重放检测，并撤销同一用户在该客户端下的授权链。
+
+#### 5. 常见错误对照
+
+| 现象 | 原因与处理 |
+| --- | --- |
+| “获取用户信息为空，请检查设置” | New API 按 `User ID Field` 没有取到值。最常见原因是填了 `id`，应改为 `sub`。 |
+| UserInfo 有 `sub` 但没有用户名或昵称 | 只请求了 `user:email`；增加 `profile` 后重新授权。 |
+| 登录成功但 New API 没有 refresh token | 授权请求缺少 `offline_access`；修改 scope 后重新发起授权。 |
+| “获取用户信息失败” | UserInfo 返回非 200。查看 New API 日志中的 `GetUserInfo failed: status=...`：`401` 检查 Bearer 头与 access token，`404` 检查 User Info Endpoint。 |
+| `invalid_client` | Client ID 或 Client Secret 错误、密钥只轮换了一端，或同时使用 Basic 与表单参数。 |
+| `invalid_grant` | 授权码已使用/已过期、`redirect_uri` 不一致，或 refresh token 已轮换/撤销。 |
+| `invalid_scope` | 请求了 NekoAuth 客户端未登记的 scope。先在该 OAuth 应用配置中增加对应 scope。 |
+| 回调提示 `redirect_uri 未在应用中登记` | NekoAuth 中登记的回调必须与 New API 实际回调完全一致，包括协议、域名、路径与末尾 `/`。 |
+| 浏览器报 `ERR_HTTP2_PROTOCOL_ERROR` 或白屏 | 不要同时启用源站与 CDN 压缩；保持 `server.compression.enabled: false`，由 CDN 统一压缩，并清理 CDN 的 `/assets/*` 缓存。 |
+
+NekoAuth 的 `WWW-Authenticate` 响应头只包含 ASCII 的 `Bearer error="invalid_token"`，中文错误说明放在 JSON 的 `error_description` 中。若日志出现 `WWW-Authenticate ... removed ... UnmappableCharacterException`，说明运行的是旧版本，应重新构建并部署。
+
+排查 UserInfo 时可以用无令牌和伪令牌各请求一次：
+
+```bash
+curl -sS -i https://auth.nekocore.cn/oauth2/userinfo
+curl -sS -i https://auth.nekocore.cn/oauth2/userinfo \
+  -H 'Authorization: Bearer dummy-token'
+```
+
+第一次应返回“缺少访问令牌”，第二次应返回“访问令牌无效或已过期”。如果第一次正常而 NekoAI 仍报 UserInfo 失败，请直接查看 New API 服务端的 `[OAuth-Generic-<slug>] ExchangeToken response status`、`GetUserInfo response status` 与 `GetUserInfo failed` 日志；NekoAuth 登录日志不能替代 New API 的 Provider 日志。
+
 ### 接入示例
 
 先生成长度 43–128 的 `code_verifier`，再计算 `BASE64URL(SHA-256(code_verifier))` 作为 `code_challenge`：
@@ -311,7 +449,7 @@ docker compose down
 cd frontend && npm run build
 ```
 
-后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。
+后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。
 
 ## 目录
 
