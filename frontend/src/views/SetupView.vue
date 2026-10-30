@@ -19,15 +19,14 @@ const showAdminPassword = ref(false)
 const form = reactive<SetupInstallRequest & { adminPasswordConfirm: string }>({
   adminUsername: 'admin',
   adminEmail: '',
-  adminDisplayName: '梦野小梦',
   adminPassword: '',
   adminPasswordConfirm: '',
-  mysqlHost: 'mysql',
+  mysqlHost: '127.0.0.1',
   mysqlPort: 3306,
   mysqlDatabase: 'nekoauth',
   mysqlUsername: 'nekoauth',
   mysqlPassword: '',
-  redisHost: 'redis',
+  redisHost: '127.0.0.1',
   redisPort: 6379,
   redisPassword: '',
   redisDatabase: 0,
@@ -71,7 +70,6 @@ async function submit() {
     const payload: SetupInstallRequest = {
       adminUsername: form.adminUsername,
       adminEmail: form.adminEmail,
-      adminDisplayName: form.adminDisplayName,
       adminPassword: form.adminPassword,
       mysqlHost: form.mysqlHost,
       mysqlPort: form.mysqlPort,
@@ -199,10 +197,6 @@ async function submit() {
                   <span class="setup-label">用户名</span>
                   <input v-model="form.adminUsername" class="setup-input" :class="{ invalid: fieldError('adminUsername') }" autocomplete="username" maxlength="32" />
                   <span v-if="fieldError('adminUsername')" class="setup-error">{{ fieldError('adminUsername') }}</span>
-                </label>
-                <label class="setup-field">
-                  <span class="setup-label">昵称</span>
-                  <input v-model="form.adminDisplayName" class="setup-input" maxlength="64" />
                 </label>
                 <label class="setup-field span-two">
                   <span class="setup-label">邮箱</span>
