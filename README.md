@@ -1,6 +1,6 @@
 # NekoAuth
 
-NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认、可选安装页面、最小化的 `/account` 账户中心，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 不提供页面。默认部署使用 MySQL 8 与 Redis 7；Compose 首次启动会自动生成并持久化密钥，内置的 `docker` profile 会创建管理员并关闭 `/setup` 安装入口。
+NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认、可选安装页面、最小化的 `/account` 账户中心，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 不提供页面。默认部署复用宿主机 MySQL/MariaDB 与 Redis；Docker Compose 只启动认证服务并使用 host 网络，现有数据库、Redis 数据与 `data/` 中的签名密钥保持不变。
 
 ## 功能
 
@@ -28,29 +28,26 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - MySQL 8 / MariaDB 10.6+、Redis 7、H2 / PostgreSQL
 - JJWT 0.13、Vue 3.5、TypeScript、Vite、Vue Router
 
-## 快速开始（Docker Compose）
+## 快速开始（Docker Compose，复用宿主机服务）
 
-要求 Docker 24+ 与 Compose v2。首次启动不需要手工创建密钥文件，也不需要 `config/application.yml`：
+要求 Docker 24+ 与 Compose v2，并确保宿主机上的 MySQL/MariaDB 与 Redis 已运行。Compose 只创建 `auth` 容器，使用 host 网络直接连接 `127.0.0.1:3306` 与 `127.0.0.1:6379`，不会创建 MySQL、Redis 容器或隔离数据卷。
 
-- `secrets-init` 会在命名卷 `auth-secrets` 中自动生成数据库密码、JWT 密钥、MySQL root 密码和管理员密码，后续重启与重建复用。
-- 内置 `docker` profile 自动连接 Compose 内的 MySQL/Redis，启用 HTTPS Cookie、生产 issuer，并关闭安装向导。
-- 如需使用自己生成的密钥，可继续放在 `config/secrets/`；Compose 启动时会优先复制这些文件到命名卷。
-- 如需固定管理员密码，可在首次启动前设置 `NEKO_ADMIN_PASSWORD`（6–30 字符）。用户名、邮箱、issuer 和 CORS Origin 可分别用 `NEKO_ADMIN_USERNAME`、`NEKO_ADMIN_EMAIL`、`NEKO_OAUTH_ISSUER`、`NEKO_CORS_ORIGIN` 覆盖。
+容器挂载：
 
-启动整套服务：
+- `./data:/app/data`：复用现有 `nekoauth-setup.yml`、`.setup-complete` 与 OAuth 签名私钥。
+- `./config:/app/config:ro`：可选的外部启动配置。
+- 默认使用宿主机 UID/GID `1000:1000` 读取 `data/` 中的 `0600` 文件；其他用户请在 `.env` 设置 `NEKO_UID` 与 `NEKO_GID`。
 
-```bash
-docker compose up -d --build
-docker compose logs -f auth
-```
-
-首次启动后读取自动生成的管理员密码：
+确保旧 NekoAuth 已停止且 `65534` 端口空闲，然后启动：
 
 ```bash
-docker compose exec auth cat /run/secrets/admin_password
+printf 'NEKO_UID=%s\nNEKO_GID=%s\n' "$(id -u)" "$(id -g)" > .env
+sudo docker compose up -d --build
+sudo docker compose ps
+sudo docker compose logs -f --tail=200 auth
 ```
 
-若通过 `NEKO_ADMIN_PASSWORD` 或 `config/secrets/admin_password` 指定了密码，则直接使用指定值。自动生成的密钥保存在 `auth-secrets` 数据卷中；`docker compose down` 不会删除，`docker compose down -v` 会删除。
+现有的 `data/nekoauth-setup.yml` 会提供数据库、Redis、JWT 密钥与管理员配置；Compose 环境额外启用 HTTPS Cookie、生产 issuer 与 CORS。停止服务使用 `docker compose down`，不会删除宿主机 MySQL/Redis 或 `data/`。
 
 首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员只能通过直接访问 `/admin` 进入管理后台，登录页和其他公共页面均不显示管理员入口；也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置。普通用户登录后进入 `/account`，只能查看只读资料、修改密码和管理自己的登录会话。
 
@@ -85,29 +82,19 @@ docker compose exec auth cat /run/secrets/admin_password
 - 注册必须通过 SMTP 发送邮箱验证码；服务端强制同一邮箱 60 秒内只能发送一次、滚动 24 小时最多发送 5 次。验证码 10 分钟内有效、最多允许输错 5 次，验证成功后立即删除且不可复用。注册页会展示当前支持的邮箱域名、有效期与发送限制，这些时间参数由公开注册策略接口返回。
 - SMTP 关闭或配置不完整时，注册验证码接口返回明确错误，新用户无法完成注册；启用后可使用“保存并发送测试”验证服务器、端口、加密方式、认证信息与发件地址。
 - SMTP 密码不会通过 API 回显，使用由 `auth.jwt.secret` 派生的 AES-GCM 密钥加密后落库。**更换 JWT 密钥后，已保存的 SMTP 密码将无法解密，需要在设置页重新填写。**
-- 端口、数据库、Redis、JWT、Cookie、CORS、管理员引导、安装向导与 OAuth 签名等启动级配置由内置 `docker` profile 或可选的 `config/application.yml` 提供，不会暴露给管理员网页修改。
+- 端口、数据库、Redis、JWT、Cookie、CORS、管理员引导、安装向导与 OAuth 签名等启动级配置由 `data/nekoauth-setup.yml`、Compose 环境变量或可选的 `config/application.yml` 提供，不会暴露给管理员网页修改。
 
-内置 `docker` profile 设置 `auth.setup.enabled: false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 只在 Compose 内部网络开放，不映射到宿主机公网。
+Compose 设置 `AUTH_SETUP_ENABLED=false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 使用宿主机现有服务，Compose 不会创建或暴露额外数据库端口。
 
-`mysql-data`、`redis-data`、`nekoauth-data` 与 `auth-secrets` 分别保存数据库、Redis AOF、OAuth RS256 签名私钥，以及自动生成或从 `config/secrets/` 覆盖的密钥。备份时必须同时备份 MySQL、`nekoauth-data` 与 `auth-secrets`；丢失签名私钥后，已有令牌与 JWKS 将无法继续验证。
+数据库与 Redis 数据由宿主机现有服务管理；OAuth RS256 签名私钥保存在项目内的 `data/oauth-signing-key.pem`。备份时必须同时备份 MySQL 与该私钥；丢失签名私钥后，已有令牌与 JWKS 将无法继续验证。
 
 ## 本地开发
 
-要求 Java 27、Node.js 22.18+ 或 24.12+。先用开发覆盖文件把 MySQL 与 Redis 映射到本机回环地址：
+要求 Java 27、Node.js 22.18+ 或 24.12+，并确保宿主机 MySQL/MariaDB 与 Redis 已运行。已有 `data/nekoauth-setup.yml` 与 `data/.setup-complete` 时，后端会直接读取当前部署状态：
 
 ```bash
-cp config/application.example.yml config/application.yml
-mkdir -p config/secrets
-printf '%s' "$(openssl rand -base64 48)" > config/secrets/db_password
-printf '%s' "$(openssl rand -base64 48)" > config/secrets/jwt_secret
-printf '%s' "$(openssl rand -base64 48)" > config/secrets/mysql_root_password
-printf '%s' 'ChangeMe-2026-NekoAuth' > config/secrets/admin_password
-chmod 600 config/secrets/*
-
-docker compose -f compose.yml -f compose.dev.yml up -d mysql redis
-
 # 终端 1：后端，默认监听 65534
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+./mvnw spring-boot:run
 
 # 终端 2：前端，默认监听 5173，并将 /api 代理到后端
 cd frontend
@@ -115,7 +102,7 @@ npm ci
 npm run dev
 ```
 
-`config/application-local.yml` 会把 MySQL 与 Redis 地址切换到本机回环端口，并把 `configtree` 切回工作目录下的 `config/secrets/`，因此本机运行不需要 root 权限。访问 `http://localhost:5173/login`；Vite 开发服务器只代理 `/api`，涉及 OAuth 浏览器跳转时应通过后端的 `http://localhost:65534` 验证完整流程。
+访问 `http://localhost:5173/login`；涉及 OAuth 浏览器跳转时应通过后端的 `http://localhost:65534` 验证完整流程。全新环境可改用安装向导生成 `data/nekoauth-setup.yml`。
 
 ## 生产构建
 
@@ -126,7 +113,7 @@ npm run dev
 java -jar target/NekoAuth-1.0.0.jar
 ```
 
-直接运行 jar 时，应用会从工作目录加载 `config/application.yml`；请保持 `auth.setup.enabled: false`，并提供可用的 MySQL 与 Redis。若要读取工作目录下的 `config/secrets/`，可追加 `--spring.config.import=optional:configtree:./config/secrets/`，或启用 `local` profile。Maven 在 `generate-resources` 阶段调用 `scripts/build-frontend.sh`，Vite 将产物直接写入 `src/main/resources/site`，随后被打入 jar。只构建后端时可加 `-Dneko.frontend.skip=true`。
+直接运行 jar 时，存在 `data/.setup-complete` 与 `data/nekoauth-setup.yml` 会自动加载当前数据库、Redis 与管理员配置；也可另外创建 `config/application.yml` 覆盖启动级配置。Maven 在 `generate-resources` 阶段调用 `scripts/build-frontend.sh`，Vite 将产物直接写入 `src/main/resources/site`，随后被打入 jar。只构建后端时可加 `-Dneko.frontend.skip=true`。
 
 静态资源缓存策略：`/assets/**` 使用 Vite 文件指纹并返回 `public, max-age=31536000, immutable`；入口 HTML、SPA 路由、安装页面和全部 `/api/**` 响应返回 `Cache-Control: no-store`，避免 CDN 缓存登录页或敏感数据。
 
@@ -404,7 +391,7 @@ curl -sS https://auth.fantasy.network/oauth2/userinfo \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-授权码只能使用一次；刷新令牌每次使用都会轮换，旧令牌再次出现时会撤销对应授权链。RS256 签名私钥首次启动时生成并持久化到 `oauth.key-file`（Compose 默认数据卷中的 `data/oauth-signing-key.pem`），请与数据库一起备份并限制读取权限。
+授权码只能使用一次；刷新令牌每次使用都会轮换，旧令牌再次出现时会撤销对应授权链。RS256 签名私钥首次启动时生成并持久化到 `oauth.key-file`（Compose 挂载的 `data/oauth-signing-key.pem`），请与数据库一起备份并限制读取权限。
 
 ## Docker Compose 运维
 
@@ -416,17 +403,17 @@ docker compose logs -f auth
 # 更新代码后重建认证服务
 docker compose up -d --build auth
 
-# 仅停止服务，保留 MySQL、Redis 与签名私钥数据卷
+# 仅停止认证容器，宿主机 MySQL/Redis 与 data/ 均不受影响
 docker compose down
 ```
 
 生产环境应把认证服务放在 HTTPS 反向代理之后，设置 `auth.cookie.secure: true`，并确保 `oauth.issuer` 与外部访问根地址完全一致。反向代理需保留 `Host` 并传递 `X-Forwarded-Proto`；`auth.cors.allowed-origins` 必须包含浏览器实际访问的完整 Origin（例如 `https://auth.nekocore.cn`），否则登录 POST 会被 Spring 以 `Invalid CORS request` 拒绝。源站默认关闭 HTTP 压缩，由 CDN 或反向代理统一启用 gzip/brotli；不要在源站与 CDN 同时压缩，否则部分 CDN 会保留未压缩的 `Content-Length`，导致浏览器报 `ERR_HTTP2_PROTOCOL_ERROR` 并白屏。
 
-不要用 `docker compose down -v` 做常规重启，它会删除数据库、Redis AOF、OAuth 签名私钥和自动生成的认证密钥。若确实需要完全重建环境，请先备份并确认不再需要现有账户、令牌与客户端配置。
+当前 Compose 不使用命名数据卷，`docker compose down -v` 不会删除宿主机 MySQL/Redis 或 `data/`；但仍不要手工删除 `data/oauth-signing-key.pem`，否则已有令牌与 JWKS 将无法继续验证。
 
 ## 配置
 
-生产 Compose 使用内置 `docker` profile，从 `auth-secrets` 卷挂载的 `/run/secrets/` 读取自动生成或由 `config/secrets/` 覆盖的密钥，不需要 `config/application.yml`。需要覆盖启动级配置时再创建 `config/application.yml`。本地开发启用 `local` profile，由 `config/application-local.yml` 覆盖数据库、Redis 地址与密钥目录；`config/secrets/` 通过 Spring `configtree` 导入，文件名即配置键名。
+生产 Compose 使用 host 网络并挂载现有 `data/`，数据库、Redis、JWT 密钥与管理员引导来自 `data/nekoauth-setup.yml`。需要覆盖 Cookie、issuer、CORS 或数据库连接时，使用 Compose 环境变量或创建 `config/application.yml`；Compose 不会再生成隔离数据库或密钥。
 
 时间统一使用中国标准时间 UTC+8（`Asia/Shanghai`），不按 UTC 存储或输出。JDBC 连接参数、Hibernate JDBC 时区与 Jackson 时区必须保持一致；MySQL 使用 `serverTimezone=Asia/Shanghai`，MariaDB 使用 `timezone=Asia/Shanghai`。数据库中的 `datetime/timestamp` 墙钟值直接表示 UTC+8；API 中的 `Instant` 统一序列化为带 `+08:00` 偏移的 ISO-8601 字符串（例如 `2026-10-31T02:00:00+08:00`），不会输出 `Z`，客户端不需要再做时区换算。
 
@@ -434,9 +421,9 @@ docker compose down
 | --- | --- | --- |
 | `server.port` | `65534` | HTTP 端口 |
 | `server.compression.enabled` | `false` | 源站 HTTP 压缩；CDN 已启用压缩时保持关闭 |
-| `spring.datasource.url` | H2 内存数据库 | Compose 示例为 MySQL 8 JDBC 地址；内存库仅用于安装向导和临时调试，不生成文件 |
-| `spring.datasource.username` | `sa` | Compose 示例为 `nekoauth` |
-| `spring.datasource.password` | 空 | Compose 示例读取 `${db_password}` |
+| `spring.datasource.url` | H2 内存数据库 | Docker 复用 `data/nekoauth-setup.yml` 中的宿主机 MySQL/MariaDB 地址；内存库仅用于安装向导和临时调试 |
+| `spring.datasource.username` | `sa` | Docker 由 `data/nekoauth-setup.yml` 提供 |
+| `spring.datasource.password` | 空 | Docker 由 `data/nekoauth-setup.yml` 提供 |
 | `spring.data.redis.host` | 未设置 | 设置后启用 Redis 共享登录限流 |
 | `spring.data.redis.port` | `6379` | Redis 端口 |
 | `spring.data.redis.database` | `0` | Redis 数据库编号 |
@@ -463,7 +450,7 @@ docker compose down
 | `auth.bootstrap-admin.email` | 空 | 首次启动创建管理员的邮箱 |
 | `auth.bootstrap-admin.password` | 空 | 初始管理员密码；长度 6-30 个字符 |
 | `oauth.issuer` | `http://localhost:65534` | OAuth/OIDC issuer 与元数据根地址；公网部署必须是 HTTPS |
-| `oauth.key-file` | `./data/oauth-signing-key.pem` | RS256 签名私钥路径；Compose 下位于数据卷 |
+| `oauth.key-file` | `./data/oauth-signing-key.pem` | RS256 签名私钥路径；Compose 下挂载为 `/app/data` |
 | `oauth.authorization-code-ttl` | `5m` | 授权码有效期 |
 | `oauth.access-token-ttl` | `1h` | OAuth 访问令牌有效期 |
 | `oauth.id-token-ttl` | `10m` | OIDC ID Token 有效期 |
@@ -555,7 +542,7 @@ docker compose down
 - Compose 默认关闭安装入口；可选安装向导在完成后同样由 Servlet 过滤器直接返回 404，不依赖前端隐藏。
 - 安装和服务连接过程不会把 MySQL/MariaDB、Redis 或管理员密码写入日志。
 - 安装文件以临时文件 + 原子移动写入，使用 POSIX `0600` 权限；完成标记使用独占创建。
-- 首次启动可由 `docker` profile（或 `config/application.yml`）创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户；安装向导通过一次性标记让安装页密码在首次重启中生效，并在同步成功后删除标记。
+- 首次启动可由 `data/nekoauth-setup.yml`（或 `config/application.yml`）创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户；安装向导通过一次性标记让安装页密码在首次重启中生效，并在同步成功后删除标记。
 - 用户密码使用 Argon2i 参数 `t=10`、`m=65536 KiB`、`p=1`；密码长度 6-30 个字符。
 - 注册人机验证使用服务端生成的图形挑战，答案只保存带服务端密钥的 HMAC-SHA256 摘要；挑战一次性消费，5 分钟过期，错误 3 次后删除。
 - 注册与找回密码验证码使用 `SecureRandom` 生成，数据库只保存带服务端密钥的 HMAC-SHA256 摘要，并记录用途防止跨流程复用；验证码 10 分钟过期、最多 5 次尝试，成功或失败次数耗尽后立即删除。发送限流使用独立记录，60 秒冷却与滚动 24 小时 5 次上限不随验证码删除而重置。
@@ -570,7 +557,7 @@ docker compose down
 - OAuth 访问令牌仅在 `profile` scope 下包含用户名、仅在 `roles` scope 下包含角色；RS256 私钥落盘到受限数据目录，JWKS 仅暴露公钥。
 - 管理后台保存的 SMTP 密码使用 AES-GCM 加密，设置接口不回显明文；认证失败、连接失败或测试收件地址被拒绝时，测试邮件接口返回 `502 MAIL_SEND_FAILED`，不会静默成功。
 
-生产环境至少必须：使用 HTTPS、设置 `auth.cookie.secure: true`、保持 `auth.setup.enabled: false`、使用独立数据库账号、备份 `nekoauth-data`，并在反向代理层增加更严格的限流与审计。
+生产环境至少必须：使用 HTTPS、设置 `auth.cookie.secure: true`、保持 `auth.setup.enabled: false`、使用独立数据库账号、备份 MySQL 与 `data/oauth-signing-key.pem`，并在反向代理层增加更严格的限流与审计。
 
 ## 日志
 
@@ -608,5 +595,5 @@ frontend/src/assets/catgirl/              梦幻网络猫娘主题 WebP 插画
 scripts/build-frontend.sh                 Vite 前端构建到 src/main/resources/site
 scripts/build.sh                          前端构建 + 后端 jar 打包
 Dockerfile / compose.yml                  生产镜像与 MySQL、Redis 编排
-compose.dev.yml                           本地开发时映射 MySQL 与 Redis 回环端口
+Docker Compose 默认复用宿主机 MySQL/Redis，详见 README 快速开始。
 ```
