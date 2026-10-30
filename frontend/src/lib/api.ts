@@ -8,6 +8,7 @@ import type {
   PageResponse,
   RegistrationCaptcha,
   RegistrationPolicy,
+  Session,
   SettingsUpdate,
   SetupInstallRequest,
   SetupResult,
@@ -189,6 +190,25 @@ export const api = {
 
   me() {
     return request<User>('/auth/me')
+  },
+
+  changePassword(currentPassword: string, newPassword: string) {
+    return request<void>('/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+  },
+
+  sessions() {
+    return request<Session[]>('/auth/sessions')
+  },
+
+  revokeSession(id: number) {
+    return request<void>(`/auth/sessions/${id}`, { method: 'DELETE' })
+  },
+
+  revokeAllSessions() {
+    return request<void>('/auth/sessions', { method: 'DELETE' })
   },
 
   registrationPolicy() {

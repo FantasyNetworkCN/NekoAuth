@@ -26,6 +26,16 @@ export interface VerificationCodeSent {
   resendAfterSeconds: number
 }
 
+export interface Session {
+  id: number
+  ipAddress: string | null
+  userAgent: string | null
+  createdAt: string
+  lastUsedAt: string | null
+  expiresAt: string
+  current: boolean
+}
+
 export interface RegistrationCaptcha {
   id: string
   image: string

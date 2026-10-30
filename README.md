@@ -1,6 +1,6 @@
 # NekoAuth
 
-NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认与可选安装页面，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 和普通用户后台不提供。默认部署使用 MySQL 8 与 Redis 7，管理员由 `config/application.yml` 在首次启动时创建；生产 Compose 会关闭 `/setup` 安装入口。
+NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认、可选安装页面、最小化的 `/account` 账户中心，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 不提供页面。默认部署使用 MySQL 8 与 Redis 7，管理员由 `config/application.yml` 在首次启动时创建；生产 Compose 会关闭 `/setup` 安装入口。
 
 ## 功能
 
@@ -9,13 +9,13 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 14 天刷新令牌，`HttpOnly + SameSite` Cookie 保存
 - 刷新令牌轮换、SHA-256 哈希落库、重放检测与授权链撤销
 - 修改密码后立即失效所有旧访问令牌与刷新会话
-- API 支持设备会话管理、密码修改与全部会话退出；不提供用户后台或个人资料页
+- 用户登录后可通过 `/account` 查看只读账户资料、修改密码、管理登录设备与退出全部会话
 - 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态、OAuth 应用与运行设置
 - 注册邮箱默认只允许 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`，可在 `/admin/settings` 修改
 - `/admin/settings` 可维护注册开关、邮箱域名白名单、SMTP 服务器、认证信息、发件地址与发件人名称；SMTP 同时承担注册验证码与测试邮件发送
 - 用户密码使用 Argon2i（10 次、64 MiB、并行度 1）
 - 表结构由 JPA 实体自动管理，支持 H2、PostgreSQL、MySQL、MariaDB
-- 仅保留猫娘主题的登录、注册、OAuth 授权确认、可选安装页与管理员后台；`/admin`、`/admin/clients`、`/admin/settings` 仅限 ADMIN，`/`、`/app/**` 返回 404
+- 仅保留猫娘主题的登录、注册、账户中心、OAuth 授权确认、可选安装页与管理员后台；`/account` 需要登录，`/admin`、`/admin/clients`、`/admin/settings` 仅限 ADMIN，`/`、`/app/**` 返回 404
 - OAuth 2.0 授权码 + PKCE S256，OIDC 发现、JWKS、UserInfo、自省与撤销
 - OAuth 访问令牌按 scope 最小化声明；管理员通过 `/admin/clients` 或 `/api/admin/oauth-clients` 管理回调地址、scope、公共/机密客户端与密钥轮换
 - 兼容 GitHub 风格的 `user:email` 请求，并规范化为 OIDC 的 `email` scope
@@ -62,11 +62,11 @@ docker compose up -d --build
 docker compose logs -f auth
 ```
 
-首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员只能通过直接访问 `/admin` 进入管理后台，登录页和其他公共页面均不显示管理员入口；也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置。普通成员没有用户后台。
+首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员只能通过直接访问 `/admin` 进入管理后台，登录页和其他公共页面均不显示管理员入口；也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置。普通用户登录后进入 `/account`，只能查看只读资料、修改密码和管理自己的登录会话。
 
 ## 管理入口
 
-管理后台不提供公共的可点击入口，也不会在普通登录后自动跳转；请手动在浏览器打开 `https://<认证服务域名>/admin`。未登录时会跳转到 `/login?redirect=/admin`，使用 ADMIN 账户登录后会返回管理页；普通成员登录后只会看到“没有管理员权限”的提示，不会渲染任何用户后台页面。
+管理后台不提供公共的可点击入口，也不会作为普通登录后的落点；请管理员手动在浏览器打开 `https://<认证服务域名>/admin`。未登录时会跳转到 `/login?redirect=/admin`，使用 ADMIN 账户登录后会返回管理页；普通成员直接访问管理地址时只会看到“没有管理员权限”的提示。
 
 管理后台包含：
 
@@ -75,6 +75,15 @@ docker compose logs -f auth
 - `/admin/settings`：注册开关、邮箱域名白名单、SMTP、发件地址与测试邮件
 
 生产环境也可以直接调用 `/api/admin/**` 完成同样操作。根路径 `/` 与 `/app/**` 不提供页面，始终返回 404。
+
+## 账户中心
+
+普通用户登录或注册完成后进入 `/account`。该页面只提供最小化的自助能力：
+
+- 查看显示名称、用户名、邮箱、用户 ID、加入时间与最近登录时间；邮箱和显示名称均为只读。
+- 修改密码；成功后服务端会让所有旧访问令牌与刷新会话立即失效，并要求重新登录。
+- 查看当前账户的活跃登录设备，可按会话撤销其他设备，或退出全部设备。
+- 默认不显示任何管理员入口；ADMIN 仍需手动访问 `/admin`。
 
 ### 运行设置
 

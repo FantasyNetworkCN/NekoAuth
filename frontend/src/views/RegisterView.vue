@@ -159,7 +159,7 @@ async function submit() {
     if (redirectTarget.value) {
       await router.replace(redirectTarget.value)
     } else {
-      await router.replace({ name: 'login', query: { reason: 'registered' } })
+      await router.replace({ name: 'account' })
     }
   } catch (caught) {
     if (caught instanceof ApiError) {

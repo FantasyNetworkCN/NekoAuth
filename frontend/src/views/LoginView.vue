@@ -16,7 +16,6 @@ const showPassword = ref(false)
 const loading = ref(false)
 const loggingOut = ref(false)
 const error = ref('')
-const loginSuccess = ref('')
 
 const redirectTarget = computed(() => {
   const value = route.query.redirect
@@ -49,8 +48,8 @@ async function submit() {
       await router.replace(redirectTarget.value)
       return
     }
-    loginSuccess.value = `登录成功，${name}。此页面仅提供身份 API 与 OAuth 授权，请从发起登录的应用继续。`
     showToast(`欢迎回来，${name}`, 'success')
+    await router.replace({ name: 'account' })
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '网络异常，请稍后重试'
   } finally {
@@ -76,19 +75,15 @@ async function logout() {
     :title="isOAuthFlow ? '确认身份，继续冒险' : '欢迎回到梦幻网络'"
     :subtitle="isOAuthFlow
       ? '小梦正在把你的身份交给发起授权的应用。登录后就能看到它申请的权限喵。'
-      : '使用梦幻网络通行证登录，继续访问已接入的 OAuth 应用。'"
+      : '使用梦幻网络通行证登录，管理密码与登录设备，或继续访问已接入的 OAuth 应用。'"
   >
     <div v-if="signedInWithoutRedirect" class="notice-banner">
       <AppIcon name="check" :size="17" />
-      <span>当前已登录为 {{ auth.state.user?.displayName || auth.state.user?.username }}。此服务只提供 API 与 OAuth 授权，不提供用户后台。</span>
+      <span>当前已登录为 {{ auth.state.user?.displayName || auth.state.user?.username }}。</span>
+      <RouterLink class="btn btn-secondary btn-small notice-action" :to="{ name: 'account' }">账户管理</RouterLink>
       <button class="btn btn-ghost btn-small notice-action" type="button" :disabled="loggingOut" @click="logout">
         退出账户
       </button>
-    </div>
-
-    <div v-if="loginSuccess" class="notice-banner">
-      <AppIcon name="check" :size="17" />
-      <span>{{ loginSuccess }}</span>
     </div>
 
     <div v-if="notice" class="notice-banner">
