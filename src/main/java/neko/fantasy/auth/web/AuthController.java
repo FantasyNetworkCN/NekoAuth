@@ -10,6 +10,7 @@ import neko.fantasy.auth.security.UserPrincipal;
 import neko.fantasy.auth.service.AuthCookieService;
 import neko.fantasy.auth.service.AuthService;
 import neko.fantasy.auth.service.EmailVerificationService;
+import neko.fantasy.auth.service.RegistrationCaptchaService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,12 +33,15 @@ public class AuthController {
     private final AuthService authService;
     private final AuthCookieService cookieService;
     private final EmailVerificationService emailVerificationService;
+    private final RegistrationCaptchaService captchaService;
 
     public AuthController(AuthService authService, AuthCookieService cookieService,
-                          EmailVerificationService emailVerificationService) {
+                          EmailVerificationService emailVerificationService,
+                          RegistrationCaptchaService captchaService) {
         this.authService = authService;
         this.cookieService = cookieService;
         this.emailVerificationService = emailVerificationService;
+        this.captchaService = captchaService;
     }
 
     @PostMapping("/register")
@@ -52,10 +56,18 @@ public class AuthController {
     public ApiResponses.VerificationCodeSent registrationCode(
             @Valid @RequestBody AuthRequests.RegistrationCode request
     ) {
+        captchaService.verifyAndConsume(request.captchaId(), request.captchaAnswer());
         EmailVerificationService.CodeDelivery delivery =
                 emailVerificationService.sendRegistrationCode(request.email());
         return new ApiResponses.VerificationCodeSent(
                 delivery.message(), delivery.expiresInSeconds(), delivery.resendAfterSeconds());
+    }
+
+    @GetMapping("/register/captcha")
+    public ApiResponses.RegistrationCaptcha registrationCaptcha() {
+        RegistrationCaptchaService.IssuedCaptcha captcha = captchaService.issue();
+        return new ApiResponses.RegistrationCaptcha(
+                captcha.id(), captcha.image(), captcha.expiresInSeconds());
     }
 
     @PostMapping("/login")

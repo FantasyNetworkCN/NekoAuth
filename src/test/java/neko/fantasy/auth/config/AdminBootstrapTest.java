@@ -117,6 +117,7 @@ class AdminBootstrapTest {
                 null,
                 new AuthProperties.BootstrapAdmin(username, email, password),
                 null,
+                null,
                 new AuthProperties.Setup(stateDirectory.toString(), "test-token", true)
         );
     }

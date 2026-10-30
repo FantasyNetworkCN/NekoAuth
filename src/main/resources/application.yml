@@ -53,6 +53,10 @@ auth:
     window: 5m
   registration:
     require-email-verification: true
+    email-code-cooldown: 60s
+    email-code-daily-limit: 5
+    email-code-window: 24h
+    captcha-ttl: 5m
   setup:
     state-dir: ./data
     token:

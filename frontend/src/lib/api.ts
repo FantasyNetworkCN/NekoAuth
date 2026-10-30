@@ -6,6 +6,7 @@ import type {
   OAuthAuthorizeView,
   OAuthClient,
   PageResponse,
+  RegistrationCaptcha,
   RegistrationPolicy,
   SettingsUpdate,
   SetupInstallRequest,
@@ -166,10 +167,18 @@ export const api = {
     )
   },
 
-  requestRegistrationCode(email: string) {
+  registrationCaptcha() {
+    return request<RegistrationCaptcha>(
+      '/auth/register/captcha',
+      {},
+      { auth: false, retry: false },
+    )
+  },
+
+  requestRegistrationCode(email: string, captchaId: string, captchaAnswer: string) {
     return request<VerificationCodeSent>(
       '/auth/register/code',
-      { method: 'POST', body: JSON.stringify({ email }) },
+      { method: 'POST', body: JSON.stringify({ email, captchaId, captchaAnswer }) },
       { auth: false, retry: false },
     )
   },

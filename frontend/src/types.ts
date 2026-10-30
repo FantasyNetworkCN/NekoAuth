@@ -26,6 +26,12 @@ export interface VerificationCodeSent {
   resendAfterSeconds: number
 }
 
+export interface RegistrationCaptcha {
+  id: string
+  image: string
+  expiresInSeconds: number
+}
+
 export interface PageResponse<T> {
   content: T[]
   page: number

@@ -38,6 +38,9 @@ public final class ApiResponses {
     public record VerificationCodeSent(String message, long expiresInSeconds, long resendAfterSeconds) {
     }
 
+    public record RegistrationCaptcha(String id, String image, long expiresInSeconds) {
+    }
+
     public record Error(Instant timestamp, int status, String code, String message,
                         Map<String, String> fields) {
     }

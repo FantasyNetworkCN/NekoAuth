@@ -11,6 +11,7 @@ const route = useRoute()
 const router = useRouter()
 const form = reactive({
   email: '',
+  captchaAnswer: '',
   verificationCode: '',
   password: '',
   confirmPassword: '',
@@ -21,6 +22,12 @@ const sendingCode = ref(false)
 const codeCooldown = ref(0)
 const error = ref('')
 const fieldErrors = ref<Record<string, string>>({})
+const captcha = reactive({
+  id: '',
+  image: '',
+  expiresInSeconds: 300,
+  loading: false,
+})
 const registrationPolicy = ref({
   enabled: true,
   emailVerificationRequired: true,
@@ -82,18 +89,49 @@ function startCooldown(seconds: number) {
   }, 1000)
 }
 
+async function loadCaptcha() {
+  if (captcha.loading) return
+  captcha.loading = true
+  form.captchaAnswer = ''
+  try {
+    const result = await api.registrationCaptcha()
+    captcha.id = result.id
+    captcha.image = result.image
+    captcha.expiresInSeconds = result.expiresInSeconds
+    fieldErrors.value = { ...fieldErrors.value, captcha: '' }
+  } catch {
+    captcha.id = ''
+    captcha.image = ''
+    fieldErrors.value = { ...fieldErrors.value, captcha: '人机验证加载失败，请点击刷新重试' }
+  } finally {
+    captcha.loading = false
+  }
+}
+
 async function sendCode() {
   if (sendingCode.value || codeCooldown.value > 0 || !registrationPolicy.value.enabled) return
   const emailError = emailValidationError()
-  fieldErrors.value = emailError ? { email: emailError } : {}
-  if (emailError) return
+  const errors: Record<string, string> = {}
+  if (emailError) errors.email = emailError
+  if (!captcha.id) errors.captcha = '人机验证尚未加载，请刷新后重试'
+  else if (!/^[A-Za-z0-9]{5}$/.test(form.captchaAnswer.trim())) {
+    errors.captcha = '请输入图中的 5 位人机验证码'
+  }
+  fieldErrors.value = errors
+  if (Object.keys(errors).length > 0) return
 
   error.value = ''
   sendingCode.value = true
   try {
-    const result = await api.requestRegistrationCode(form.email.trim())
+    const result = await api.requestRegistrationCode(
+      form.email.trim(),
+      captcha.id,
+      form.captchaAnswer.trim().toUpperCase(),
+    )
+    form.verificationCode = ''
     startCooldown(result.resendAfterSeconds)
     showToast(result.message, 'success')
+    await loadCaptcha()
   } catch (caught) {
     if (caught instanceof ApiError) {
       error.value = caught.message
@@ -101,6 +139,7 @@ async function sendCode() {
     } else {
       error.value = '验证码发送失败，请稍后重试'
     }
+    await loadCaptcha()
   } finally {
     sendingCode.value = false
   }
@@ -135,6 +174,7 @@ async function submit() {
 }
 
 onMounted(async () => {
+  void loadCaptcha()
   try {
     registrationPolicy.value = await api.registrationPolicy()
   } catch {
@@ -178,6 +218,43 @@ onUnmounted(() => {
         <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
       </label>
 
+      <div v-if="registrationPolicy.emailVerificationRequired" class="field captcha-field">
+        <span class="field-label">人机验证</span>
+        <div class="captcha-row">
+          <button
+            class="captcha-visual"
+            type="button"
+            :disabled="captcha.loading"
+            aria-label="刷新人机验证码"
+            @click="loadCaptcha"
+          >
+            <img v-if="captcha.image" :src="captcha.image" alt="人机验证码图片，点击刷新" />
+            <span v-else>{{ captcha.loading ? '加载中…' : '点击加载' }}</span>
+          </button>
+          <span class="input-shell captcha-input" :class="{ 'has-error': fieldErrors.captcha }">
+            <AppIcon name="shield-cat" :size="18" />
+            <input
+              v-model="form.captchaAnswer"
+              name="captchaAnswer"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              placeholder="5 位字符"
+              maxlength="5"
+              pattern="[A-Za-z0-9]{5}"
+              required
+            />
+          </span>
+          <button class="captcha-refresh" type="button" :disabled="captcha.loading" aria-label="换一张人机验证码" @click="loadCaptcha">
+            <AppIcon name="refresh" :size="16" />
+          </button>
+        </div>
+        <span class="field-hint">验证码一次性使用；点击图片或刷新按钮可换一张。</span>
+        <span v-if="fieldErrors.captcha" class="field-error">{{ fieldErrors.captcha }}</span>
+      </div>
+
       <label v-if="registrationPolicy.emailVerificationRequired" class="field">
         <span class="field-label">邮箱验证码</span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.verificationCode }">
@@ -196,13 +273,13 @@ onUnmounted(() => {
           <button
             class="input-action code-action"
             type="button"
-            :disabled="sendingCode || codeCooldown > 0 || !registrationPolicy.enabled"
+            :disabled="sendingCode || codeCooldown > 0 || captcha.loading || !captcha.id || !registrationPolicy.enabled"
             @click="sendCode"
           >
             {{ sendingCode ? '发送中…' : codeCooldown > 0 ? `${codeCooldown}s 后重发` : '获取验证码' }}
           </button>
         </span>
-        <span class="field-hint">验证码 10 分钟内有效，请检查垃圾邮件目录。</span>
+        <span class="field-hint">验证码 10 分钟内有效；同一邮箱 60 秒内只能发送一次，24 小时最多 5 次。</span>
         <span v-if="fieldErrors.verificationCode" class="field-error">{{ fieldErrors.verificationCode }}</span>
       </label>
 
@@ -291,6 +368,62 @@ onUnmounted(() => {
 .code-action:disabled {
   cursor: default;
   opacity: 0.48;
+}
+
+.captcha-row {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr) 34px;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.captcha-visual {
+  display: grid;
+  height: 42px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 203, 239, 0.14);
+  border-radius: 10px;
+  color: #8a789e;
+  background: rgba(20, 12, 31, 0.78);
+  font-size: 0.58rem;
+  place-items: center;
+  cursor: pointer;
+}
+
+.captcha-visual img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.captcha-visual:disabled,
+.captcha-refresh:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.captcha-input {
+  min-width: 0;
+}
+
+.captcha-input input {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.captcha-refresh {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255, 203, 239, 0.13);
+  border-radius: 10px;
+  color: #d7a7cc;
+  background: rgba(255, 255, 255, 0.035);
+  place-items: center;
+  cursor: pointer;
 }
 
 .password-meter {

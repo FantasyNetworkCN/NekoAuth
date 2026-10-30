@@ -40,13 +40,13 @@ public class MailService {
     public void sendRegistrationCode(String recipient, SettingsService.SmtpConfig config,
                                      String code, Duration ttl) {
         send(config, recipient, "[" + config.serviceName() + "] 注册验证码", """
-                你的 %s 注册验证码是：
+                你的注册验证码是：
 
                 %s
 
                 验证码 %d 分钟内有效且只能使用一次。请勿将验证码转发给他人。
                 如果这不是你本人操作，请忽略这封邮件。
-                """.formatted(config.serviceName(), code, ttl.toMinutes()));
+                """.formatted(code, ttl.toMinutes()));
     }
 
     private void send(SettingsService.SmtpConfig config, String recipient,

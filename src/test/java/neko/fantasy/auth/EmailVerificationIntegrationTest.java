@@ -1,9 +1,11 @@
 package neko.fantasy.auth;
 
 import neko.fantasy.auth.repository.EmailVerificationCodeRepository;
+import neko.fantasy.auth.repository.EmailVerificationSendLimitRepository;
 import neko.fantasy.auth.settings.MailSecurity;
 import neko.fantasy.auth.settings.MailService;
 import neko.fantasy.auth.settings.SettingsService;
+import neko.fantasy.auth.service.RegistrationCaptchaService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,13 +17,16 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,6 +42,12 @@ class EmailVerificationIntegrationTest {
     @Autowired
     private EmailVerificationCodeRepository codeRepository;
 
+    @Autowired
+    private EmailVerificationSendLimitRepository sendLimitRepository;
+
+    @Autowired
+    private RegistrationCaptchaService captchaService;
+
     @MockitoBean
     private SettingsService settingsService;
 
@@ -48,10 +59,11 @@ class EmailVerificationIntegrationTest {
         String email = uniqueEmail();
         SettingsService.SmtpConfig smtp = smtpConfig();
         when(settingsService.getSmtpConfig()).thenReturn(smtp);
+        Captcha captcha = newCaptcha();
 
         mockMvc.perform(post("/api/auth/register/code")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\"}"))
+                        .content(codeRequest(email, captcha)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("验证码已发送，请查收邮件"))
                 .andExpect(jsonPath("$.expiresInSeconds").value(600))
@@ -78,10 +90,11 @@ class EmailVerificationIntegrationTest {
     void registrationRejectsWrongCodeWithoutConsumingTheDelivery() throws Exception {
         String email = uniqueEmail();
         when(settingsService.getSmtpConfig()).thenReturn(smtpConfig());
+        Captcha captcha = newCaptcha();
 
         mockMvc.perform(post("/api/auth/register/code")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\"}"))
+                        .content(codeRequest(email, captcha)))
                 .andExpect(status().isOk());
 
         ArgumentCaptor<String> code = ArgumentCaptor.forClass(String.class);
@@ -104,15 +117,18 @@ class EmailVerificationIntegrationTest {
     void resendWithinCooldownIsRejected() throws Exception {
         String email = uniqueEmail();
         when(settingsService.getSmtpConfig()).thenReturn(smtpConfig());
+        Captcha firstCaptcha = newCaptcha();
 
         mockMvc.perform(post("/api/auth/register/code")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\"}"))
+                        .content(codeRequest(email, firstCaptcha)))
                 .andExpect(status().isOk());
 
+        codeRepository.deleteById(email);
+        Captcha secondCaptcha = newCaptcha();
         mockMvc.perform(post("/api/auth/register/code")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\"}"))
+                        .content(codeRequest(email, secondCaptcha)))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("EMAIL_CODE_COOLDOWN"));
 
@@ -120,8 +136,91 @@ class EmailVerificationIntegrationTest {
                 eq(email), eq(smtpConfig()), anyString(), eq(Duration.ofMinutes(10)));
     }
 
+    @Test
+    void captchaMustBeSolvedAndCanOnlyBeUsedOnce() throws Exception {
+        String email = uniqueEmail();
+        when(settingsService.getSmtpConfig()).thenReturn(smtpConfig());
+
+        mockMvc.perform(post("/api/auth/register/code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.captchaId").exists())
+                .andExpect(jsonPath("$.fields.captchaAnswer").exists());
+
+        Captcha captcha = newCaptcha();
+        mockMvc.perform(post("/api/auth/register/code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(codeRequest(email, captcha)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/register/code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(codeRequest(email, captcha)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CAPTCHA_INVALID"));
+
+        verify(mailService).sendRegistrationCode(
+                eq(email), eq(smtpConfig()), anyString(), eq(Duration.ofMinutes(10)));
+    }
+
+    @Test
+    void captchaEndpointReturnsOneTimeImageChallenge() throws Exception {
+        mockMvc.perform(get("/api/auth/register/captcha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.image").value(org.hamcrest.Matchers.startsWith("data:image/svg+xml;base64,")))
+                .andExpect(jsonPath("$.expiresInSeconds").value(300));
+    }
+
+    @Test
+    void emailCanReceiveAtMostFiveCodesPerDay() throws Exception {
+        String email = uniqueEmail();
+        SettingsService.SmtpConfig smtp = smtpConfig();
+        when(settingsService.getSmtpConfig()).thenReturn(smtp);
+
+        for (int index = 0; index < 5; index++) {
+            Captcha captcha = newCaptcha();
+            mockMvc.perform(post("/api/auth/register/code")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(codeRequest(email, captcha)))
+                    .andExpect(status().isOk());
+            clearCooldown(email);
+        }
+
+        Captcha rejectedCaptcha = newCaptcha();
+        mockMvc.perform(post("/api/auth/register/code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(codeRequest(email, rejectedCaptcha)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("EMAIL_CODE_DAILY_LIMIT"));
+
+        verify(mailService, times(5)).sendRegistrationCode(
+                eq(email), eq(smtp), anyString(), eq(Duration.ofMinutes(10)));
+    }
+
     private static String uniqueEmail() {
         return "verify_" + UUID.randomUUID().toString().substring(0, 8) + "@gmail.com";
+    }
+
+    private Captcha newCaptcha() {
+        RegistrationCaptchaService.IssuedCaptcha issued = captchaService.issue();
+        return new Captcha(issued.id(), issued.answer());
+    }
+
+    private void clearCooldown(String email) {
+        var limit = sendLimitRepository.findById(email).orElseThrow();
+        limit.setLastSentAt(Instant.now().minusSeconds(61));
+        sendLimitRepository.saveAndFlush(limit);
+    }
+
+    private static String codeRequest(String email, Captcha captcha) {
+        return """
+                {"email":"%s","captchaId":"%s","captchaAnswer":"%s"}
+                """.formatted(email, captcha.id(), captcha.answer());
+    }
+
+    private record Captcha(String id, String answer) {
     }
 
     private static SettingsService.SmtpConfig smtpConfig() {

@@ -12,6 +12,7 @@ public record AuthProperties(
         Cors cors,
         BootstrapAdmin bootstrapAdmin,
         RateLimit rateLimit,
+        Registration registration,
         Setup setup
 ) {
 
@@ -28,6 +29,15 @@ public record AuthProperties(
     }
 
     public record RateLimit(int attempts, Duration window) {
+    }
+
+    public record Registration(
+            boolean requireEmailVerification,
+            Duration emailCodeCooldown,
+            int emailCodeDailyLimit,
+            Duration emailCodeWindow,
+            Duration captchaTtl
+    ) {
     }
 
     public record Setup(String stateDir, String token, boolean enabled) {

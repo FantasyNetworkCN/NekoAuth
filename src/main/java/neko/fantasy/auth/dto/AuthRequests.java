@@ -32,7 +32,15 @@ public final class AuthRequests {
             @NotBlank(message = "邮箱不能为空")
             @Email(message = "邮箱格式不正确")
             @Size(max = 100, message = "邮箱不能超过 100 个字符")
-            String email
+            String email,
+
+            @NotBlank(message = "请先获取人机验证码")
+            @Size(max = 36, message = "人机验证码无效")
+            String captchaId,
+
+            @NotBlank(message = "请输入人机验证码")
+            @Pattern(regexp = "^[A-Za-z0-9]{5}$", message = "人机验证码需为 5 位字母或数字")
+            String captchaAnswer
     ) {
     }
 

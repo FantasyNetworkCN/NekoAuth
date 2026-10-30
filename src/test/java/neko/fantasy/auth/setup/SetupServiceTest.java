@@ -22,6 +22,7 @@ class SetupServiceTest {
                 null,
                 null,
                 null,
+                null,
                 new AuthProperties.Setup(stateDirectory.toString(), "test-token", true)
         );
         SetupService service = new SetupService(properties, new PasswordPolicy());
@@ -49,6 +50,7 @@ class SetupServiceTest {
                 null,
                 null,
                 null,
+                null,
                 new AuthProperties.Setup(stateDirectory.toString(), "unused-token", false)
         );
 
@@ -60,6 +62,7 @@ class SetupServiceTest {
     @Test
     void installationWritesOneTimeAdminBootstrapMarker() {
         AuthProperties properties = new AuthProperties(
+                null,
                 null,
                 null,
                 null,

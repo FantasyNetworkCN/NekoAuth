@@ -51,7 +51,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/setup", "/setup/**", "/api/setup/**").permitAll()
                         .requestMatchers("/.well-known/**", "/oauth2/**").permitAll()
-                        .requestMatchers("/api/auth/register", "/api/auth/register/code", "/api/auth/login",
+                        .requestMatchers("/api/auth/register", "/api/auth/register/code",
+                                "/api/auth/register/captcha", "/api/auth/login",
                                 "/api/auth/refresh", "/api/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/registration-policy").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/oauth/authorize").permitAll()
