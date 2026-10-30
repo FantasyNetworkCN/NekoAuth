@@ -23,7 +23,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:65534',
+        target: 'https://auth.nekocore.cn',
         changeOrigin: true,
       },
     },

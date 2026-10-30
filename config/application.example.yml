@@ -28,5 +28,5 @@ auth:
     enabled: false
 
 oauth:
-  issuer: http://localhost:65534
+  issuer: https://auth.nekocore.cn
   key-file: /app/data/oauth-signing-key.pem

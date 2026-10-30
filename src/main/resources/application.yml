@@ -59,7 +59,7 @@ auth:
     enabled: true
 
 oauth:
-  issuer: http://localhost:65534
+  issuer: https://auth.nekocore.cn
   key-file: ./data/oauth-signing-key.pem
   authorization-code-ttl: 5m
   access-token-ttl: 1h
