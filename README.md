@@ -398,6 +398,8 @@ docker compose down
 
 生产配置以 `config/application.yml` 为主，默认从 `/run/secrets/` 读取 Docker secrets；本地开发启用 `local` profile，由 `config/application-local.yml` 覆盖数据库、Redis 地址与密钥目录。`config/secrets/` 通过 Spring `configtree` 导入，文件名即配置键名。
 
+时间统一使用中国标准时间 UTC+8（`Asia/Shanghai`），不按 UTC 存储或输出。JDBC 连接参数、Hibernate JDBC 时区与 Jackson 时区必须保持一致；MySQL 使用 `serverTimezone=Asia/Shanghai`，MariaDB 使用 `timezone=Asia/Shanghai`。数据库中的 `datetime/timestamp` 墙钟值与 API 返回的本地时间均直接表示 UTC+8，不需要客户端再做时区换算。
+
 | YAML 配置项 | 内置默认值 | 说明 |
 | --- | --- | --- |
 | `server.port` | `65534` | HTTP 端口 |
