@@ -47,10 +47,10 @@ public class SetupService {
     private static final Logger log = LoggerFactory.getLogger(SetupService.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String MYSQL_URL_SUFFIX =
-            "?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"
+            "?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai"
                     + "&connectTimeout=5000&socketTimeout=5000&allowPublicKeyRetrieval=true&sslMode=PREFERRED";
     private static final String MARIADB_URL_SUFFIX =
-            "?useUnicode=true&characterEncoding=UTF-8&timezone=UTC"
+            "?useUnicode=true&characterEncoding=UTF-8&timezone=Asia/Shanghai"
                     + "&connectTimeout=5000&socketTimeout=5000&allowPublicKeyRetrieval=true";
     private static final Set<PosixFilePermission> PRIVATE_FILE_PERMISSIONS =
             PosixFilePermissions.fromString("rw-------");

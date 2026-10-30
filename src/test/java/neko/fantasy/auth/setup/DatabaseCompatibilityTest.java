@@ -16,12 +16,12 @@ class DatabaseCompatibilityTest {
     void convertsLegacyMysqlUrlToMariaDbOptions() {
         String converted = DatabaseCompatibility.toMariaDbUrl(
                 "jdbc:mysql://127.0.0.1:3306/nekoauth"
-                        + "?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"
+                        + "?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai"
                         + "&connectTimeout=5000&socketTimeout=5000&allowPublicKeyRetrieval=true&sslMode=PREFERRED");
 
         assertThat(converted)
                 .startsWith("jdbc:mariadb://127.0.0.1:3306/nekoauth?")
-                .contains("timezone=UTC")
+                .contains("timezone=Asia/Shanghai")
                 .contains("connectTimeout=5000")
                 .doesNotContain("serverTimezone=")
                 .doesNotContain("sslMode=");

@@ -18,9 +18,9 @@ spring:
     properties:
       hibernate:
         jdbc:
-          time_zone: UTC
+          time_zone: Asia/Shanghai
   jackson:
-    time-zone: UTC
+    time-zone: Asia/Shanghai
     default-property-inclusion: non_null
   data:
     redis:

@@ -5,7 +5,7 @@ spring:
   config:
     import: optional:configtree:/run/secrets/
   datasource:
-    url: jdbc:mysql://mysql:3306/nekoauth?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&connectTimeout=5000&socketTimeout=5000&allowPublicKeyRetrieval=true&sslMode=PREFERRED
+    url: jdbc:mysql://mysql:3306/nekoauth?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&connectTimeout=5000&socketTimeout=5000&allowPublicKeyRetrieval=true&sslMode=PREFERRED
     username: nekoauth
     password: ${db_password}
   data:
