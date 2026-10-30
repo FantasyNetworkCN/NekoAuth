@@ -67,11 +67,6 @@ function formatDuration(seconds: number) {
   return `${value} 秒`
 }
 
-const registrationCodeNotice = computed(() => {
-  const policy = registrationPolicy.value
-  return `验证码 ${formatDuration(policy.emailCodeExpiresInSeconds)}内有效；同一邮箱 ${formatDuration(policy.emailCodeResendAfterSeconds)}内只能发送一次，${formatDuration(policy.emailCodeWindowSeconds)}内最多 ${policy.emailCodeDailyLimit} 次。`
-})
-
 function emailValidationError() {
   if (!/^\S+@\S+\.\S+$/.test(form.email)) return '请输入有效的邮箱'
   if (form.email.trim().length > 100) return '邮箱不能超过 100 个字符'
@@ -225,15 +220,6 @@ onUnmounted(() => {
       <span>当前暂未开放新用户注册，请联系猫屋管理员。</span>
     </div>
 
-    <div v-if="registrationPolicy.enabled && registrationPolicy.emailVerificationRequired" class="registration-guide">
-      <span class="registration-guide-icon"><AppIcon name="mail" :size="18" /></span>
-      <div>
-        <strong>注册前须知</strong>
-        <p>支持邮箱：{{ registrationPolicy.emailDomains.join('、') }}</p>
-        <p>{{ registrationCodeNotice }}</p>
-      </div>
-    </div>
-
     <form class="auth-form" novalidate @submit.prevent="submit">
       <label class="field">
         <span class="field-label">邮箱地址</span>
@@ -241,7 +227,6 @@ onUnmounted(() => {
           <AppIcon name="mail" :size="18" />
           <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="you@qq.com" maxlength="100" required />
         </span>
-        <span class="field-hint">支持邮箱：{{ registrationPolicy.emailDomains.join('、') }}</span>
         <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
       </label>
 
@@ -306,7 +291,6 @@ onUnmounted(() => {
             {{ sendingCode ? '发送中…' : codeCooldown > 0 ? `${codeCooldown}s 后重发` : '获取验证码' }}
           </button>
         </span>
-        <span class="field-hint">{{ registrationCodeNotice }}</span>
         <span v-if="fieldErrors.verificationCode" class="field-error">{{ fieldErrors.verificationCode }}</span>
       </label>
 
