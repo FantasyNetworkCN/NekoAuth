@@ -44,6 +44,38 @@ public final class AuthRequests {
     ) {
     }
 
+    public record PasswordResetCode(
+            @NotBlank(message = "邮箱不能为空")
+            @Email(message = "邮箱格式不正确")
+            @Size(max = 100, message = "邮箱不能超过 100 个字符")
+            String email,
+
+            @NotBlank(message = "请先获取人机验证码")
+            @Size(max = 36, message = "人机验证码无效")
+            String captchaId,
+
+            @NotBlank(message = "请输入人机验证码")
+            @Pattern(regexp = "^[A-Za-z0-9]{5}$", message = "人机验证码需为 5 位字母或数字")
+            String captchaAnswer
+    ) {
+    }
+
+    public record ResetPassword(
+            @NotBlank(message = "邮箱不能为空")
+            @Email(message = "邮箱格式不正确")
+            @Size(max = 100, message = "邮箱不能超过 100 个字符")
+            String email,
+
+            @NotBlank(message = "请输入邮箱验证码")
+            @Pattern(regexp = "^\\d{6}$", message = "邮箱验证码需为 6 位数字")
+            String code,
+
+            @NotBlank(message = "请输入新密码")
+            @Size(min = 6, max = 30, message = "新密码长度需为 6-30 个字符")
+            String newPassword
+    ) {
+    }
+
     public record Login(
             @NotBlank(message = "请输入用户名或邮箱")
             @Size(max = 254, message = "用户名或邮箱过长")

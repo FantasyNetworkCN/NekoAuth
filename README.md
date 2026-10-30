@@ -458,7 +458,9 @@ docker compose down
 | `POST` | `/api/auth/logout` | 退出当前会话 |
 | `GET` | `/api/auth/me` | 当前用户 |
 | `PATCH` | `/api/auth/me` | 昵称不可修改，固定返回 `409 PROFILE_IMMUTABLE` |
-| `POST` | `/api/auth/password` | 修改密码并撤销全部会话 |
+| `POST` | `/api/auth/password` | 登录后修改密码，撤销 Auth 登录会话与已签发的 OAuth refresh token |
+| `POST` | `/api/auth/password/reset-code` | 获取人机验证码后向邮箱发送找回密码验证码；提交 `email/captchaId/captchaAnswer` |
+| `POST` | `/api/auth/password/reset` | 使用 `email/code/newPassword` 重置密码，并撤销全部 Auth 登录会话与 OAuth refresh token |
 | `GET` | `/api/auth/sessions` | 活跃设备会话 |
 | `DELETE` | `/api/auth/sessions/{id}` | 撤销指定会话 |
 | `DELETE` | `/api/auth/sessions` | 撤销全部会话 |
@@ -498,6 +500,19 @@ docker compose down
 - 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。
 - 管理员不设置昵称：安装向导不要求昵称，`bootstrap-admin` 不再接受 `display-name`；管理员 API、后台与 OIDC 资料统一使用用户名，`nickname` 不返回。
 
+### 找回密码
+
+找回密码使用与注册相同的图形人机验证码和邮箱验证码基础设施：
+
+1. `GET /api/auth/register/captcha` 获取一次性图形挑战。
+2. `POST /api/auth/password/reset-code` 提交 `email`、`captchaId`、`captchaAnswer`。接口不会透露邮箱是否注册：已注册邮箱会收到 6 位验证码，未注册邮箱不会发信，但响应状态与文案完全一致。
+3. `POST /api/auth/password/reset` 提交 `email`、`code`、`newPassword`。验证码只能用于找回密码，不能拿去注册；验证成功后立即消费。
+4. 重置成功后，用户 `tokenVersion` 递增，Auth 的 refresh token 与所有 OAuth refresh token 被撤销；现有 access token 也会因版本不匹配立即失效，客户端需要重新登录。
+
+验证码 10 分钟有效、最多尝试 5 次；同一邮箱 60 秒内只能发送一次，滚动 24 小时最多发送 5 次。发送限流记录与验证码记录分离，验证码被消费或删除不会解除发送冷却。
+
+注册与找回密码验证码在数据库中都只保存 HMAC-SHA256 摘要，并带有用途标记。修改密码与找回密码都会撤销 Auth 登录会话及 OAuth 授权刷新令牌；已经由 OAuth 换取到第三方应用本地的会话属于该应用自己的会话，只有应用实现对应的注销或撤销回调时才能同步失效。
+
 ### 用户 ID 与密码格式
 
 - 用户 ID 由实体上的 `@TableGenerator` 分配，从 `1000000` 开始逐个递增；不依赖数据库厂商的 `AUTO_INCREMENT` 起始值。
@@ -512,11 +527,11 @@ docker compose down
 - 首次启动可由 `config/application.yml` 创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户；安装向导通过一次性标记让安装页密码在首次重启中生效，并在同步成功后删除标记。
 - 用户密码使用 Argon2i 参数 `t=10`、`m=65536 KiB`、`p=1`；密码长度 6-30 个字符。
 - 注册人机验证使用服务端生成的图形挑战，答案只保存带服务端密钥的 HMAC-SHA256 摘要；挑战一次性消费，5 分钟过期，错误 3 次后删除。
-- 注册验证码使用 `SecureRandom` 生成，数据库只保存带服务端密钥的 HMAC-SHA256 摘要；验证码 10 分钟过期、最多 5 次尝试，成功或失败次数耗尽后立即删除。发送限流使用独立记录，60 秒冷却与滚动 24 小时 5 次上限不随验证码删除而重置。
+- 注册与找回密码验证码使用 `SecureRandom` 生成，数据库只保存带服务端密钥的 HMAC-SHA256 摘要，并记录用途防止跨流程复用；验证码 10 分钟过期、最多 5 次尝试，成功或失败次数耗尽后立即删除。发送限流使用独立记录，60 秒冷却与滚动 24 小时 5 次上限不随验证码删除而重置。
 - 新用户 ID 从 `1000000` 开始；OAuth 客户端密钥使用 BCrypt cost 12。
 - JWT 仅存 JS 内存。刷新令牌不暴露给 JavaScript，数据库只保存其 SHA-256 哈希。
 - 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，撤销该用户在同一 OAuth 客户端下的全部活动刷新令牌。
-- 用户 `tokenVersion` 使密码修改、角色变化或停用立即让旧 JWT 失效。
+- 用户 `tokenVersion` 使密码修改、密码重置、角色变化或停用立即让旧 JWT 失效；修改或重置密码还会撤销全部 Auth refresh token 与 OAuth refresh token。
 - API 使用无状态安全上下文；Cookie 刷新端点配合 `SameSite=Strict` 和受限 CORS。
 - CSP 禁止内联脚本，并禁用 iframe 嵌入；HSTS 在 HTTPS 下由 Spring Security 输出。
 - 公共客户端强制 PKCE S256；授权码短期有效、只保存哈希且只能交换一次。

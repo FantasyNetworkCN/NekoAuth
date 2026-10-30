@@ -2,11 +2,13 @@ package neko.fantasy.auth.service;
 
 import jakarta.servlet.http.HttpServletRequest;
 import neko.fantasy.auth.config.AuthProperties;
+import neko.fantasy.auth.domain.EmailVerificationPurpose;
 import neko.fantasy.auth.domain.RefreshToken;
 import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.dto.ApiResponses;
 import neko.fantasy.auth.dto.AuthRequests;
 import neko.fantasy.auth.exception.ApiException;
+import neko.fantasy.auth.oauth.OAuthRefreshTokenRepository;
 import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.security.JwtService;
@@ -34,6 +36,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final OAuthRefreshTokenRepository oauthRefreshTokenRepository;
     private final UserPasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
     private final JwtService jwtService;
@@ -44,12 +47,14 @@ public class AuthService {
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
+                       OAuthRefreshTokenRepository oauthRefreshTokenRepository,
                        UserPasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy,
                        JwtService jwtService, AuthProperties properties,
                        LoginRateLimiter rateLimiter, SettingsService settingsService,
                        EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.oauthRefreshTokenRepository = oauthRefreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.passwordPolicy = passwordPolicy;
         this.jwtService = jwtService;
@@ -78,7 +83,8 @@ public class AuthService {
         }
 
         if (emailVerificationService.isRequired()) {
-            emailVerificationService.verifyAndConsume(email, request.verificationCode());
+            emailVerificationService.verifyAndConsume(
+                    email, request.verificationCode(), EmailVerificationPurpose.REGISTRATION);
         }
 
         User user = new User();
@@ -191,7 +197,31 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         user.incrementTokenVersion();
         userRepository.saveAndFlush(user);
-        refreshTokenRepository.revokeAllForUser(user.getId(), Instant.now());
+        revokeSessionsAndOAuthGrants(user.getId());
+    }
+
+    public EmailVerificationService.CodeDelivery sendPasswordResetCode(String email) {
+        return emailVerificationService.sendPasswordResetCode(email);
+    }
+
+    @Transactional
+    public void resetPassword(AuthRequests.ResetPassword request) {
+        passwordPolicy.validate(request.newPassword());
+        String email = normalizeEmail(request.email());
+        emailVerificationService.verifyAndConsume(
+                email, request.code(), EmailVerificationPurpose.PASSWORD_RESET);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> ApiException.badRequest(
+                        "PASSWORD_RESET_INVALID", "邮箱或验证码不正确"));
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw ApiException.badRequest("PASSWORD_UNCHANGED", "新密码不能与当前密码相同");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.incrementTokenVersion();
+        userRepository.saveAndFlush(user);
+        revokeSessionsAndOAuthGrants(user.getId());
     }
 
     @Transactional(readOnly = true)
@@ -223,6 +253,12 @@ public class AuthService {
     @Transactional
     public void revokeAllSessions(Long userId) {
         refreshTokenRepository.revokeAllForUser(userId, Instant.now());
+    }
+
+    private void revokeSessionsAndOAuthGrants(Long userId) {
+        Instant now = Instant.now();
+        refreshTokenRepository.revokeAllForUser(userId, now);
+        oauthRefreshTokenRepository.revokeAllForUser(userId, now);
     }
 
     @Scheduled(cron = "0 23 4 * * *")

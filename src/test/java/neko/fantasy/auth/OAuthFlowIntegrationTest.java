@@ -209,6 +209,46 @@ class OAuthFlowIntegrationTest {
     }
 
     @Test
+    void passwordChangeRevokesOAuthRefreshTokens() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        String clientId = createPublicClient(adminToken);
+        String username = "oauth_reset_" + UUID.randomUUID().toString().substring(0, 8);
+        String userToken = register(username);
+        String verifier = randomUrlToken(48);
+        String challenge = base64UrlSha256(verifier);
+        String code = codeFor(userToken, clientId, "openid offline_access", challenge);
+
+        MvcResult tokenResult = mockMvc.perform(post("/oauth2/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("grant_type", "authorization_code")
+                        .param("client_id", clientId)
+                        .param("code", code)
+                        .param("redirect_uri", REDIRECT_URI)
+                        .param("code_verifier", verifier))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.refresh_token").isNotEmpty())
+                .andReturn();
+        String refreshToken = JsonPath.read(
+                tokenResult.getResponse().getContentAsString(), "$.refresh_token");
+
+        mockMvc.perform(post("/api/auth/password")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword":"Password123","newPassword":"NewPassword456"}
+                                """))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/oauth2/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("grant_type", "refresh_token")
+                        .param("client_id", clientId)
+                        .param("refresh_token", refreshToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"));
+    }
+
+    @Test
     void discoveryJwksAndAuthorizationValidationAreAvailable() throws Exception {
         mockMvc.perform(get("/.well-known/openid-configuration"))
                 .andExpect(status().isOk())

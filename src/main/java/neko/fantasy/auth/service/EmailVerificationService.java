@@ -2,6 +2,7 @@ package neko.fantasy.auth.service;
 
 import neko.fantasy.auth.config.AuthProperties;
 import neko.fantasy.auth.domain.EmailVerificationCode;
+import neko.fantasy.auth.domain.EmailVerificationPurpose;
 import neko.fantasy.auth.domain.EmailVerificationSendLimit;
 import neko.fantasy.auth.exception.ApiException;
 import neko.fantasy.auth.repository.EmailVerificationCodeRepository;
@@ -9,6 +10,8 @@ import neko.fantasy.auth.repository.EmailVerificationSendLimitRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.settings.MailService;
 import neko.fantasy.auth.settings.SettingsService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -32,6 +35,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @Service
 public class EmailVerificationService {
 
+    private static final Logger log = LoggerFactory.getLogger(EmailVerificationService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int MAX_ATTEMPTS = 5;
     private static final String HMAC_ALGORITHM = "HmacSHA256";
@@ -96,16 +100,7 @@ public class EmailVerificationService {
         }
 
         SettingsService.SmtpConfig smtp = settingsService.getSmtpConfig();
-        String code = generateCode();
-        ReentrantLock lock = lockFor(email);
-        lock.lock();
-        try {
-            Instant now = Instant.now();
-            transactionTemplate.executeWithoutResult(status -> reserveSend(email, code, now));
-        } finally {
-            lock.unlock();
-        }
-
+        String code = reserveCode(email, EmailVerificationPurpose.REGISTRATION);
         mailService.sendRegistrationCode(email, smtp, code, codeTtl);
         return new CodeDelivery(
                 "验证码已发送，请查收邮件",
@@ -113,8 +108,44 @@ public class EmailVerificationService {
                 resendCooldown.toSeconds());
     }
 
+    /**
+     * 找回密码不暴露邮箱是否注册：存在与不存在的邮箱都会占用同一套发送限流，
+     * 但只有已注册邮箱会真正发信。发信失败只记录服务端日志，避免用响应差异枚举账号。
+     */
+    public CodeDelivery sendPasswordResetCode(String rawEmail) {
+        String email = normalizeEmail(rawEmail);
+        SettingsService.SmtpConfig smtp = settingsService.getSmtpConfig();
+        String code = reserveCode(email, EmailVerificationPurpose.PASSWORD_RESET);
+        if (userRepository.existsByEmail(email)) {
+            Thread.startVirtualThread(() -> {
+                try {
+                    mailService.sendPasswordResetCode(email, smtp, code, codeTtl);
+                } catch (RuntimeException exception) {
+                    log.warn("找回密码验证码邮件发送失败: {}", email, exception);
+                }
+            });
+        }
+        return new CodeDelivery(
+                "如果该邮箱已注册，我们已发送重置密码验证码，请查收邮件",
+                codeTtl.toSeconds(),
+                resendCooldown.toSeconds());
+    }
+
+    private String reserveCode(String email, EmailVerificationPurpose purpose) {
+        String code = generateCode();
+        ReentrantLock lock = lockFor(email);
+        lock.lock();
+        try {
+            Instant now = Instant.now();
+            transactionTemplate.executeWithoutResult(status -> reserveSend(email, code, purpose, now));
+        } finally {
+            lock.unlock();
+        }
+        return code;
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
-    public void verifyAndConsume(String rawEmail, String code) {
+    public void verifyAndConsume(String rawEmail, String code, EmailVerificationPurpose purpose) {
         String email = normalizeEmail(rawEmail);
         if (!StringUtils.hasText(code)) {
             throw ApiException.badRequest("EMAIL_VERIFICATION_REQUIRED", "请先获取邮箱验证码");
@@ -128,6 +159,10 @@ public class EmailVerificationService {
             codeRepository.delete(record);
             throw ApiException.badRequest(
                     "EMAIL_VERIFICATION_EXPIRED", "邮箱验证码已过期，请重新获取");
+        }
+        if (record.getPurpose() != purpose) {
+            throw ApiException.badRequest(
+                    "EMAIL_VERIFICATION_INVALID", "邮箱验证码无效或已过期，请重新获取");
         }
 
         String expected = record.getCodeHash();
@@ -159,7 +194,7 @@ public class EmailVerificationService {
         sendLimitRepository.deleteOlderThan(now.minus(dailyWindow));
     }
 
-    private void reserveSend(String email, String code, Instant now) {
+    private void reserveSend(String email, String code, EmailVerificationPurpose purpose, Instant now) {
         EmailVerificationSendLimit limit = sendLimitRepository.findByEmailForUpdate(email).orElse(null);
         if (limit == null) {
             limit = new EmailVerificationSendLimit();
@@ -199,6 +234,7 @@ public class EmailVerificationService {
             record.setEmail(email);
         }
         record.setCodeHash(hashCode(email, code));
+        record.setPurpose(purpose);
         record.setExpiresAt(now.plus(codeTtl));
         record.setLastSentAt(now);
         record.setAttempts(0);

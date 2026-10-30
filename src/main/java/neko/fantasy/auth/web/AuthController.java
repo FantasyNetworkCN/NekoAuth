@@ -120,6 +120,27 @@ public class AuthController {
                 .build();
     }
 
+    @PostMapping("/password/reset-code")
+    public ApiResponses.VerificationCodeSent passwordResetCode(
+            @Valid @RequestBody AuthRequests.PasswordResetCode request
+    ) {
+        captchaService.verifyAndConsume(request.captchaId(), request.captchaAnswer());
+        EmailVerificationService.CodeDelivery delivery =
+                authService.sendPasswordResetCode(request.email());
+        return new ApiResponses.VerificationCodeSent(
+                delivery.message(), delivery.expiresInSeconds(), delivery.resendAfterSeconds());
+    }
+
+    @PostMapping("/password/reset")
+    public ResponseEntity<Void> resetPassword(
+            @Valid @RequestBody AuthRequests.ResetPassword request
+    ) {
+        authService.resetPassword(request);
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookieService.clear().toString())
+                .build();
+    }
+
     @GetMapping("/sessions")
     public List<ApiResponses.Session> sessions(@AuthenticationPrincipal UserPrincipal principal,
                                                HttpServletRequest request) {

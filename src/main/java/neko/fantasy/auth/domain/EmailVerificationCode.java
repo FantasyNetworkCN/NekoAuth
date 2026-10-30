@@ -2,6 +2,8 @@ package neko.fantasy.auth.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -17,6 +19,10 @@ public class EmailVerificationCode {
 
     @Column(name = "code_hash", nullable = false, length = 64)
     private String codeHash;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 24)
+    private EmailVerificationPurpose purpose;
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
@@ -41,6 +47,14 @@ public class EmailVerificationCode {
 
     public void setCodeHash(String codeHash) {
         this.codeHash = codeHash;
+    }
+
+    public EmailVerificationPurpose getPurpose() {
+        return purpose == null ? EmailVerificationPurpose.REGISTRATION : purpose;
+    }
+
+    public void setPurpose(EmailVerificationPurpose purpose) {
+        this.purpose = purpose;
     }
 
     public Instant getExpiresAt() {

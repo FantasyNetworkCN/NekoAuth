@@ -53,7 +53,8 @@ public class SecurityConfig {
                         .requestMatchers("/.well-known/**", "/oauth2/**").permitAll()
                         .requestMatchers("/api/auth/register", "/api/auth/register/code",
                                 "/api/auth/register/captcha", "/api/auth/login",
-                                "/api/auth/refresh", "/api/auth/logout").permitAll()
+                                "/api/auth/refresh", "/api/auth/logout",
+                                "/api/auth/password/reset-code", "/api/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/registration-policy").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/oauth/authorize").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
