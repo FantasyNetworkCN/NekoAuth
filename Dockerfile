@@ -40,7 +40,7 @@ RUN apt-get update \
 FROM debian:13-slim
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
+    && apt-get install -y --no-install-recommends adduser ca-certificates libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=jdk /opt/java /opt/java
 COPY --from=backend /workspace/target/NekoAuth-1.0.0.jar app.jar
