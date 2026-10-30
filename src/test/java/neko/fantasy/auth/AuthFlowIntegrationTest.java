@@ -59,7 +59,7 @@ class AuthFlowIntegrationTest {
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"%s","email":"%s","displayName":"Test User","password":"Password123"}
+                                {"username":"%s","email":"%s","password":"Password123"}
                                 """.formatted(username, email)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -107,18 +107,19 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void usersStartAtOneMillionAndNekoMusicRegistrationShapeWorks() throws Exception {
+    void usersStartAtOneMillionAndRegistrationFillsImmutableNickname() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
-        String email = "nekomusic_" + suffix + "@example.com";
+        String nickname = "nekomusic_" + suffix;
+        String email = nickname + "@example.com";
 
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nickname":"猫娘","email":"%s","password":"abcdef"}
+                                {"email":"%s","password":"abcdef"}
                                 """.formatted(email)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.user.nickname").value("猫娘"))
-                .andExpect(jsonPath("$.user.displayName").value("猫娘"))
+                .andExpect(jsonPath("$.user.nickname").value(nickname))
+                .andExpect(jsonPath("$.user.displayName").value(nickname))
                 .andExpect(jsonPath("$.user.username").isNotEmpty())
                 .andReturn();
 
@@ -134,28 +135,31 @@ class AuthFlowIntegrationTest {
                                 {"identifier":"%s","password":"abcdef"}
                                 """.formatted(email)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.user.nickname").value("猫娘"));
+                .andExpect(jsonPath("$.user.nickname").value(nickname));
     }
 
     @Test
-    void duplicateNicknameIsAllowedAndLegacyBcryptUpgradesOnLogin() throws Exception {
+    void derivedNicknameAllowsDuplicatesAndLegacyBcryptUpgradesOnLogin() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
-        String firstEmail = "duplicate_a_" + suffix + "@example.com";
-        String secondEmail = "duplicate_b_" + suffix + "@example.com";
+        String nickname = "duplicate_" + suffix;
+        String firstEmail = nickname + "@example.com";
+        String secondEmail = nickname + "@example.org";
 
         MvcResult first = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nickname":"同名猫娘","email":"%s","password":"abcdef"}
+                                {"email":"%s","password":"abcdef"}
                                 """.formatted(firstEmail)))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.displayName").value(nickname))
                 .andReturn();
         MvcResult second = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nickname":"同名猫娘","email":"%s","password":"abcdef"}
+                                {"email":"%s","password":"abcdef"}
                                 """.formatted(secondEmail)))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.displayName").value(nickname))
                 .andReturn();
 
         String firstUsername = JsonPath.read(first.getResponse().getContentAsString(), "$.user.username");
@@ -225,8 +229,11 @@ class AuthFlowIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"displayName\":\"Updated User\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayName").value("Updated User"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PROFILE_IMMUTABLE"));
+
+        assertThat(userRepository.findByEmail(email).orElseThrow().getDisplayName())
+                .isEqualTo(username);
 
         mockMvc.perform(post("/api/auth/logout").cookie(refreshCookie))
                 .andExpect(status().isNoContent())

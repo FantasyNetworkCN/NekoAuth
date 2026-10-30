@@ -79,11 +79,8 @@ public class AuthController {
     }
 
     @PatchMapping("/me")
-    public ApiResponses.User updateProfile(
-            @AuthenticationPrincipal UserPrincipal principal,
-            @Valid @RequestBody AuthRequests.UpdateProfile request
-    ) {
-        return authService.updateProfile(principal.id(), request);
+    public void updateProfile() {
+        throw ApiException.conflict("PROFILE_IMMUTABLE", "昵称注册后不可修改");
     }
 
     @PostMapping("/password")

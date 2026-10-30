@@ -10,7 +10,6 @@ import { showToast } from '@/lib/toast'
 const route = useRoute()
 const router = useRouter()
 const form = reactive({
-  nickname: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -40,8 +39,6 @@ const passwordStrength = computed(() => {
 
 function validate() {
   const errors: Record<string, string> = {}
-  const nickname = form.nickname.trim()
-  if (!nickname || nickname.length > 20) errors.nickname = '昵称长度需为 1-20 个字符'
   if (!/^\S+@\S+\.\S+$/.test(form.email)) errors.email = '请输入有效的邮箱'
   else if (form.email.trim().length > 100) errors.email = '邮箱不能超过 100 个字符'
   if (form.password.length < 6 || form.password.length > 30) errors.password = '密码长度需为 6-30 个字符'
@@ -56,7 +53,6 @@ async function submit() {
   loading.value = true
   try {
     await auth.register({
-      nickname: form.nickname.trim(),
       email: form.email.trim(),
       password: form.password,
     })
@@ -93,15 +89,6 @@ async function submit() {
     </div>
 
     <form class="auth-form" novalidate @submit.prevent="submit">
-      <label class="field">
-        <span class="field-label">昵称 <small>1-20 个字符，可重复</small></span>
-        <span class="input-shell" :class="{ 'has-error': fieldErrors.nickname }">
-          <AppIcon name="spark" :size="18" />
-          <input v-model="form.nickname" name="nickname" type="text" autocomplete="nickname" placeholder="星野小梦" maxlength="20" required />
-        </span>
-        <span v-if="fieldErrors.nickname" class="field-error">{{ fieldErrors.nickname }}</span>
-      </label>
-
       <label class="field">
         <span class="field-label">邮箱地址</span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.email }">

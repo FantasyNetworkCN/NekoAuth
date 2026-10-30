@@ -58,12 +58,6 @@ public class AuthService {
     public AuthResult register(AuthRequests.Register request, HttpServletRequest servletRequest) {
         passwordPolicy.validate(request.password());
         String requestedUsername = trimToNull(request.username());
-        String nickname = trimToNull(request.nickname());
-        String legacyDisplayName = trimToNull(request.displayName());
-        if (requestedUsername == null && nickname == null && legacyDisplayName == null) {
-            throw ApiException.badRequest("NICKNAME_REQUIRED", "昵称不能为空");
-        }
-
         String username = requestedUsername == null
                 ? generateUsername()
                 : requestedUsername.toLowerCase(Locale.ROOT);
@@ -76,13 +70,10 @@ public class AuthService {
             throw ApiException.conflict("EMAIL_TAKEN", "该邮箱已被注册");
         }
 
-        String displayName = nickname != null ? nickname
-                : legacyDisplayName != null ? legacyDisplayName : username;
-
         User user = new User();
         user.setUsername(username);
         user.setEmail(email);
-        user.setDisplayName(displayName);
+        user.setDisplayName(defaultDisplayName(email));
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         Instant authenticatedAt = Instant.now();
         user.setLastLoginAt(authenticatedAt);
@@ -177,13 +168,6 @@ public class AuthService {
     }
 
     @Transactional
-    public ApiResponses.User updateProfile(Long userId, AuthRequests.UpdateProfile request) {
-        User user = requireUser(userId);
-        user.setDisplayName(request.displayName().trim());
-        return ApiResponses.User.from(userRepository.save(user));
-    }
-
-    @Transactional
     public void changePassword(Long userId, AuthRequests.ChangePassword request) {
         passwordPolicy.validate(request.newPassword());
         User user = requireUser(userId);
@@ -265,6 +249,18 @@ public class AuthService {
 
     private static String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String defaultDisplayName(String email) {
+        int separator = email.indexOf('@');
+        String localPart = (separator > 0 ? email.substring(0, separator) : email).strip();
+        if (localPart.isEmpty()) {
+            localPart = "Neko";
+        }
+        if (localPart.codePointCount(0, localPart.length()) <= 20) {
+            return localPart;
+        }
+        return localPart.substring(0, localPart.offsetByCodePoints(0, 20));
     }
 
     private String generateUsername() {

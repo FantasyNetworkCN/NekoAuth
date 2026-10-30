@@ -419,12 +419,12 @@ docker compose down
 | --- | --- | --- |
 | `GET` | `/api/setup/status` | 可选安装状态；安装完成或禁用后返回 404 |
 | `POST` | `/api/setup/install` | 校验并保存安装配置；需要 `X-Setup-Token` |
-| `POST` | `/api/auth/register` | 注册并登录；新客户端使用 `nickname/email/password`，兼容旧 `username/displayName` |
+| `POST` | `/api/auth/register` | 注册并登录；只提交 `email/password`，昵称由服务端生成且不可修改 |
 | `POST` | `/api/auth/login` | 用户名或邮箱登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
 | `POST` | `/api/auth/logout` | 退出当前会话 |
 | `GET` | `/api/auth/me` | 当前用户 |
-| `PATCH` | `/api/auth/me` | 修改昵称 |
+| `PATCH` | `/api/auth/me` | 昵称不可修改，固定返回 `409 PROFILE_IMMUTABLE` |
 | `POST` | `/api/auth/password` | 修改密码并撤销全部会话 |
 | `GET` | `/api/auth/sessions` | 活跃设备会话 |
 | `DELETE` | `/api/auth/sessions/{id}` | 撤销指定会话 |
@@ -452,15 +452,14 @@ docker compose down
 
 ```json
 {
-  "nickname": "星野小梦",
   "email": "neko@example.com",
   "password": "secret123"
 }
 ```
 
-- `nickname` 长度 1-20，允许重复；`email` 长度不超过 100、统一转小写且必须唯一；密码长度 6-30，不强制字母与数字组合。
-- 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。旧客户端继续可显式提交 `username`。
-- `verificationCode` 字段可以被接收以兼容 NekoMusic 注册载荷，但 NekoAuth 当前没有邮件发信和验证码存储流程，因此不会校验它。不要仅凭该字段把邮箱视为已验证。
+- `email` 长度不超过 100、统一转小写且必须唯一；密码长度 6-30，不强制字母与数字组合。
+- 注册页只显示邮箱和密码。昵称取邮箱 `@` 前的部分（最多 20 个 Unicode 字符），允许重复；创建后不能通过用户 API 或网页修改。
+- 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。
 
 ### 用户 ID 与密码格式
 
@@ -494,7 +493,7 @@ docker compose down
 cd frontend && npm run build
 ```
 
-后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、NekoMusic 注册字段、Argon2i 固定哈希、旧 BCrypt 自动升级、重复昵称、根路径 404 与管理员页面转发。
+后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、邮箱派生且不可修改的昵称、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发。
 
 ## 目录
 
