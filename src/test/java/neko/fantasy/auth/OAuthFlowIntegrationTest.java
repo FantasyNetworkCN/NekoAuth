@@ -234,6 +234,15 @@ class OAuthFlowIntegrationTest {
     }
 
     @Test
+    void invalidBearerTokenUsesAsciiAuthenticationHeader() throws Exception {
+        mockMvc.perform(get("/oauth2/userinfo"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"invalid_token\""))
+                .andExpect(jsonPath("$.error").value("invalid_token"))
+                .andExpect(jsonPath("$.error_description").value("缺少访问令牌"));
+    }
+
+    @Test
     void confidentialClientUsesBasicAuthenticationAndMinimalDefaultScope() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         ClientCredentials client = createClient(adminToken, false);

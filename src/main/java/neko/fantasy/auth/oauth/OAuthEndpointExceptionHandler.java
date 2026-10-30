@@ -29,14 +29,9 @@ public class OAuthEndpointExceptionHandler {
         }
         if (exception.getError().equals("invalid_token")) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .header(HttpHeaders.WWW_AUTHENTICATE,
-                            "Bearer error=\"invalid_token\", error_description=\"" + sanitize(exception.getMessage()) + "\"")
+                    .header(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"invalid_token\"")
                     .body(body);
         }
         return ResponseEntity.status(exception.getStatus()).body(body);
-    }
-
-    private static String sanitize(String value) {
-        return value == null ? "" : value.replace("\\\"", "").replace("\"", "");
     }
 }
