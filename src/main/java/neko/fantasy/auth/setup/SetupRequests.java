@@ -27,7 +27,7 @@ public final class SetupRequests {
             String adminDisplayName,
 
             @NotBlank(message = "管理员密码不能为空")
-            @Size(min = 8, max = 64, message = "管理员密码长度需为 8-64 个字符")
+            @Size(min = 6, max = 30, message = "管理员密码长度需为 6-30 个字符")
             String adminPassword,
 
             @NotBlank(message = "MySQL/MariaDB 主机不能为空")

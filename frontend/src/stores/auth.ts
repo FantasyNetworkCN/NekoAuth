@@ -76,7 +76,7 @@ export const auth = {
     apply(payload)
   },
 
-  async register(input: { username: string; email: string; displayName: string; password: string }) {
+  async register(input: { nickname: string; email: string; password: string }) {
     const payload = await api.register(input)
     apply(payload)
   },

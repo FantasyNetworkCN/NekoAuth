@@ -212,7 +212,7 @@ async function submit() {
                 <label class="setup-field">
                   <span class="setup-label">密码</span>
                   <span class="password-wrap">
-                    <input v-model="form.adminPassword" class="setup-input" :class="{ invalid: fieldError('adminPassword') }" :type="showAdminPassword ? 'text' : 'password'" autocomplete="new-password" maxlength="64" />
+                  <input v-model="form.adminPassword" class="setup-input" :class="{ invalid: fieldError('adminPassword') }" :type="showAdminPassword ? 'text' : 'password'" autocomplete="new-password" maxlength="30" />
                     <button type="button" class="password-toggle" :aria-label="showAdminPassword ? '隐藏密码' : '显示密码'" @click="showAdminPassword = !showAdminPassword">
                       <AppIcon :name="showAdminPassword ? 'eye-off' : 'eye'" :size="17" />
                     </button>
@@ -221,7 +221,7 @@ async function submit() {
                 </label>
                 <label class="setup-field">
                   <span class="setup-label">确认密码</span>
-                  <input v-model="form.adminPasswordConfirm" class="setup-input" :type="showAdminPassword ? 'text' : 'password'" autocomplete="new-password" maxlength="64" />
+                  <input v-model="form.adminPasswordConfirm" class="setup-input" :type="showAdminPassword ? 'text' : 'password'" autocomplete="new-password" maxlength="30" />
                 </label>
               </div>
             </section>

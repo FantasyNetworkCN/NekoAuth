@@ -1,6 +1,6 @@
 # NekoAuth
 
-NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务，包含 Spring Boot 后端和 Vue 3 前端。默认部署使用 MySQL 8 与 Redis 7，管理员由 `config/application.yml` 在首次启动时创建；生产 Compose 会关闭 `/setup` 安装入口。
+NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认与可选安装页面；根路径 `/`、管理员后台和用户后台均不再提供。默认部署使用 MySQL 8 与 Redis 7，管理员由 `config/application.yml` 在首次启动时创建；生产 Compose 会关闭 `/setup` 安装入口。
 
 ## 功能
 
@@ -9,14 +9,13 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 14 天刷新令牌，`HttpOnly + SameSite` Cookie 保存
 - 刷新令牌轮换、SHA-256 哈希落库、重放检测与授权链撤销
 - 修改密码后立即失效所有旧访问令牌与刷新会话
-- API 支持设备会话管理、密码修改与全部会话退出（网页端不提供个人资料页）
+- API 支持设备会话管理、密码修改与全部会话退出；不提供用户后台或个人资料页
 - 管理员用户列表、角色调整、账户启停
-- BCrypt(12) 密码哈希、Redis 共享登录限流、统一错误响应、CSP/HSTS 安全头
+- 用户密码使用与 NekoMusic 一致的 Argon2i（10 次、64 MiB、并行度 1），旧 BCrypt 哈希登录后自动升级
 - Flyway 数据库迁移，支持 H2、PostgreSQL、MySQL、MariaDB
-- 猫娘主题的登录、注册、OAuth 授权与管理员猫屋；包含身份卡主视觉、守护者插画和移动端横幅
-- 管理员后台仅通过 `/admin` 访问，未登录会跳转登录页，非管理员无法进入；`/app` 已移除并返回 404
+- 仅保留猫娘主题的登录、注册与 OAuth 授权确认页；直接访问 `/`、`/admin`、`/admin/clients` 均返回 404
 - OAuth 2.0 授权码 + PKCE S256，OIDC 发现、JWKS、UserInfo、自省与撤销
-- OAuth 访问令牌按 scope 最小化声明；管理员 OAuth 应用猫屋支持回调地址、scope、公共/机密客户端与密钥轮换
+- OAuth 访问令牌按 scope 最小化声明；管理员通过 `/api/admin/oauth-clients` 管理回调地址、scope、公共/机密客户端与密钥轮换
 - 兼容 GitHub 风格的 `user:email` 请求，并规范化为 OIDC 的 `email` scope
 - 可选的一次性安装向导，供非 Compose 的本机或特殊部署使用
 
@@ -53,7 +52,7 @@ chmod 600 config/secrets/*
 | `auth.bootstrap-admin.display-name` | 初始管理员昵称 |
 | `auth.setup.enabled` | 生产保持 `false` |
 
-`config/secrets/db_password` 会同时供 Spring 数据源和 MySQL 初始化使用；`config/secrets/admin_password` 必须包含字母和数字，长度为 8-64 个字符。Compose 会把四份文件挂载为 `/run/secrets` 下的 Docker secrets，应用容器以非 root 用户运行也能读取，不依赖宿主机文件的 UID 与 `600` 权限。`config/application.yml` 与 `config/secrets/` 默认已被 Git 和 Docker 构建上下文忽略。
+`config/secrets/db_password` 会同时供 Spring 数据源和 MySQL 初始化使用；`config/secrets/admin_password` 长度为 6-30 个字符，与 NekoMusic 的注册密码规则一致。Compose 会把四份文件挂载为 `/run/secrets` 下的 Docker secrets，应用容器以非 root 用户运行也能读取，不依赖宿主机文件的 UID 与 `600` 权限。`config/application.yml` 与 `config/secrets/` 默认已被 Git 和 Docker 构建上下文忽略。
 
 启动整套服务：
 
@@ -62,7 +61,7 @@ docker compose up -d --build
 docker compose logs -f auth
 ```
 
-打开 `http://<服务器>:65534/login` 即可使用初始管理员登录。首次启动会执行 Flyway 迁移，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。
+首次启动会执行 Flyway 迁移，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。管理员登录后可调用 `/api/admin/**` 管理用户和 OAuth 客户端；`/login` 仅供浏览器 OAuth 流程使用，不再跳转到管理后台。
 
 `config/application.yml` 设置 `auth.setup.enabled: false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 只在 Compose 内部网络开放，不映射到宿主机公网。
 
@@ -115,7 +114,7 @@ java -jar target/NekoAuth-1.0.0.jar
 
 ## OAuth 2.0 与 OIDC
 
-NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。管理员在 `/admin/clients` 登记应用与精确回调地址；普通成员通过 `/authorize` 查看并确认公开的权限范围。
+NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。管理员通过 `/api/admin/oauth-clients` 登记应用与精确回调地址；用户通过 `/authorize` 查看并确认公开的权限范围。除 OAuth 所需的登录、注册和授权确认页外，服务不提供业务页面。
 
 `oauth.issuer` 会写入发现文档、ID Token 的 `iss` 与端点地址，必须是客户端实际访问的公网根地址（例如 `https://auth.fantasy.network`，末尾不要带 `/`）。反向代理需要保留 `Host` 并传递 `X-Forwarded-Proto`。
 
@@ -143,7 +142,21 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 
 #### 1. 在 NekoAuth 登记客户端
 
-在 NekoAuth 的 `/admin/clients` 新建一个**机密客户端**。New API 在服务端交换授权码并调用 UserInfo，因此必须保存 `client_secret`，不能登记为公共客户端。
+先通过 `/api/auth/login` 获取管理员访问令牌，再调用管理 API 新建一个**机密客户端**。New API 在服务端交换授权码并调用 UserInfo，因此必须保存响应中的 `clientSecret`，不能登记为公共客户端：
+
+```bash
+curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "NekoAI",
+    "description": "NekoAI / New API",
+    "redirectUris": ["https://ai.nekocore.cn/oauth/nekoai"],
+    "postLogoutRedirectUris": ["https://ai.nekocore.cn"],
+    "scopes": ["openid", "profile", "email", "offline_access"],
+    "publicClient": false
+  }'
+```
 
 | NekoAuth 字段 | 值 |
 | --- | --- |
@@ -197,7 +210,7 @@ NekoAuth 按 scope 最小化返回声明。UserInfo 无论如何都会返回 `su
 
 ```json
 {
-  "sub": "1",
+  "sub": "1000000",
   "email": "user@example.com",
   "email_verified": true,
   "client_id": "fn_your_client_id"
@@ -220,7 +233,7 @@ user:email profile openid offline_access
 
 ```json
 {
-  "sub": "1",
+  "sub": "1000000",
   "preferred_username": "neko",
   "name": "猫屋管理员小梦",
   "updated_at": 1793370000,
@@ -377,7 +390,7 @@ docker compose down
 | `auth.bootstrap-admin.username` | 空 | 首次启动创建管理员的用户名；需与邮箱、密码同时设置 |
 | `auth.bootstrap-admin.email` | 空 | 首次启动创建管理员的邮箱 |
 | `auth.bootstrap-admin.display-name` | `Neko Admin` | 初始管理员昵称 |
-| `auth.bootstrap-admin.password` | 空 | 初始管理员密码；需包含字母和数字，8-64 个字符 |
+| `auth.bootstrap-admin.password` | 空 | 初始管理员密码；长度 6-30 个字符 |
 | `oauth.issuer` | `http://localhost:65534` | OAuth/OIDC issuer 与元数据根地址；公网部署必须是 HTTPS |
 | `oauth.key-file` | `./data/oauth-signing-key.pem` | RS256 签名私钥路径；Compose 下位于数据卷 |
 | `oauth.authorization-code-ttl` | `5m` | 授权码有效期 |
@@ -395,7 +408,7 @@ docker compose down
 | --- | --- | --- |
 | `GET` | `/api/setup/status` | 可选安装状态；安装完成或禁用后返回 404 |
 | `POST` | `/api/setup/install` | 校验并保存安装配置；需要 `X-Setup-Token` |
-| `POST` | `/api/auth/register` | 注册并登录 |
+| `POST` | `/api/auth/register` | 注册并登录；新客户端使用 `nickname/email/password`，兼容旧 `username/displayName` |
 | `POST` | `/api/auth/login` | 用户名或邮箱登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
 | `POST` | `/api/auth/logout` | 退出当前会话 |
@@ -420,17 +433,42 @@ docker compose down
   "status": 400,
   "code": "VALIDATION_ERROR",
   "message": "提交的数据不符合要求",
-  "fields": { "password": "密码长度需为 8-64 个字符" }
+  "fields": { "password": "密码长度需为 6-30 个字符" }
 }
 ```
+
+注册请求示例：
+
+```json
+{
+  "nickname": "星野小梦",
+  "email": "neko@example.com",
+  "password": "secret123"
+}
+```
+
+- `nickname` 长度 1-20，允许重复；`email` 长度不超过 100、统一转小写且必须唯一；密码长度 6-30，不强制字母与数字组合。
+- 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。旧客户端继续可显式提交 `username`。
+- `verificationCode` 字段可以被接收以兼容 NekoMusic 注册载荷，但 NekoAuth 当前没有邮件发信和验证码存储流程，因此不会校验它。不要仅凭该字段把邮箱视为已验证。
+
+### 用户 ID 与 NekoMusic 迁移
+
+- Flyway `V4` 将新用户自增起点设为 `1000000`，已存在的用户 ID 不变；`refresh_tokens`、OAuth 授权码与 consent 的外键不会被重排。
+- 用户密码规则对齐 NekoMusic：`Argon2Factory.create()` 的 Argon2i、`t=10`、`m=65536 KiB`、`p=1`。NekoMusic 的 `$argon2i$...` 哈希可以原样迁移到 `users.password_hash`。
+- 旧 NekoAuth 用户的 BCrypt(12) 哈希仍可登录；登录成功后会自动改写为当前 Argon2i 参数。OAuth 客户端密钥仍独立使用 BCrypt(12)，不受用户密码算法影响。
+- 迁移 NekoMusic 用户时建议映射：`id -> id`、`nickname -> display_name`、`email -> email`、`password -> password_hash`。为满足 NekoAuth 唯一用户名约束，可暂时生成 `CONCAT('neko_', id)` 作为 `username`。
+- 导入前必须检查 NekoMusic 的旧 ID 是否与当前 NekoAuth 的小于 `1000000` 的历史用户 ID 冲突。若冲突，应先设计一次性 ID 映射并同步处理所有外键，不能直接覆盖或重排线上用户。
+
+MySQL/MariaDB 可先将 NekoMusic 用户复制到临时表 `nekomusic_users`，审计 ID 冲突后执行相同字段的 `INSERT ... SELECT`。显式写入更大 ID 后，MySQL/MariaDB 会自动把下一个自增值提升到最大 ID 之后；PostgreSQL 则还需要同步 identity sequence。
 
 ## 安全设计
 
 - Compose 默认关闭安装入口；可选安装向导在完成后同样由 Servlet 过滤器直接返回 404，不依赖前端隐藏。
 - 安装和服务连接过程不会把 MySQL/MariaDB、Redis 或管理员密码写入日志。
 - 安装文件以临时文件 + 原子移动写入，使用 POSIX `0600` 权限；完成标记使用独占创建。
-- 首次启动可由 `config/application.yml` 创建 ADMIN，密码只保存 BCrypt 哈希，后续重启不会覆盖已有账户。
-- 密码使用 BCrypt cost 12；密码同时要求字母、数字，并限制 UTF-8 长度不超过 BCrypt 的 72 字节边界。
+- 首次启动可由 `config/application.yml` 创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户。
+- 用户密码使用 NekoMusic 同款 Argon2i 参数；密码长度 6-30 个字符。旧 BCrypt 用户只在成功登录后升级，避免迁移前强制重置。
+- 新用户 ID 从 `1000000` 开始，避免与后续导入的 NekoMusic 旧 ID 段混用；OAuth 客户端密钥继续使用 BCrypt cost 12。
 - JWT 仅存 JS 内存。刷新令牌不暴露给 JavaScript，数据库只保存其 SHA-256 哈希。
 - 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，撤销该用户在同一 OAuth 客户端下的全部活动刷新令牌。
 - 用户 `tokenVersion` 使密码修改、角色变化或停用立即让旧 JWT 失效。
@@ -449,7 +487,7 @@ docker compose down
 cd frontend && npm run build
 ```
 
-后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。
+后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、NekoMusic 注册字段、Argon2i 固定哈希、旧 BCrypt 自动升级、重复昵称与根路径/后台页面 404。
 
 ## 目录
 

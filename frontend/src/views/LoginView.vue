@@ -16,12 +16,13 @@ const showPassword = ref(false)
 const loading = ref(false)
 const loggingOut = ref(false)
 const error = ref('')
+const loginSuccess = ref('')
 
 const redirectTarget = computed(() => {
   const value = route.query.redirect
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : null
 })
-const signedInAsNonAdmin = computed(() => !redirectTarget.value && auth.isAuthenticated.value && !auth.isAdmin.value)
+const signedInWithoutRedirect = computed(() => !redirectTarget.value && auth.isAuthenticated.value)
 const isOAuthFlow = computed(() => redirectTarget.value?.startsWith('/authorize') === true)
 const registerLink = computed(() => ({
   name: 'register',
@@ -30,7 +31,6 @@ const registerLink = computed(() => ({
 
 const notice = computed(() => {
   if (route.query.reason === 'expired') return '猫娘小梦打了个盹，登录状态过期了。请重新登录喵。'
-  if (route.query.reason === 'forbidden') return '这间管理员猫屋需要 ADMIN 身份，请换一个管理员账户。'
   if (route.query.reason === 'registered') return '账户已经织入梦幻网络，可以登录啦。'
   if (route.query.reason === 'password-changed') return '密码已更新，所有旧会话都被猫爪拍散了，请重新登录。'
   return ''
@@ -42,17 +42,14 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(identifier.value.trim(), password.value)
+    const name = auth.state.user?.displayName || auth.state.user?.username
     if (redirectTarget.value) {
-      showToast(`欢迎回来，${auth.state.user?.displayName || auth.state.user?.username}`, 'success')
+      showToast(`欢迎回来，${name}`, 'success')
       await router.replace(redirectTarget.value)
       return
     }
-    if (!auth.isAdmin.value) {
-      error.value = '登录成功，但这里的管理员猫屋只接待 ADMIN 账户。普通账户可通过 OAuth 应用继续访问。'
-      return
-    }
-    showToast(`欢迎回来，${auth.state.user?.displayName || auth.state.user?.username}`, 'success')
-    await router.replace({ name: 'admin' })
+    loginSuccess.value = `登录成功，${name}。NekoAuth 仅提供 API 与 OAuth 授权，请从发起登录的应用继续。`
+    showToast(`欢迎回来，${name}`, 'success')
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '网络异常，请稍后重试'
   } finally {
@@ -78,14 +75,19 @@ async function logout() {
     :title="isOAuthFlow ? '确认身份，继续冒险' : '欢迎回到梦幻网络'"
     :subtitle="isOAuthFlow
       ? '小梦正在把你的身份交给发起授权的应用。登录后就能看到它申请的权限喵。'
-      : '使用梦幻网络通行证登录。管理员会进入猫屋后台，普通成员则继续前往授权应用。'"
+      : '使用梦幻网络通行证登录。NekoAuth 不提供用户后台，登录后请回到发起授权的应用。'"
   >
-    <div v-if="signedInAsNonAdmin" class="notice-banner">
-      <AppIcon name="paw" :size="17" />
-      <span>当前已登录为 {{ auth.state.user?.username }}，这是普通成员身份，没有管理员后台权限。</span>
+    <div v-if="signedInWithoutRedirect" class="notice-banner">
+      <AppIcon name="check" :size="17" />
+      <span>当前已登录为 {{ auth.state.user?.displayName || auth.state.user?.username }}。此服务只提供 API 与 OAuth 授权，不提供用户后台。</span>
       <button class="btn btn-ghost btn-small notice-action" type="button" :disabled="loggingOut" @click="logout">
-        换成管理员
+        退出账户
       </button>
+    </div>
+
+    <div v-if="loginSuccess" class="notice-banner">
+      <AppIcon name="check" :size="17" />
+      <span>{{ loginSuccess }}</span>
     </div>
 
     <div v-if="notice" class="notice-banner">
@@ -100,7 +102,7 @@ async function logout() {
 
     <form class="auth-form" novalidate @submit.prevent="submit">
       <label class="field">
-        <span class="field-label">用户名或邮箱</span>
+        <span class="field-label">邮箱或用户名</span>
         <span class="input-shell" :class="{ 'has-error': error }">
           <AppIcon name="user" :size="18" />
           <input
@@ -108,7 +110,7 @@ async function logout() {
             name="identifier"
             type="text"
             autocomplete="username"
-            placeholder="neko 或 neko@fantasy.network"
+            placeholder="neko@fantasy.network 或 neko"
             maxlength="254"
             required
             autofocus

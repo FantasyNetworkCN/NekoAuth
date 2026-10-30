@@ -11,7 +11,6 @@ import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.security.JwtService;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +33,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserPasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
     private final JwtService jwtService;
     private final AuthProperties properties;
@@ -42,7 +41,7 @@ public class AuthService {
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
-                       PasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy,
+                       UserPasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy,
                        JwtService jwtService, AuthProperties properties,
                        LoginRateLimiter rateLimiter) {
         this.userRepository = userRepository;
@@ -58,7 +57,16 @@ public class AuthService {
     @Transactional
     public AuthResult register(AuthRequests.Register request, HttpServletRequest servletRequest) {
         passwordPolicy.validate(request.password());
-        String username = request.username().trim().toLowerCase(Locale.ROOT);
+        String requestedUsername = trimToNull(request.username());
+        String nickname = trimToNull(request.nickname());
+        String legacyDisplayName = trimToNull(request.displayName());
+        if (requestedUsername == null && nickname == null && legacyDisplayName == null) {
+            throw ApiException.badRequest("NICKNAME_REQUIRED", "昵称不能为空");
+        }
+
+        String username = requestedUsername == null
+                ? generateUsername()
+                : requestedUsername.toLowerCase(Locale.ROOT);
         String email = normalizeEmail(request.email());
 
         if (userRepository.existsByUsername(username)) {
@@ -68,8 +76,8 @@ public class AuthService {
             throw ApiException.conflict("EMAIL_TAKEN", "该邮箱已被注册");
         }
 
-        String requestedDisplayName = request.displayName() == null ? "" : request.displayName().trim();
-        String displayName = requestedDisplayName.isEmpty() ? request.username().trim() : requestedDisplayName;
+        String displayName = nickname != null ? nickname
+                : legacyDisplayName != null ? legacyDisplayName : username;
 
         User user = new User();
         user.setUsername(username);
@@ -105,6 +113,9 @@ public class AuthService {
         }
 
         rateLimiter.recordSuccess(clientKey);
+        if (passwordEncoder.needsUpgrade(user.getPasswordHash())) {
+            user.setPasswordHash(passwordEncoder.encode(request.password()));
+        }
         Instant authenticatedAt = Instant.now();
         user.setLastLoginAt(authenticatedAt);
         userRepository.save(user);
@@ -254,6 +265,26 @@ public class AuthService {
 
     private static String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String generateUsername() {
+        for (int attempt = 0; attempt < 16; attempt++) {
+            byte[] random = new byte[8];
+            SECURE_RANDOM.nextBytes(random);
+            String candidate = "neko_" + HexFormat.of().formatHex(random);
+            if (!userRepository.existsByUsername(candidate)) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("Unable to allocate a unique username");
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private static String randomToken() {

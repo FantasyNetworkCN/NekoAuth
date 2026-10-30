@@ -2,12 +2,15 @@ package neko.fantasy.auth;
 
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
+import neko.fantasy.auth.domain.User;
+import neko.fantasy.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -31,6 +34,9 @@ class AuthFlowIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Test
     void productionOriginCanSubmitLoginRequest() throws Exception {
@@ -91,6 +97,80 @@ class AuthFlowIntegrationTest {
 
         mockMvc.perform(post("/api/auth/refresh").cookie(secondRefresh))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void usersStartAtOneMillionAndNekoMusicRegistrationShapeWorks() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String email = "nekomusic_" + suffix + "@example.com";
+
+        MvcResult registration = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"猫娘","email":"%s","password":"abcdef"}
+                                """.formatted(email)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.nickname").value("猫娘"))
+                .andExpect(jsonPath("$.user.displayName").value("猫娘"))
+                .andExpect(jsonPath("$.user.username").isNotEmpty())
+                .andReturn();
+
+        Number userId = JsonPath.read(registration.getResponse().getContentAsString(), "$.user.id");
+        assertThat(userId.longValue()).isGreaterThanOrEqualTo(1_000_000L);
+
+        User stored = userRepository.findByEmail(email).orElseThrow();
+        assertThat(stored.getPasswordHash()).startsWith("$argon2i$v=19$m=65536,t=10,p=1$");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"%s","password":"abcdef"}
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.nickname").value("猫娘"));
+    }
+
+    @Test
+    void duplicateNicknameIsAllowedAndLegacyBcryptUpgradesOnLogin() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String firstEmail = "duplicate_a_" + suffix + "@example.com";
+        String secondEmail = "duplicate_b_" + suffix + "@example.com";
+
+        MvcResult first = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"同名猫娘","email":"%s","password":"abcdef"}
+                                """.formatted(firstEmail)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult second = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"同名猫娘","email":"%s","password":"abcdef"}
+                                """.formatted(secondEmail)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String firstUsername = JsonPath.read(first.getResponse().getContentAsString(), "$.user.username");
+        String secondUsername = JsonPath.read(second.getResponse().getContentAsString(), "$.user.username");
+        assertThat(firstUsername).isNotEqualTo(secondUsername);
+
+        User legacy = new User();
+        legacy.setUsername("legacy_" + suffix);
+        legacy.setEmail("legacy_" + suffix + "@example.com");
+        legacy.setDisplayName("旧版用户");
+        legacy.setPasswordHash(new BCryptPasswordEncoder(12).encode("Password123"));
+        userRepository.saveAndFlush(legacy);
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"%s","password":"Password123"}
+                                """.formatted(legacy.getEmail())))
+                .andExpect(status().isOk());
+
+        assertThat(userRepository.findByEmail(legacy.getEmail()).orElseThrow().getPasswordHash())
+                .startsWith("$argon2i$v=19$m=65536,t=10,p=1$");
     }
 
     @Test

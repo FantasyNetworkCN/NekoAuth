@@ -11,13 +11,13 @@ public final class ApiResponses {
     private ApiResponses() {
     }
 
-    public record User(Long id, String username, String email, String displayName, Role role,
+    public record User(Long id, String username, String nickname, String email, String displayName, Role role,
                        boolean enabled, Instant createdAt, Instant updatedAt, Instant lastLoginAt) {
 
         public static User from(neko.fantasy.auth.domain.User user) {
-            return new User(user.getId(), user.getUsername(), user.getEmail(), user.getDisplayName(),
-                    user.getRole(), user.isEnabled(), user.getCreatedAt(), user.getUpdatedAt(),
-                    user.getLastLoginAt());
+            return new User(user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(),
+                    user.getDisplayName(), user.getRole(), user.isEnabled(), user.getCreatedAt(),
+                    user.getUpdatedAt(), user.getLastLoginAt());
         }
     }
 

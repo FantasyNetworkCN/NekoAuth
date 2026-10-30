@@ -9,12 +9,10 @@ public class SpaConfig implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        registry.addViewController("/").setViewName("forward:/index.html");
         registry.addViewController("/login").setViewName("forward:/index.html");
         registry.addViewController("/register").setViewName("forward:/index.html");
         registry.addViewController("/setup").setViewName("forward:/index.html");
         registry.addViewController("/authorize").setViewName("forward:/index.html");
-        registry.addViewController("/admin").setViewName("forward:/index.html");
-        registry.addViewController("/admin/clients").setViewName("forward:/index.html");
+        registry.addViewController("/oauth/consent").setViewName("forward:/index.html");
     }
 }

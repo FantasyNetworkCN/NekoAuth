@@ -10,8 +10,7 @@ import { showToast } from '@/lib/toast'
 const route = useRoute()
 const router = useRouter()
 const form = reactive({
-  displayName: '',
-  username: '',
+  nickname: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -31,9 +30,9 @@ const loginLink = computed(() => ({
 }))
 const passwordStrength = computed(() => {
   let score = 0
-  if (form.password.length >= 8) score++
+  if (form.password.length >= 6) score++
   if (/[A-Za-z]/.test(form.password) && /\d/.test(form.password)) score++
-  if (form.password.length >= 12) score++
+  if (form.password.length >= 10) score++
   if (/[^A-Za-z0-9]/.test(form.password)) score++
   const labels = ['软乎乎', '小猫爪', '渐入佳境', '星光守护', '传说级']
   return { score, label: labels[score] || '软乎乎' }
@@ -41,14 +40,11 @@ const passwordStrength = computed(() => {
 
 function validate() {
   const errors: Record<string, string> = {}
-  if (!/^[A-Za-z0-9_]{3,32}$/.test(form.username)) {
-    errors.username = '用户名需为 3-32 位字母、数字或下划线'
-  }
+  const nickname = form.nickname.trim()
+  if (!nickname || nickname.length > 20) errors.nickname = '昵称长度需为 1-20 个字符'
   if (!/^\S+@\S+\.\S+$/.test(form.email)) errors.email = '请输入有效的邮箱'
-  if (form.password.length < 8) errors.password = '密码至少需要 8 个字符'
-  else if (!/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) {
-    errors.password = '密码必须同时包含字母和数字'
-  }
+  else if (form.email.trim().length > 100) errors.email = '邮箱不能超过 100 个字符'
+  if (form.password.length < 6 || form.password.length > 30) errors.password = '密码长度需为 6-30 个字符'
   if (form.confirmPassword !== form.password) errors.confirmPassword = '两次输入的密码不一致'
   fieldErrors.value = errors
   return Object.keys(errors).length === 0
@@ -60,9 +56,8 @@ async function submit() {
   loading.value = true
   try {
     await auth.register({
-      username: form.username.trim(),
+      nickname: form.nickname.trim(),
       email: form.email.trim(),
-      displayName: form.displayName.trim(),
       password: form.password,
     })
     showToast('契约成立，欢迎来到梦幻网络喵！', 'success')
@@ -98,31 +93,20 @@ async function submit() {
     </div>
 
     <form class="auth-form" novalidate @submit.prevent="submit">
-      <div class="field-grid">
-        <label class="field">
-          <span class="field-label">昵称 <small>小梦怎么叫你</small></span>
-          <span class="input-shell" :class="{ 'has-error': fieldErrors.displayName }">
-            <AppIcon name="spark" :size="18" />
-            <input v-model="form.displayName" name="displayName" type="text" autocomplete="nickname" placeholder="星野小梦" maxlength="64" />
-          </span>
-          <span v-if="fieldErrors.displayName" class="field-error">{{ fieldErrors.displayName }}</span>
-        </label>
-
-        <label class="field">
-          <span class="field-label">用户名</span>
-          <span class="input-shell" :class="{ 'has-error': fieldErrors.username }">
-            <AppIcon name="user" :size="18" />
-            <input v-model="form.username" name="username" type="text" autocomplete="username" placeholder="neko_01" maxlength="32" required />
-          </span>
-          <span v-if="fieldErrors.username" class="field-error">{{ fieldErrors.username }}</span>
-        </label>
-      </div>
+      <label class="field">
+        <span class="field-label">昵称 <small>1-20 个字符，可重复</small></span>
+        <span class="input-shell" :class="{ 'has-error': fieldErrors.nickname }">
+          <AppIcon name="spark" :size="18" />
+          <input v-model="form.nickname" name="nickname" type="text" autocomplete="nickname" placeholder="星野小梦" maxlength="20" required />
+        </span>
+        <span v-if="fieldErrors.nickname" class="field-error">{{ fieldErrors.nickname }}</span>
+      </label>
 
       <label class="field">
         <span class="field-label">邮箱地址</span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.email }">
           <AppIcon name="mail" :size="18" />
-          <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="you@fantasy.network" maxlength="254" required />
+          <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="you@fantasy.network" maxlength="100" required />
         </span>
         <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
       </label>
@@ -130,7 +114,7 @@ async function submit() {
       <label class="field">
         <span class="field-row">
           <span class="field-label">秘密咒语（密码）</span>
-          <span class="strength-label" :data-score="passwordStrength.score">{{ passwordStrength.score ? passwordStrength.label : '至少 8 位' }}</span>
+          <span class="strength-label" :data-score="passwordStrength.score">{{ passwordStrength.score ? passwordStrength.label : '6-30 位' }}</span>
         </span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.password }">
           <AppIcon name="lock" :size="18" />
@@ -139,8 +123,8 @@ async function submit() {
             name="password"
             :type="showPassword ? 'text' : 'password'"
             autocomplete="new-password"
-            placeholder="字母 + 数字，至少 8 位"
-            maxlength="64"
+            placeholder="6-30 个字符"
+            maxlength="30"
             required
           />
           <button class="input-action" type="button" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
@@ -161,7 +145,7 @@ async function submit() {
             :type="showPassword ? 'text' : 'password'"
             autocomplete="new-password"
             placeholder="确认密码"
-            maxlength="64"
+            maxlength="30"
             required
           />
         </span>

@@ -154,7 +154,7 @@ export const api = {
     )
   },
 
-  register(input: { username: string; email: string; displayName: string; password: string }) {
+  register(input: { nickname: string; email: string; password: string }) {
     return request<AuthPayload>(
       '/auth/register',
       { method: 'POST', body: JSON.stringify(input) },

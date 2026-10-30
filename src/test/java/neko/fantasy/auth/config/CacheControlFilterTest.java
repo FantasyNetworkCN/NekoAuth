@@ -14,7 +14,7 @@ class CacheControlFilterTest {
 
     @Test
     void disablesCachingForApplicationResponses() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/login");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, new MockFilterChain());

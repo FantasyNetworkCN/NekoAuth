@@ -4,11 +4,11 @@ import neko.fantasy.auth.domain.Role;
 import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.service.PasswordPolicy;
+import neko.fantasy.auth.service.UserPasswordEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,11 +21,11 @@ public class AdminBootstrap implements ApplicationRunner {
 
     private final AuthProperties properties;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserPasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
 
     public AdminBootstrap(AuthProperties properties, UserRepository userRepository,
-                          PasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy) {
+                          UserPasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy) {
         this.properties = properties;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
