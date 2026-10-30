@@ -18,7 +18,9 @@ public final class OAuthDtos {
             String nonce,
             String codeChallenge,
             String codeChallengeMethod,
-            String prompt
+            String prompt,
+            String loginHint,
+            String maxAge
     ) {
     }
 
@@ -32,7 +34,9 @@ public final class OAuthDtos {
             Set<String> scopes,
             List<OAuthScopes.Definition> scopeDetails,
             boolean previouslyApproved,
-            String redirectUrl
+            String redirectUrl,
+            boolean reauthRequired,
+            String loginHint
     ) {
     }
 
@@ -42,6 +46,7 @@ public final class OAuthDtos {
             String name,
             String description,
             List<String> redirectUris,
+            List<String> postLogoutRedirectUris,
             List<String> scopes,
             boolean publicClient,
             boolean enabled,
@@ -50,7 +55,8 @@ public final class OAuthDtos {
     ) {
         public static ClientSummary from(OAuthClient client) {
             return new ClientSummary(client.getId(), client.getClientId(), client.getName(),
-                    client.getDescription(), client.getRedirectUris(), client.getScopes(),
+                    client.getDescription(), client.getRedirectUris(),
+                    client.getPostLogoutRedirectUris(), client.getScopes(),
                     client.isPublicClient(), client.isEnabled(), client.getCreatedAt(),
                     client.getUpdatedAt());
         }

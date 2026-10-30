@@ -9,7 +9,8 @@ import { showToast } from '@/lib/toast'
 
 const route = useRoute()
 const router = useRouter()
-const identifier = ref('')
+const loginHint = route.query.login_hint
+const identifier = ref(typeof loginHint === 'string' ? loginHint : '')
 const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)

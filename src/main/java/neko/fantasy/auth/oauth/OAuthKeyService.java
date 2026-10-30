@@ -1,6 +1,8 @@
 package neko.fantasy.auth.oauth;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import neko.fantasy.auth.config.OAuthProperties;
 import org.springframework.stereotype.Service;
@@ -73,6 +75,18 @@ public class OAuthKeyService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+
+    public Claims parseForLogout(String token) throws JwtException {
+        try {
+            return parse(token);
+        } catch (ExpiredJwtException exception) {
+            Claims claims = exception.getClaims();
+            if (!issuer.equals(claims.getIssuer())) {
+                throw new JwtException("Invalid token issuer", exception);
+            }
+            return claims;
+        }
     }
 
     public Map<String, Object> jwks() {

@@ -36,6 +36,9 @@ public class OAuthClient {
     @Column(name = "redirect_uris", nullable = false, length = 4000)
     private String redirectUris;
 
+    @Column(name = "post_logout_redirect_uris", nullable = false, length = 4000)
+    private String postLogoutRedirectUris = "";
+
     @Column(nullable = false, length = 512)
     private String scopes;
 
@@ -56,12 +59,19 @@ public class OAuthClient {
 
     public OAuthClient(String clientId, String clientSecretHash, String name, String description,
                        List<String> redirectUris, List<String> scopes, boolean publicClient) {
+        this(clientId, clientSecretHash, name, description, redirectUris, List.of(), scopes, publicClient);
+    }
+
+    public OAuthClient(String clientId, String clientSecretHash, String name, String description,
+                       List<String> redirectUris, List<String> postLogoutRedirectUris,
+                       List<String> scopes, boolean publicClient) {
         this.clientId = clientId;
         this.clientSecretHash = clientSecretHash;
         this.name = name;
         this.description = description;
         this.publicClient = publicClient;
         setRedirectUris(redirectUris);
+        setPostLogoutRedirectUris(postLogoutRedirectUris);
         setScopes(scopes);
     }
 
@@ -117,6 +127,15 @@ public class OAuthClient {
         this.redirectUris = String.join("\n", redirectUris);
     }
 
+    public List<String> getPostLogoutRedirectUris() {
+        return split(postLogoutRedirectUris);
+    }
+
+    public void setPostLogoutRedirectUris(List<String> postLogoutRedirectUris) {
+        this.postLogoutRedirectUris = String.join("\n",
+                postLogoutRedirectUris == null ? List.of() : postLogoutRedirectUris);
+    }
+
     public List<String> getScopes() {
         return split(scopes);
     }
@@ -151,6 +170,10 @@ public class OAuthClient {
 
     public boolean hasRedirectUri(String redirectUri) {
         return getRedirectUris().contains(redirectUri);
+    }
+
+    public boolean hasPostLogoutRedirectUri(String redirectUri) {
+        return getPostLogoutRedirectUris().contains(redirectUri);
     }
 
     private static List<String> split(String value) {

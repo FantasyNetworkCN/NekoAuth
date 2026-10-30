@@ -35,6 +35,9 @@ public class OAuthRefreshToken {
     @Column(nullable = false, length = 512)
     private String scopes;
 
+    @Column(name = "auth_time")
+    private Instant authTime;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
@@ -52,10 +55,16 @@ public class OAuthRefreshToken {
 
     public OAuthRefreshToken(String tokenHash, OAuthClient client, User user, String scopes,
                              Instant expiresAt) {
+        this(tokenHash, client, user, scopes, null, expiresAt);
+    }
+
+    public OAuthRefreshToken(String tokenHash, OAuthClient client, User user, String scopes,
+                             Instant authTime, Instant expiresAt) {
         this.tokenHash = tokenHash;
         this.client = client;
         this.user = user;
         this.scopes = scopes;
+        this.authTime = authTime;
         this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
         this.lastUsedAt = this.createdAt;
@@ -71,6 +80,10 @@ public class OAuthRefreshToken {
 
     public String getScopes() {
         return scopes;
+    }
+
+    public Instant getAuthTime() {
+        return authTime;
     }
 
     public boolean isActive(Instant now) {

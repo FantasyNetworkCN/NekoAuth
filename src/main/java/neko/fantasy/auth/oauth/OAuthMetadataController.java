@@ -29,6 +29,7 @@ public class OAuthMetadataController {
         metadata.put("jwks_uri", issuer + "/oauth2/jwks");
         metadata.put("revocation_endpoint", issuer + "/oauth2/revoke");
         metadata.put("introspection_endpoint", issuer + "/oauth2/introspect");
+        metadata.put("end_session_endpoint", issuer + "/oauth2/logout");
         metadata.put("scopes_supported", OAuthScopes.all().stream().map(OAuthScopes.Definition::name).toList());
         metadata.put("response_types_supported", List.of("code"));
         metadata.put("response_modes_supported", List.of("query"));
@@ -42,12 +43,14 @@ public class OAuthMetadataController {
         metadata.put("introspection_endpoint_auth_methods_supported",
                 List.of("client_secret_basic", "client_secret_post", "none"));
         metadata.put("code_challenge_methods_supported", List.of("S256"));
+        metadata.put("prompt_values_supported", List.of("none", "login", "consent", "select_account"));
         metadata.put("claims_supported", List.of(
                 "sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "at_hash",
                 "preferred_username", "name", "email", "email_verified", "role", "updated_at"));
         metadata.put("authorization_response_iss_parameter_supported", true);
         metadata.put("request_parameter_supported", false);
         metadata.put("request_uri_parameter_supported", false);
+        metadata.put("claims_parameter_supported", false);
         metadata.put("ui_locales_supported", List.of("zh-CN", "en"));
         return metadata;
     }

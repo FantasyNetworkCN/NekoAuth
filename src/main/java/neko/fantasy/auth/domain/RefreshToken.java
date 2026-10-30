@@ -27,6 +27,9 @@ public class RefreshToken {
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
+    @Column(name = "auth_time")
+    private Instant authTime;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
@@ -49,8 +52,14 @@ public class RefreshToken {
     }
 
     public RefreshToken(User user, String tokenHash, Instant expiresAt, String ipAddress, String userAgent) {
+        this(user, tokenHash, Instant.now(), expiresAt, ipAddress, userAgent);
+    }
+
+    public RefreshToken(User user, String tokenHash, Instant authTime, Instant expiresAt,
+                        String ipAddress, String userAgent) {
         this.user = user;
         this.tokenHash = tokenHash;
+        this.authTime = authTime;
         this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
         this.lastUsedAt = this.createdAt;
@@ -68,6 +77,10 @@ public class RefreshToken {
 
     public String getTokenHash() {
         return tokenHash;
+    }
+
+    public Instant getAuthTime() {
+        return authTime;
     }
 
     public Instant getExpiresAt() {

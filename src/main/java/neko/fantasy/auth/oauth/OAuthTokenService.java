@@ -46,11 +46,16 @@ public class OAuthTokenService {
 
     public String issueIdToken(User user, String clientId, Set<String> scopes, String nonce,
                                String accessToken) {
+        Instant authenticatedAt = user.getLastLoginAt() == null ? Instant.now() : user.getLastLoginAt();
+        return issueIdToken(user, clientId, scopes, nonce, accessToken, authenticatedAt);
+    }
+
+    public String issueIdToken(User user, String clientId, Set<String> scopes, String nonce,
+                               String accessToken, Instant authenticatedAt) {
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("aud", clientId);
         claims.put("azp", clientId);
-        claims.put("auth_time", user.getLastLoginAt() == null
-                ? Instant.now().getEpochSecond() : user.getLastLoginAt().getEpochSecond());
+        claims.put("auth_time", authenticatedAt.getEpochSecond());
         claims.put("at_hash", leftHalfHash(accessToken));
         if (nonce != null && !nonce.isBlank()) {
             claims.put("nonce", nonce);
@@ -67,6 +72,36 @@ public class OAuthTokenService {
             claims.put("role", user.getRole().name());
         }
         return keyService.issue(claims, user.getId().toString(), properties.idTokenTtl());
+    }
+
+    public IdTokenHint parseIdTokenHint(String token) throws JwtException {
+        Claims claims = keyService.parseForLogout(token);
+        Set<String> audience = claims.getAudience();
+        if (audience == null || audience.isEmpty()) {
+            throw new JwtException("ID token audience is missing");
+        }
+        String clientId = claims.get("azp", String.class);
+        if (clientId == null) {
+            if (audience.size() != 1) {
+                throw new JwtException("ID token azp is required for multiple audiences");
+            }
+            clientId = audience.iterator().next();
+        } else if (!audience.contains(clientId)) {
+            throw new JwtException("ID token azp is not included in audience");
+        }
+        try {
+            Long userId = Long.parseLong(claims.getSubject());
+            Number authTime = claims.get("auth_time", Number.class);
+            Instant authenticatedAt = authTime == null
+                    ? (claims.getIssuedAt() == null ? null : claims.getIssuedAt().toInstant())
+                    : Instant.ofEpochSecond(authTime.longValue());
+            if (authenticatedAt == null) {
+                throw new JwtException("ID token auth_time and iat are missing");
+            }
+            return new IdTokenHint(userId, clientId, authenticatedAt);
+        } catch (RuntimeException exception) {
+            throw new JwtException("Invalid ID token hint claims", exception);
+        }
     }
 
     public AccessTokenClaims parseAccessToken(String token) throws JwtException {
@@ -115,5 +150,8 @@ public class OAuthTokenService {
 
     public record AccessTokenClaims(Long userId, String clientId, String scope, String username,
                                     int tokenVersion, Instant expiresAt, Instant issuedAt, String jti) {
+    }
+
+    public record IdTokenHint(Long userId, String clientId, Instant authenticatedAt) {
     }
 }

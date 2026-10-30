@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
@@ -27,6 +28,8 @@ import java.util.Set;
 public class OAuthAuthorizationService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final Set<String> SUPPORTED_PROMPTS = Set.of(
+            "none", "login", "consent", "select_account");
 
     private final OAuthClientRepository clientRepository;
     private final OAuthConsentRepository consentRepository;
@@ -51,47 +54,99 @@ public class OAuthAuthorizationService {
 
     @Transactional
     public OAuthDtos.AuthorizeView inspect(Long userId, OAuthDtos.AuthorizationRequest request) {
+        return inspect(userId, Instant.now(), request);
+    }
+
+    @Transactional(readOnly = true)
+    public OAuthDtos.AuthorizeView inspectAnonymous(OAuthDtos.AuthorizationRequest request) {
+        if (!parsePrompts(request.prompt()).contains("none")) {
+            throw ApiException.unauthorized("LOGIN_REQUIRED", "需要登录后才能继续授权");
+        }
         ValidatedAuthorization validated = validate(request);
+        return new OAuthDtos.AuthorizeView(
+                validated.client().getClientId(),
+                validated.client().getName(),
+                validated.client().getDescription(),
+                safeHost(validated.redirectUri()),
+                null,
+                null,
+                validated.scopes(),
+                OAuthScopes.describe(validated.scopes()),
+                false,
+                errorRedirect(validated, "login_required", "需要登录后才能完成本次授权"),
+                false,
+                validated.loginHint());
+    }
+
+    @Transactional
+    public OAuthDtos.AuthorizeView inspect(Long userId, Instant authenticatedAt,
+                                           OAuthDtos.AuthorizationRequest request) {
+        ValidatedAuthorization validated = validate(request);
+        User user = requireUser(userId);
+        String loginHint = loginHint(validated, user);
+        boolean reauthRequired = requiresReauthentication(validated, authenticatedAt);
         OAuthConsent consent = consentRepository
                 .findByUserIdAndClientId(userId, validated.client().getId())
                 .orElse(null);
         boolean previouslyApproved = consent != null && grantedScopes(consent).containsAll(validated.scopes());
-        boolean forceConsent = hasPrompt(request.prompt(), "consent");
-        boolean none = hasPrompt(request.prompt(), "none");
 
-        if (none) {
-            if (!previouslyApproved) {
-                return view(userId, validated, false, errorRedirect(validated, "login_required",
-                        "当前没有可用于完成授权的登录同意记录"));
+        if (validated.prompts().contains("none")) {
+            if (reauthRequired || !matchesLoginHint(validated.loginHint(), user)) {
+                return view(user, validated, previouslyApproved,
+                        errorRedirect(validated, "login_required", "需要重新登录后才能完成本次授权"),
+                        false, loginHint);
             }
-            return view(userId, validated, true, successRedirect(validated, userId));
+            if (!previouslyApproved) {
+                return view(user, validated, false,
+                        errorRedirect(validated, "consent_required", "当前没有可用于完成授权的登录同意记录"),
+                        false, loginHint);
+            }
+            return view(user, validated, true,
+                    successRedirect(validated, user, authenticatedAt), false, loginHint);
         }
+
+        if (reauthRequired) {
+            return view(user, validated, previouslyApproved, null, true, loginHint);
+        }
+
+        boolean forceConsent = validated.prompts().contains("consent");
         if (previouslyApproved && !forceConsent) {
-            return view(userId, validated, true, successRedirect(validated, userId));
+            return view(user, validated, true,
+                    successRedirect(validated, user, authenticatedAt), false, loginHint);
         }
-        return view(userId, validated, previouslyApproved, null);
+        return view(user, validated, previouslyApproved, null, false, loginHint);
     }
 
     @Transactional
     public String decide(Long userId, OAuthDtos.AuthorizationRequest request, boolean approved) {
+        return decide(userId, Instant.now(), request, approved);
+    }
+
+    @Transactional
+    public String decide(Long userId, Instant authenticatedAt,
+                         OAuthDtos.AuthorizationRequest request, boolean approved) {
         ValidatedAuthorization validated = validate(request);
+        User user = requireUser(userId);
+        if (requiresReauthentication(validated, authenticatedAt)) {
+            return errorRedirect(validated, "login_required", "需要重新登录后才能完成本次授权");
+        }
         if (!approved) {
             return errorRedirect(validated, "access_denied", "用户拒绝了本次授权申请");
         }
         OAuthConsent consent = consentRepository
                 .findByUserIdAndClientId(userId, validated.client().getId())
                 .orElseGet(() -> new OAuthConsent(
-                        requireUser(userId), validated.client(), OAuthScopes.encode(validated.scopes())));
+                        user, validated.client(), OAuthScopes.encode(validated.scopes())));
         LinkedHashSet<String> granted = new LinkedHashSet<>(grantedScopes(consent));
         granted.addAll(validated.scopes());
         consent.setScopes(OAuthScopes.encode(granted));
         consentRepository.save(consent);
-        return successRedirect(validated, userId);
+        return successRedirect(validated, user, authenticatedAt);
     }
 
-    private OAuthDtos.AuthorizeView view(Long userId, ValidatedAuthorization validated,
-                                         boolean previouslyApproved, String redirectUrl) {
-        User user = requireUser(userId);
+    private OAuthDtos.AuthorizeView view(User user, ValidatedAuthorization validated,
+                                         boolean previouslyApproved, String redirectUrl,
+                                         boolean reauthRequired, String loginHint) {
         return new OAuthDtos.AuthorizeView(
                 validated.client().getClientId(),
                 validated.client().getName(),
@@ -102,20 +157,23 @@ public class OAuthAuthorizationService {
                 validated.scopes(),
                 OAuthScopes.describe(validated.scopes()),
                 previouslyApproved,
-                redirectUrl);
+                redirectUrl,
+                reauthRequired,
+                loginHint);
     }
 
-    private String successRedirect(ValidatedAuthorization validated, Long userId) {
+    private String successRedirect(ValidatedAuthorization validated, User user, Instant authenticatedAt) {
         String code = randomToken();
         OAuthAuthorizationCode authorizationCode = new OAuthAuthorizationCode(
                 sha256(code),
                 validated.client(),
-                requireUser(userId),
+                user,
                 OAuthScopes.encode(validated.scopes()),
                 validated.redirectUri(),
                 validated.codeChallenge(),
                 validated.codeChallengeMethod(),
                 validated.nonce(),
+                authenticatedAt,
                 Instant.now().plus(properties.authorizationCodeTtl()));
         codeRepository.save(authorizationCode);
         Map<String, String> params = new LinkedHashMap<>();
@@ -161,6 +219,12 @@ public class OAuthAuthorizationService {
         if (request.nonce() != null && request.nonce().length() > 255) {
             throw OAuthException.invalidRequest("nonce 不能超过 255 个字符");
         }
+        String loginHint = trimToNull(request.loginHint());
+        if (loginHint != null && loginHint.length() > 255) {
+            throw OAuthException.invalidRequest("login_hint 不能超过 255 个字符");
+        }
+        Set<String> prompts = parsePrompts(request.prompt());
+        Long maxAge = parseMaxAge(request.maxAge());
         LinkedHashSet<String> scopes = OAuthScopes.parseRequested(request.scope());
         if (!client.getScopes().containsAll(scopes)) {
             throw OAuthException.invalidScope("应用未获准申请这些权限范围");
@@ -182,7 +246,7 @@ public class OAuthAuthorizationService {
             method = null;
         }
         return new ValidatedAuthorization(client, request.redirectUri(), scopes, request.state(),
-                trimToNull(request.nonce()), challenge, method);
+                trimToNull(request.nonce()), challenge, method, prompts, loginHint, maxAge);
     }
 
     private User requireUser(Long userId) {
@@ -199,9 +263,61 @@ public class OAuthAuthorizationService {
         return new LinkedHashSet<>(Arrays.asList(scopes.trim().split("\\s+")));
     }
 
-    private static boolean hasPrompt(String prompt, String expected) {
-        return prompt != null && Arrays.stream(prompt.trim().split("\\s+"))
-                .anyMatch(value -> value.equalsIgnoreCase(expected));
+    private static Set<String> parsePrompts(String prompt) {
+        if (prompt == null || prompt.isBlank()) {
+            return Set.of();
+        }
+        LinkedHashSet<String> prompts = new LinkedHashSet<>();
+        for (String value : prompt.trim().split("\\s+")) {
+            if (!SUPPORTED_PROMPTS.contains(value)) {
+                throw OAuthException.invalidRequest("不支持的 prompt：" + value);
+            }
+            prompts.add(value);
+        }
+        if (prompts.contains("none") && prompts.size() > 1) {
+            throw OAuthException.invalidRequest("prompt=none 不能与其他 prompt 值同时使用");
+        }
+        return Set.copyOf(prompts);
+    }
+
+    private static Long parseMaxAge(String value) {
+        String maxAge = trimToNull(value);
+        if (maxAge == null) {
+            return null;
+        }
+        if (!maxAge.matches("\\d{1,19}")) {
+            throw OAuthException.invalidRequest("max_age 必须是非负整数");
+        }
+        try {
+            return Long.parseLong(maxAge);
+        } catch (NumberFormatException exception) {
+            throw OAuthException.invalidRequest("max_age 超出有效范围");
+        }
+    }
+
+    private static boolean requiresReauthentication(ValidatedAuthorization validated,
+                                                     Instant authenticatedAt) {
+        if (validated.prompts().contains("login") || validated.prompts().contains("select_account")) {
+            return true;
+        }
+        if (validated.maxAge() == null) {
+            return false;
+        }
+        if (validated.maxAge() == 0 || authenticatedAt == null) {
+            return true;
+        }
+        long age = Duration.between(authenticatedAt, Instant.now()).getSeconds();
+        return age >= validated.maxAge();
+    }
+
+    private static String loginHint(ValidatedAuthorization validated, User user) {
+        return validated.loginHint() == null ? user.getUsername() : validated.loginHint();
+    }
+
+    private static boolean matchesLoginHint(String loginHint, User user) {
+        return loginHint == null
+                || loginHint.equalsIgnoreCase(user.getUsername())
+                || loginHint.equalsIgnoreCase(user.getEmail());
     }
 
     private static String redirect(String uri, Map<String, String> parameters) {
@@ -217,7 +333,11 @@ public class OAuthAuthorizationService {
     private static String safeHost(String uri) {
         try {
             URI parsed = URI.create(uri);
-            String host = parsed.getHost() == null ? "" : parsed.getHost().toLowerCase(Locale.ROOT);
+            String host = parsed.getHost();
+            if (host == null || host.isBlank()) {
+                return parsed.getScheme() == null ? "unknown" : parsed.getScheme().toLowerCase(Locale.ROOT);
+            }
+            host = host.toLowerCase(Locale.ROOT);
             int port = parsed.getPort();
             return port < 0 ? host : host + ":" + port;
         } catch (IllegalArgumentException exception) {
@@ -246,6 +366,7 @@ public class OAuthAuthorizationService {
 
     private record ValidatedAuthorization(OAuthClient client, String redirectUri, Set<String> scopes,
                                           String state, String nonce, String codeChallenge,
-                                          String codeChallengeMethod) {
+                                          String codeChallengeMethod, Set<String> prompts,
+                                          String loginHint, Long maxAge) {
     }
 }

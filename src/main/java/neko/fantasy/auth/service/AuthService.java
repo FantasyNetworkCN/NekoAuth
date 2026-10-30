@@ -76,9 +76,11 @@ public class AuthService {
         user.setEmail(email);
         user.setDisplayName(displayName);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
+        Instant authenticatedAt = Instant.now();
+        user.setLastLoginAt(authenticatedAt);
         userRepository.save(user);
 
-        return createSession(user, servletRequest);
+        return createSession(user, servletRequest, authenticatedAt);
     }
 
     @Transactional
@@ -103,9 +105,10 @@ public class AuthService {
         }
 
         rateLimiter.recordSuccess(clientKey);
-        user.setLastLoginAt(Instant.now());
+        Instant authenticatedAt = Instant.now();
+        user.setLastLoginAt(authenticatedAt);
         userRepository.save(user);
-        return createSession(user, servletRequest);
+        return createSession(user, servletRequest, authenticatedAt);
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -131,16 +134,20 @@ public class AuthService {
         stored.setLastUsedAt(now);
 
         User user = stored.getUser();
+        Instant authenticatedAt = stored.getAuthTime() == null
+                ? (user.getLastLoginAt() == null ? now : user.getLastLoginAt())
+                : stored.getAuthTime();
         String newRawToken = randomToken();
         refreshTokenRepository.save(new RefreshToken(
                 user,
                 hashToken(newRawToken),
+                authenticatedAt,
                 now.plus(properties.jwt().refreshTtl()),
                 clientIp(servletRequest),
                 truncate(servletRequest.getHeader("User-Agent"), 512)
         ));
 
-        return authResult(user, newRawToken);
+        return authResult(user, newRawToken, authenticatedAt);
     }
 
     @Transactional
@@ -218,21 +225,22 @@ public class AuthService {
         refreshTokenRepository.deleteStale(Instant.now().minus(STALE_SESSION_RETENTION));
     }
 
-    private AuthResult createSession(User user, HttpServletRequest request) {
+    private AuthResult createSession(User user, HttpServletRequest request, Instant authenticatedAt) {
         String rawToken = randomToken();
         RefreshToken refreshToken = new RefreshToken(
                 user,
                 hashToken(rawToken),
+                authenticatedAt,
                 Instant.now().plus(properties.jwt().refreshTtl()),
                 clientIp(request),
                 truncate(request.getHeader("User-Agent"), 512)
         );
         refreshTokenRepository.save(refreshToken);
-        return authResult(user, rawToken);
+        return authResult(user, rawToken, authenticatedAt);
     }
 
-    private AuthResult authResult(User user, String rawRefreshToken) {
-        JwtService.IssuedToken accessToken = jwtService.issue(user);
+    private AuthResult authResult(User user, String rawRefreshToken, Instant authenticatedAt) {
+        JwtService.IssuedToken accessToken = jwtService.issue(user, authenticatedAt);
         long expiresIn = Math.max(0, Duration.between(Instant.now(), accessToken.expiresAt()).toSeconds());
         ApiResponses.Auth auth = new ApiResponses.Auth(
                 accessToken.value(), "Bearer", expiresIn, ApiResponses.User.from(user));

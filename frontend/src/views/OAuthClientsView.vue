@@ -12,6 +12,8 @@ const loading = ref(true)
 const creating = ref(false)
 const showCreate = ref(false)
 const busyId = ref<number | null>(null)
+const editingClient = ref<OAuthClient | null>(null)
+const savingEdit = ref(false)
 const error = ref('')
 const secretReveal = ref<CreatedOAuthClient | null>(null)
 const copied = ref('')
@@ -27,8 +29,16 @@ const form = reactive({
   name: '',
   description: '',
   redirectUris: '',
+  postLogoutRedirectUris: '',
   scopes: ['openid', 'profile', 'email'] as string[],
   publicClient: true,
+})
+const editForm = reactive({
+  name: '',
+  description: '',
+  redirectUris: '',
+  postLogoutRedirectUris: '',
+  scopes: [] as string[],
 })
 
 const enabledCount = computed(() => clients.value.filter((client) => client.enabled).length)
@@ -55,12 +65,26 @@ function toggleScope(name: string) {
   }
 }
 
+function toggleEditScope(name: string) {
+  if (editForm.scopes.includes(name)) {
+    if (editForm.scopes.length === 1) return
+    editForm.scopes = editForm.scopes.filter((scope) => scope !== name)
+  } else {
+    editForm.scopes = [...editForm.scopes, name]
+  }
+}
+
+function uriLines(value: string) {
+  return value
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
 async function createClient() {
   if (creating.value) return
-  const redirectUris = form.redirectUris
-    .split(/\n+/)
-    .map((value) => value.trim())
-    .filter(Boolean)
+  const redirectUris = uriLines(form.redirectUris)
+  const postLogoutRedirectUris = uriLines(form.postLogoutRedirectUris)
   if (!form.name.trim() || redirectUris.length === 0 || form.scopes.length === 0) {
     showToast('请填写应用名、至少一个回调地址和一个权限范围', 'error')
     return
@@ -71,6 +95,7 @@ async function createClient() {
       name: form.name.trim(),
       description: form.description.trim(),
       redirectUris,
+      postLogoutRedirectUris,
       scopes: form.scopes,
       publicClient: form.publicClient,
     })
@@ -79,6 +104,7 @@ async function createClient() {
     form.name = ''
     form.description = ''
     form.redirectUris = ''
+    form.postLogoutRedirectUris = ''
     form.scopes = ['openid', 'profile', 'email']
     form.publicClient = true
     if (result.clientSecret) {
@@ -90,6 +116,46 @@ async function createClient() {
     showToast(caught instanceof ApiError ? caught.message : '创建应用失败', 'error')
   } finally {
     creating.value = false
+  }
+}
+
+function openEdit(client: OAuthClient) {
+  editingClient.value = client
+  editForm.name = client.name
+  editForm.description = client.description || ''
+  editForm.redirectUris = client.redirectUris.join('\n')
+  editForm.postLogoutRedirectUris = client.postLogoutRedirectUris.join('\n')
+  editForm.scopes = [...client.scopes]
+}
+
+function closeEdit() {
+  if (!savingEdit.value) editingClient.value = null
+}
+
+async function saveEdit() {
+  const client = editingClient.value
+  if (!client || savingEdit.value) return
+  const redirectUris = uriLines(editForm.redirectUris)
+  if (!editForm.name.trim() || redirectUris.length === 0 || editForm.scopes.length === 0) {
+    showToast('请填写应用名、至少一个回调地址和一个权限范围', 'error')
+    return
+  }
+  savingEdit.value = true
+  try {
+    const updated = await api.updateOAuthClient(client.id, {
+      name: editForm.name.trim(),
+      description: editForm.description.trim(),
+      redirectUris,
+      postLogoutRedirectUris: uriLines(editForm.postLogoutRedirectUris),
+      scopes: editForm.scopes,
+    })
+    replaceClient(updated)
+    editingClient.value = null
+    showToast(`${updated.name} 的授权配置已更新`, 'success')
+  } catch (caught) {
+    showToast(caught instanceof ApiError ? caught.message : '更新应用失败', 'error')
+  } finally {
+    savingEdit.value = false
   }
 }
 
@@ -196,6 +262,10 @@ onMounted(() => void load())
             <span class="field-label">回调地址 <small>每行一个</small></span>
             <textarea v-model="form.redirectUris" class="atelier-textarea" rows="3" placeholder="https://app.fantasy.network/oauth/callback" required></textarea>
           </label>
+          <label class="field">
+            <span class="field-label">登出后回调地址 <small>可选 · 每行一个</small></span>
+            <textarea v-model="form.postLogoutRedirectUris" class="atelier-textarea" rows="2" placeholder="https://app.fantasy.network/logged-out"></textarea>
+          </label>
           <div class="field">
             <span class="field-label">申请权限</span>
             <div class="scope-pills">
@@ -266,6 +336,11 @@ onMounted(() => void load())
           <code v-for="uri in client.redirectUris.slice(0, 2)" :key="uri">{{ uri }}</code>
           <small v-if="client.redirectUris.length > 2">还有 {{ client.redirectUris.length - 2 }} 个地址</small>
         </div>
+        <div v-if="client.postLogoutRedirectUris.length" class="client-uri-list">
+          <span><AppIcon name="logout" :size="13" /> 登出回调</span>
+          <code v-for="uri in client.postLogoutRedirectUris.slice(0, 2)" :key="uri">{{ uri }}</code>
+          <small v-if="client.postLogoutRedirectUris.length > 2">还有 {{ client.postLogoutRedirectUris.length - 2 }} 个地址</small>
+        </div>
 
         <div class="client-scopes">
           <span v-for="scope in client.scopes" :key="scope" class="scope-tag">{{ scope }}</span>
@@ -274,6 +349,9 @@ onMounted(() => void load())
         <div class="client-card-foot">
           <span class="client-date"><AppIcon name="clock" :size="13" /> {{ formatDate(client.createdAt) }}</span>
           <div class="client-actions">
+            <button class="btn btn-ghost btn-small" type="button" :disabled="busyId === client.id" @click="openEdit(client)">
+              <AppIcon name="edit" :size="14" /> 编辑
+            </button>
             <button v-if="!client.publicClient" class="btn btn-ghost btn-small" type="button" :disabled="busyId === client.id" @click="rotateSecret(client)">
               <AppIcon name="key" :size="14" /> 轮换密钥
             </button>
@@ -300,6 +378,64 @@ onMounted(() => void load())
           </div>
           <div class="secret-warning"><AppIcon name="alert" :size="15" /> 不要把它写进前端代码或公开仓库。</div>
           <button class="btn btn-primary btn-block" type="button" @click="secretReveal = null">小梦已经记住了</button>
+        </section>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="editingClient" class="secret-overlay" @click.self="closeEdit">
+        <section class="edit-dialog" role="dialog" aria-modal="true" aria-label="编辑 OAuth 应用">
+          <div class="edit-dialog-head">
+            <div>
+              <p class="page-kicker">CLIENT CONTRACT</p>
+              <h2>改写 {{ editingClient.name }} 的契约</h2>
+              <p>回调地址必须与授权请求完全一致；登出回调只允许已登记地址。</p>
+            </div>
+            <button class="icon-button" type="button" aria-label="关闭" @click="closeEdit"><AppIcon name="close" :size="17" /></button>
+          </div>
+          <form class="edit-form" @submit.prevent="saveEdit">
+            <div class="field-grid">
+              <label class="field">
+                <span class="field-label">应用名称</span>
+                <span class="input-shell"><AppIcon name="apps" :size="17" /><input v-model="editForm.name" maxlength="80" required /></span>
+              </label>
+              <label class="field">
+                <span class="field-label">应用简介 <small>可选</small></span>
+                <span class="input-shell"><AppIcon name="spark" :size="17" /><input v-model="editForm.description" maxlength="500" /></span>
+              </label>
+            </div>
+            <label class="field">
+              <span class="field-label">回调地址 <small>每行一个</small></span>
+              <textarea v-model="editForm.redirectUris" class="atelier-textarea" rows="3" required></textarea>
+            </label>
+            <label class="field">
+              <span class="field-label">登出后回调地址 <small>可选 · 每行一个</small></span>
+              <textarea v-model="editForm.postLogoutRedirectUris" class="atelier-textarea" rows="2"></textarea>
+            </label>
+            <div class="field">
+              <span class="field-label">申请权限</span>
+              <div class="scope-pills">
+                <button
+                  v-for="scope in allScopes"
+                  :key="scope.name"
+                  class="scope-choice"
+                  :class="{ active: editForm.scopes.includes(scope.name) }"
+                  type="button"
+                  @click="toggleEditScope(scope.name)"
+                >
+                  <AppIcon :name="editForm.scopes.includes(scope.name) ? 'check' : 'plus'" :size="12" />
+                  <span><strong>{{ scope.label }}</strong><small>{{ scope.description }}</small></span>
+                </button>
+              </div>
+            </div>
+            <div class="edit-actions">
+              <button class="btn btn-secondary" type="button" :disabled="savingEdit" @click="closeEdit">取消</button>
+              <button class="btn btn-primary" type="submit" :disabled="savingEdit">
+                <span v-if="savingEdit" class="spinner"></span>
+                <template v-else><AppIcon name="check" :size="15" /> 保存契约</template>
+              </button>
+            </div>
+          </form>
         </section>
       </div>
     </Teleport>
@@ -508,6 +644,13 @@ onMounted(() => void load())
 .secret-value { display: flex; align-items: center; gap: 0.44rem; margin-top: 1rem; padding: 0.65rem; border: 1px solid rgba(255, 217, 150, 0.15); border-radius: 11px; background: rgba(7, 4, 15, 0.4); }
 .secret-value code { overflow: auto; flex: 1; color: #ffd793; font-family: ui-monospace, monospace; font-size: 0.58rem; text-align: left; white-space: nowrap; }
 .secret-warning { display: flex; align-items: center; justify-content: center; gap: 0.35rem; margin-top: 0.7rem; color: #c58c9f; font-size: 0.53rem; }
+
+.edit-dialog { width: min(760px, 100%); max-height: min(860px, calc(100vh - 2rem)); overflow: auto; padding: 1.25rem; border: 1px solid rgba(255, 195, 234, 0.2); border-radius: 22px; background: radial-gradient(circle at 0 0, rgba(255, 164, 217, 0.11), transparent 34%), #1b122d; box-shadow: 0 35px 100px rgba(0, 0, 0, 0.58); }
+.edit-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.edit-dialog-head h2 { margin-top: 0.4rem; color: #fff1fb; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.04em; }
+.edit-dialog-head p:last-child { margin-top: 0.35rem; color: #8f7ba2; font-size: 0.6rem; line-height: 1.55; }
+.edit-form { display: grid; gap: 0.72rem; margin-top: 1rem; }
+.edit-actions { display: flex; justify-content: flex-end; gap: 0.45rem; padding-top: 0.2rem; }
 
 .atelier-enter-active, .atelier-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .atelier-enter-from, .atelier-leave-to { opacity: 0; transform: translateY(-8px); }

@@ -36,6 +36,10 @@ public class JwtService {
     }
 
     public IssuedToken issue(User user) {
+        return issue(user, Instant.now());
+    }
+
+    public IssuedToken issue(User user, Instant authenticatedAt) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(accessTtl);
         String token = Jwts.builder()
@@ -48,6 +52,7 @@ public class JwtService {
                 .claim("username", user.getUsername())
                 .claim("role", user.getRole().name())
                 .claim("ver", user.getTokenVersion())
+                .claim("auth_time", authenticatedAt.getEpochSecond())
                 .signWith(key)
                 .compact();
         return new IssuedToken(token, expiresAt);
@@ -66,11 +71,16 @@ public class JwtService {
         }
 
         try {
+            Number authTimeClaim = claims.get("auth_time", Number.class);
+            Instant authenticatedAt = authTimeClaim == null
+                    ? claims.getIssuedAt().toInstant()
+                    : Instant.ofEpochSecond(authTimeClaim.longValue());
             return new AccessClaims(
                     Long.parseLong(claims.getSubject()),
                     claims.get("username", String.class),
                     Role.valueOf(claims.get("role", String.class)),
                     claims.get("ver", Integer.class),
+                    authenticatedAt,
                     claims.getExpiration().toInstant()
             );
         } catch (RuntimeException exception) {
@@ -82,6 +92,6 @@ public class JwtService {
     }
 
     public record AccessClaims(Long userId, String username, Role role, int tokenVersion,
-                               Instant expiresAt) {
+                               Instant authenticatedAt, Instant expiresAt) {
     }
 }

@@ -6,6 +6,7 @@ import AppLogo from '@/components/AppLogo.vue'
 import NekoMascot from '@/components/NekoMascot.vue'
 import guardNeko from '@/assets/catgirl/guard-neko.webp'
 import { ApiError, api } from '@/lib/api'
+import { stripFreshAuthParams } from '@/lib/oauthRedirect'
 import { auth } from '@/stores/auth'
 import type { OAuthAuthorizeView } from '@/types'
 
@@ -38,6 +39,18 @@ function redirectTo(url: string) {
   window.location.assign(url)
 }
 
+async function requireFreshLogin(loginHint?: string | null) {
+  const target = stripFreshAuthParams(route.fullPath)
+  await auth.logout()
+  await router.replace({
+    name: 'login',
+    query: {
+      redirect: target,
+      ...(loginHint ? { login_hint: loginHint } : {}),
+    },
+  })
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -52,8 +65,14 @@ async function load() {
       code_challenge: query('code_challenge'),
       code_challenge_method: query('code_challenge_method'),
       prompt: query('prompt'),
+      login_hint: query('login_hint'),
+      max_age: query('max_age'),
     })
     view.value = result
+    if (result.reauthRequired) {
+      await requireFreshLogin(result.loginHint)
+      return
+    }
     if (result.redirectUrl) redirectTo(result.redirectUrl)
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '无法读取授权申请，请稍后重试'
@@ -77,6 +96,8 @@ async function decide(approved: boolean) {
       codeChallenge: query('code_challenge'),
       codeChallengeMethod: query('code_challenge_method'),
       prompt: query('prompt'),
+      loginHint: query('login_hint'),
+      maxAge: query('max_age'),
       approved,
     })
     redirectTo(result.redirectUrl)
@@ -88,9 +109,7 @@ async function decide(approved: boolean) {
 }
 
 async function switchAccount() {
-  const target = route.fullPath
-  await auth.logout()
-  await router.replace({ name: 'login', query: { redirect: target } })
+  await requireFreshLogin(query('login_hint'))
 }
 
 onMounted(() => void load())

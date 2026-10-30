@@ -47,6 +47,9 @@ public class OAuthAuthorizationCode {
     @Column(length = 255)
     private String nonce;
 
+    @Column(name = "auth_time")
+    private Instant authTime;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
@@ -62,6 +65,13 @@ public class OAuthAuthorizationCode {
     public OAuthAuthorizationCode(String codeHash, OAuthClient client, User user, String scopes,
                                   String redirectUri, String codeChallenge, String codeChallengeMethod,
                                   String nonce, Instant expiresAt) {
+        this(codeHash, client, user, scopes, redirectUri, codeChallenge, codeChallengeMethod,
+                nonce, null, expiresAt);
+    }
+
+    public OAuthAuthorizationCode(String codeHash, OAuthClient client, User user, String scopes,
+                                  String redirectUri, String codeChallenge, String codeChallengeMethod,
+                                  String nonce, Instant authTime, Instant expiresAt) {
         this.codeHash = codeHash;
         this.client = client;
         this.user = user;
@@ -70,6 +80,7 @@ public class OAuthAuthorizationCode {
         this.codeChallenge = codeChallenge;
         this.codeChallengeMethod = codeChallengeMethod;
         this.nonce = nonce;
+        this.authTime = authTime;
         this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
     }
@@ -100,6 +111,10 @@ public class OAuthAuthorizationCode {
 
     public String getNonce() {
         return nonce;
+    }
+
+    public Instant getAuthTime() {
+        return authTime;
     }
 
     public Instant getExpiresAt() {

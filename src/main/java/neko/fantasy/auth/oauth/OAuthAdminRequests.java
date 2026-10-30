@@ -22,6 +22,8 @@ public final class OAuthAdminRequests {
             @NotEmpty(message = "至少需要一个回调地址")
             List<@NotBlank(message = "回调地址不能为空") @Size(max = 2000) String> redirectUris,
 
+            List<@NotBlank(message = "登出回调地址不能为空") @Size(max = 2000) String> postLogoutRedirectUris,
+
             @NotEmpty(message = "至少需要一个权限范围")
             List<String> scopes,
 
@@ -37,6 +39,8 @@ public final class OAuthAdminRequests {
             String description,
 
             List<@NotBlank(message = "回调地址不能为空") @Size(max = 2000) String> redirectUris,
+
+            List<@NotBlank(message = "登出回调地址不能为空") @Size(max = 2000) String> postLogoutRedirectUris,
 
             List<String> scopes,
 

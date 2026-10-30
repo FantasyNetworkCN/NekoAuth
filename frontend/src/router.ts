@@ -53,6 +53,11 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   if (to.meta.requiresAuth && !auth.isAuthenticated.value) {
+    const promptValue = Array.isArray(to.query.prompt) ? to.query.prompt[0] : to.query.prompt
+    const prompt = typeof promptValue === 'string' ? promptValue.split(/\s+/) : []
+    if (to.name === 'oauth-consent' && prompt.includes('none')) {
+      return true
+    }
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.meta.guestOnly && auth.isAuthenticated.value) {

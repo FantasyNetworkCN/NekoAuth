@@ -147,7 +147,8 @@ public class OAuthTokenEndpointService {
         verifyPkce(authorizationCode, form.get("code_verifier"));
         authorizationCode.consume();
         return issueTokens(client, authorizationCode.getUser(),
-                splitScopes(authorizationCode.getScopes()), authorizationCode.getNonce(), true);
+                splitScopes(authorizationCode.getScopes()), authorizationCode.getNonce(),
+                authorizationCode.getAuthTime(), true);
     }
 
     private Map<String, Object> refreshTokenGrant(OAuthClient client, Map<String, String> form) {
@@ -180,14 +181,19 @@ public class OAuthTokenEndpointService {
         }
         refreshToken.markUsed();
         refreshToken.revoke();
-        return issueTokens(client, refreshToken.getUser(), scopes, null, true);
+        return issueTokens(client, refreshToken.getUser(), scopes, null,
+                refreshToken.getAuthTime(), true);
     }
 
     private Map<String, Object> issueTokens(OAuthClient client, User user, Set<String> scopes,
-                                            String nonce, boolean rotateRefreshToken) {
+                                            String nonce, Instant authenticatedAt,
+                                            boolean rotateRefreshToken) {
         if (!user.isEnabled()) {
             throw OAuthException.invalidGrant("用户账户已停用");
         }
+        Instant authTime = authenticatedAt != null
+                ? authenticatedAt
+                : (user.getLastLoginAt() == null ? Instant.now() : user.getLastLoginAt());
         OAuthTokenService.IssuedAccessToken accessToken = tokenService.issueAccessToken(
                 user, client.getClientId(), scopes);
         Map<String, Object> response = new LinkedHashMap<>();
@@ -198,12 +204,12 @@ public class OAuthTokenEndpointService {
         response.put("scope", OAuthScopes.encode(scopes));
         if (scopes.contains(OAuthScopes.OPENID)) {
             response.put("id_token", tokenService.issueIdToken(
-                    user, client.getClientId(), scopes, nonce, accessToken.value()));
+                    user, client.getClientId(), scopes, nonce, accessToken.value(), authTime));
         }
         if (scopes.contains(OAuthScopes.OFFLINE_ACCESS) && rotateRefreshToken) {
             String rawRefreshToken = randomToken(32);
             OAuthRefreshToken refreshToken = new OAuthRefreshToken(
-                    sha256(rawRefreshToken), client, user, OAuthScopes.encode(scopes),
+                    sha256(rawRefreshToken), client, user, OAuthScopes.encode(scopes), authTime,
                     Instant.now().plus(properties.refreshTokenTtl()));
             refreshTokenRepository.save(refreshToken);
             response.put("refresh_token", rawRefreshToken);

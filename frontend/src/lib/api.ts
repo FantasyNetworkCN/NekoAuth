@@ -200,6 +200,8 @@ export const api = {
     codeChallenge?: string
     codeChallengeMethod?: string
     prompt?: string
+    loginHint?: string
+    maxAge?: string
     approved: boolean
   }) {
     return request<{ redirectUrl: string }>('/oauth/authorize/decision', {
@@ -216,6 +218,7 @@ export const api = {
     name: string
     description: string
     redirectUris: string[]
+    postLogoutRedirectUris: string[]
     scopes: string[]
     publicClient: boolean
   }) {
@@ -225,7 +228,15 @@ export const api = {
     })
   },
 
-  updateOAuthClient(id: number, patch: { enabled?: boolean; publicClient?: boolean }) {
+  updateOAuthClient(id: number, patch: {
+    name?: string
+    description?: string
+    redirectUris?: string[]
+    postLogoutRedirectUris?: string[]
+    scopes?: string[]
+    enabled?: boolean
+    publicClient?: boolean
+  }) {
     return request<OAuthClient>(`/admin/oauth-clients/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),

@@ -79,6 +79,8 @@ export interface OAuthAuthorizeView {
   scopeDetails: OAuthScopeDetail[]
   previouslyApproved: boolean
   redirectUrl: string | null
+  reauthRequired: boolean
+  loginHint: string | null
 }
 
 export interface OAuthClient {
@@ -87,6 +89,7 @@ export interface OAuthClient {
   name: string
   description: string | null
   redirectUris: string[]
+  postLogoutRedirectUris: string[]
   scopes: string[]
   publicClient: boolean
   enabled: boolean
