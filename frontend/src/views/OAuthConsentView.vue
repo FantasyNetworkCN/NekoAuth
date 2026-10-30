@@ -39,6 +39,30 @@ function redirectTo(url: string) {
   window.location.assign(url)
 }
 
+function goBack() {
+  const previousRoute = window.history.state?.back
+  const previousIsAuthRedirect = typeof previousRoute === 'string'
+    && (previousRoute.startsWith('/login') || previousRoute.startsWith('/authorize') || previousRoute.startsWith('/oauth/consent'))
+  if (!previousIsAuthRedirect && window.history.length > 1) {
+    router.back()
+    return
+  }
+  if (document.referrer) {
+    try {
+      const target = new URL(document.referrer)
+      const pointsToConsent = target.origin === window.location.origin
+        && (target.pathname === '/authorize' || target.pathname === '/oauth/consent')
+      if (!pointsToConsent) {
+        window.location.assign(target.href)
+        return
+      }
+    } catch {
+      // Ignore malformed or opaque referrers and use the safe in-app fallback.
+    }
+  }
+  void router.replace({ name: 'account' })
+}
+
 async function requireFreshLogin(loginHint?: string | null) {
   const target = stripFreshAuthParams(route.fullPath)
   await auth.logout()
@@ -120,7 +144,13 @@ onMounted(() => void load())
     <div class="consent-stars" aria-hidden="true"><span>✦</span><span>✧</span><span>♡</span><span>🐾</span></div>
 
     <header class="consent-header">
-      <AppLogo :size="40" />
+      <div class="consent-header-start">
+        <button class="consent-back" type="button" aria-label="返回上一页" @click="goBack">
+          <AppIcon name="chevron-left" :size="16" />
+          返回
+        </button>
+        <AppLogo :size="40" />
+      </div>
       <span class="secure-badge"><AppIcon name="lock" :size="14" /> OAuth 2.0 安全授权</span>
     </header>
 
@@ -162,7 +192,7 @@ onMounted(() => void load())
           <span class="state-badge"><AppIcon name="alert" :size="24" /></span>
           <h2>这份授权请求有问题</h2>
           <p>{{ error }}</p>
-          <button class="btn btn-secondary" type="button" @click="router.replace('/')">回到梦幻网络</button>
+          <button class="btn btn-secondary" type="button" @click="goBack">返回上一页</button>
         </div>
 
         <template v-else-if="view">
@@ -264,6 +294,33 @@ onMounted(() => void load())
   width: min(1330px, calc(100% - 2.5rem));
   margin: 0 auto;
   padding: 1.35rem 0 0.5rem;
+}
+
+.consent-header-start {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.consent-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.38rem 0.62rem 0.38rem 0.48rem;
+  border: 1px solid rgba(255, 193, 232, 0.12);
+  border-radius: 999px;
+  color: #bda9cf;
+  background: rgba(255, 226, 247, 0.035);
+  font-size: 0.58rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.consent-back:hover {
+  border-color: rgba(255, 193, 232, 0.24);
+  color: #ffe9f8;
+  background: rgba(255, 226, 247, 0.065);
 }
 
 .secure-badge {
