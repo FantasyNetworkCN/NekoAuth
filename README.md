@@ -23,7 +23,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 
 ## 技术栈
 
-- Java 21 + Spring Boot 4.1
+- Java 27 + Spring Boot 4.1
 - Spring Security 7、Spring Data JPA、Hibernate
 - MySQL 8 / MariaDB 10.6+、Redis 7、H2 / PostgreSQL
 - JJWT 0.13、Vue 3.5、TypeScript、Vite、Vue Router
@@ -92,7 +92,7 @@ docker compose logs -f auth
 
 ## 本地开发
 
-要求 Java 21+、Node.js 22.18+ 或 24.12+。先用开发覆盖文件把 MySQL 与 Redis 映射到本机回环地址：
+要求 Java 27、Node.js 22.18+ 或 24.12+。先用开发覆盖文件把 MySQL 与 Redis 映射到本机回环地址：
 
 ```bash
 cp config/application.example.yml config/application.yml

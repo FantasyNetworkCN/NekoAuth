@@ -18,7 +18,7 @@
     <description>Self-contained authentication service with a Vue frontend</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>27</java.version>
         <jjwt.version>0.13.0</jjwt.version>
         <neko.frontend.skip>false</neko.frontend.skip>
     </properties>
