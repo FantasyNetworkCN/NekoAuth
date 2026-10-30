@@ -2,7 +2,7 @@ server:
   port: 65534
   forward-headers-strategy: framework
   compression:
-    enabled: true
+    enabled: false
 
 spring:
   application:

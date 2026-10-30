@@ -204,7 +204,7 @@ docker compose up -d --build auth
 docker compose down
 ```
 
-生产环境应把认证服务放在 HTTPS 反向代理之后，设置 `auth.cookie.secure: true`，并确保 `oauth.issuer` 与外部访问根地址完全一致。反向代理需保留 `Host` 并传递 `X-Forwarded-Proto`。
+生产环境应把认证服务放在 HTTPS 反向代理之后，设置 `auth.cookie.secure: true`，并确保 `oauth.issuer` 与外部访问根地址完全一致。反向代理需保留 `Host` 并传递 `X-Forwarded-Proto`。源站默认关闭 HTTP 压缩，由 CDN 或反向代理统一启用 gzip/brotli；不要在源站与 CDN 同时压缩，否则部分 CDN 会保留未压缩的 `Content-Length`，导致浏览器报 `ERR_HTTP2_PROTOCOL_ERROR` 并白屏。
 
 不要用 `docker compose down -v` 做常规重启，它会删除数据库、Redis AOF 和 OAuth 签名私钥。若确实需要完全重建环境，请先备份并确认不再需要现有账户、令牌与客户端配置。
 
@@ -215,6 +215,7 @@ docker compose down
 | YAML 配置项 | 内置默认值 | 说明 |
 | --- | --- | --- |
 | `server.port` | `65534` | HTTP 端口 |
+| `server.compression.enabled` | `false` | 源站 HTTP 压缩；CDN 已启用压缩时保持关闭 |
 | `spring.datasource.url` | H2 文件数据库 | Compose 示例为 MySQL 8 JDBC 地址 |
 | `spring.datasource.username` | `sa` | Compose 示例为 `nekoauth` |
 | `spring.datasource.password` | 空 | Compose 示例读取 `${db_password}` |
