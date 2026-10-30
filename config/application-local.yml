@@ -1,0 +1,12 @@
+spring:
+  config:
+    import: optional:configtree:./config/secrets/
+  datasource:
+    url: jdbc:mysql://127.0.0.1:13306/nekoauth?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&allowPublicKeyRetrieval=true&sslMode=DISABLED
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 16379
+
+oauth:
+  key-file: ./data/oauth-signing-key.pem

@@ -7,12 +7,15 @@ services:
     environment:
       MYSQL_DATABASE: nekoauth
       MYSQL_USER: nekoauth
-      MYSQL_PASSWORD: ${DB_PASSWORD:-nekoauth_dev_password}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-nekoauth_root_dev_password}
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+    secrets:
+      - db_password
+      - mysql_root_password
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$$MYSQL_USER\" -p\"$$MYSQL_PASSWORD\" --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$$MYSQL_USER\" -p\"$$(cat /run/secrets/db_password)\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -33,13 +36,13 @@ services:
   auth:
     build: .
     ports:
-      - "${PORT:-65534}:65534"
-    environment:
-      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
-      AUTH_SETUP_TOKEN: ${AUTH_SETUP_TOKEN:-}
-      AUTH_OAUTH_ISSUER: ${AUTH_OAUTH_ISSUER:-http://localhost:65534}
-      AUTH_OAUTH_KEY_FILE: ${AUTH_OAUTH_KEY_FILE:-/app/data/oauth-signing-key.pem}
+      - "65534:65534"
+    secrets:
+      - db_password
+      - jwt_secret
+      - admin_password
     volumes:
+      - ./config:/app/config:ro
       - nekoauth-data:/app/data
     depends_on:
       mysql:
@@ -52,3 +55,13 @@ volumes:
   mysql-data:
   redis-data:
   nekoauth-data:
+
+secrets:
+  db_password:
+    file: ./config/secrets/db_password
+  jwt_secret:
+    file: ./config/secrets/jwt_secret
+  admin_password:
+    file: ./config/secrets/admin_password
+  mysql_root_password:
+    file: ./config/secrets/mysql_root_password

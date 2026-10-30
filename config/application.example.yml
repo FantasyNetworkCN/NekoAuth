@@ -1,0 +1,32 @@
+server:
+  port: 65534
+
+spring:
+  config:
+    import: optional:configtree:/run/secrets/
+  datasource:
+    url: jdbc:mysql://mysql:3306/nekoauth?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&connectTimeout=5000&socketTimeout=5000&allowPublicKeyRetrieval=true&sslMode=PREFERRED
+    username: nekoauth
+    password: ${db_password}
+  data:
+    redis:
+      host: redis
+      port: 6379
+      database: 0
+
+auth:
+  jwt:
+    secret: ${jwt_secret}
+  cookie:
+    secure: false
+  bootstrap-admin:
+    username: admin
+    email: admin@fantasy.network
+    display-name: 猫屋管理员小梦
+    password: ${admin_password}
+  setup:
+    enabled: false
+
+oauth:
+  issuer: http://localhost:65534
+  key-file: /app/data/oauth-signing-key.pem

@@ -4,5 +4,6 @@ target
 frontend/node_modules
 frontend/dist
 data
-.env
+config/application.yml
+config/secrets
 *.log

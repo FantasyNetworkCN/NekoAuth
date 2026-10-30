@@ -1,6 +1,7 @@
 target/
 data/
-.env
+config/application.yml
+config/secrets/
 *.log
 frontend/dist/
 frontend/node_modules/
