@@ -1,0 +1,54 @@
+services:
+  mysql:
+    image: mysql:8.4
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    environment:
+      MYSQL_DATABASE: nekoauth
+      MYSQL_USER: nekoauth
+      MYSQL_PASSWORD: ${DB_PASSWORD:-nekoauth_dev_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-nekoauth_root_dev_password}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$$MYSQL_USER\" -p\"$$MYSQL_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  auth:
+    build: .
+    ports:
+      - "${PORT:-65534}:65534"
+    environment:
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_SETUP_TOKEN: ${AUTH_SETUP_TOKEN:-}
+      AUTH_OAUTH_ISSUER: ${AUTH_OAUTH_ISSUER:-http://localhost:65534}
+      AUTH_OAUTH_KEY_FILE: ${AUTH_OAUTH_KEY_FILE:-/app/data/oauth-signing-key.pem}
+    volumes:
+      - nekoauth-data:/app/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  redis-data:
+  nekoauth-data:

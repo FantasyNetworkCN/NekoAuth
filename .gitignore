@@ -1,4 +1,10 @@
 target/
+data/
+.env
+*.log
+frontend/dist/
+frontend/node_modules/
+src/main/resources/site/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -9,6 +15,7 @@ target/
 .idea/jarRepositories.xml
 .idea/compiler.xml
 .idea/libraries/
+.idea
 *.iws
 *.iml
 *.ipr
@@ -37,3 +44,6 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+frontend/node_modules
+frontend/dist

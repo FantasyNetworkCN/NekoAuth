@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:nekoauth_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+auth:
+  bootstrap-admin:
+    username: admin
+    email: admin@example.com
+    display-name: Test Admin
+    password: AdminPass123
+  rate-limit:
+    attempts: 100
+    window: 5m
+  setup:
+    state-dir: target/test-setup-state
+    token: test-setup-token
+
+oauth:
+  issuer: https://auth.fantasy.example
+  key-file: target/test-oauth-signing-key.pem

@@ -1,47 +1,31 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
+import { RouterView } from 'vue-router'
+import ToastHost from './components/ToastHost.vue'
+import NekoMascot from './components/NekoMascot.vue'
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
-  </header>
-
-  <main>
-    <TheWelcome />
-  </main>
+  <div class="ambient-paws" aria-hidden="true">
+    <span>ฅ</span><span>✧</span><span>🐾</span><span>♡</span><span>ฅ</span>
+  </div>
+  <NekoMascot class="corner-neko" pose="sleep" compact />
+  <RouterView />
+  <ToastHost />
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
+.corner-neko {
+  position: fixed;
+  z-index: 0;
+  bottom: -54px;
+  left: -26px;
+  width: 160px;
+  opacity: 0.12;
+  pointer-events: none;
+  filter: saturate(0.8) blur(0.2px);
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
+@media (max-width: 900px) {
+  .corner-neko { display: none; }
 }
 </style>
