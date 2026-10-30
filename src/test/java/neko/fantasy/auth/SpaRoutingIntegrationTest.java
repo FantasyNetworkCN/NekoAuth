@@ -20,10 +20,17 @@ class SpaRoutingIntegrationTest {
     private MockMvc mockMvc;
 
     @Test
-    void rootAndAdminPagesAreNotExposed() throws Exception {
-        for (String path : new String[]{"/", "/admin", "/admin/clients"}) {
+    void rootIsNotExposed() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void adminPagesServeTheVueApplication() throws Exception {
+        for (String path : new String[]{"/admin", "/admin/clients"}) {
             mockMvc.perform(get(path))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isOk())
+                    .andExpect(forwardedUrl("/index.html"));
         }
     }
 

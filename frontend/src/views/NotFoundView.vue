@@ -3,6 +3,7 @@ import { RouterLink } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AppLogo from '@/components/AppLogo.vue'
 import NekoMascot from '@/components/NekoMascot.vue'
+import { auth } from '@/stores/auth'
 </script>
 
 <template>
@@ -13,9 +14,9 @@ import NekoMascot from '@/components/NekoMascot.vue'
       <p class="not-found-code">404 · 迷路的猫爪印</p>
       <h1>这条世界线不存在喵</h1>
       <p class="not-found-copy">小梦找遍了整片梦域，也没有找到这个地址。也许是传送阵画错了？</p>
-      <RouterLink class="btn btn-primary" to="/login">
-        <AppIcon name="paw" :size="17" />
-        回到登录入口
+      <RouterLink class="btn btn-primary" :to="auth.isAdmin.value ? '/admin' : '/login'">
+        <AppIcon :name="auth.isAdmin.value ? 'shield-cat' : 'paw'" :size="17" />
+        {{ auth.isAdmin.value ? '回到猫屋' : '回到登录入口' }}
       </RouterLink>
     </div>
   </main>

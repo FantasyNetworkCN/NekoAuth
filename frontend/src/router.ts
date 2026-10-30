@@ -1,7 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { auth } from '@/stores/auth'
+import AppShell from '@/components/AppShell.vue'
 import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
+import AdminView from '@/views/AdminView.vue'
+import OAuthClientsView from '@/views/OAuthClientsView.vue'
 import OAuthConsentView from '@/views/OAuthConsentView.vue'
 import NotFoundView from '@/views/NotFoundView.vue'
 import SetupView from '@/views/SetupView.vue'
@@ -34,6 +37,15 @@ const router = createRouter({
       component: OAuthConsentView,
       meta: { requiresAuth: true },
     },
+    {
+      path: '/admin',
+      component: AppShell,
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        { path: '', name: 'admin', component: AdminView },
+        { path: 'clients', name: 'oauth-clients', component: OAuthClientsView },
+      ],
+    },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
   ],
 })
@@ -52,6 +64,12 @@ router.beforeEach((to) => {
     if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
       return redirect
     }
+    if (auth.isAdmin.value) {
+      return { name: 'admin' }
+    }
+  }
+  if (to.meta.requiresAdmin && !auth.isAdmin.value) {
+    return { name: 'login', query: { reason: 'forbidden' } }
   }
   return true
 })

@@ -1,6 +1,6 @@
 # NekoAuth
 
-NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认与可选安装页面；根路径 `/`、管理员后台和用户后台均不再提供。默认部署使用 MySQL 8 与 Redis 7，管理员由 `config/application.yml` 在首次启动时创建；生产 Compose 会关闭 `/setup` 安装入口。
+NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认与可选安装页面，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 和普通用户后台不提供。默认部署使用 MySQL 8 与 Redis 7，管理员由 `config/application.yml` 在首次启动时创建；生产 Compose 会关闭 `/setup` 安装入口。
 
 ## 功能
 
@@ -10,12 +10,12 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 刷新令牌轮换、SHA-256 哈希落库、重放检测与授权链撤销
 - 修改密码后立即失效所有旧访问令牌与刷新会话
 - API 支持设备会话管理、密码修改与全部会话退出；不提供用户后台或个人资料页
-- 管理员用户列表、角色调整、账户启停
+- 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态与 OAuth 应用
 - 用户密码使用与 NekoMusic 一致的 Argon2i（10 次、64 MiB、并行度 1），旧 BCrypt 哈希登录后自动升级
 - Flyway 数据库迁移，支持 H2、PostgreSQL、MySQL、MariaDB
-- 仅保留猫娘主题的登录、注册与 OAuth 授权确认页；直接访问 `/`、`/admin`、`/admin/clients` 均返回 404
+- 仅保留猫娘主题的登录、注册、OAuth 授权确认、可选安装页与管理员后台；`/admin`、`/admin/clients` 仅限 ADMIN，`/`、`/app/**` 返回 404
 - OAuth 2.0 授权码 + PKCE S256，OIDC 发现、JWKS、UserInfo、自省与撤销
-- OAuth 访问令牌按 scope 最小化声明；管理员通过 `/api/admin/oauth-clients` 管理回调地址、scope、公共/机密客户端与密钥轮换
+- OAuth 访问令牌按 scope 最小化声明；管理员通过 `/admin/clients` 或 `/api/admin/oauth-clients` 管理回调地址、scope、公共/机密客户端与密钥轮换
 - 兼容 GitHub 风格的 `user:email` 请求，并规范化为 OIDC 的 `email` scope
 - 可选的一次性安装向导，供非 Compose 的本机或特殊部署使用
 
@@ -61,7 +61,18 @@ docker compose up -d --build
 docker compose logs -f auth
 ```
 
-首次启动会执行 Flyway 迁移，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。管理员登录后可调用 `/api/admin/**` 管理用户和 OAuth 客户端；`/login` 仅供浏览器 OAuth 流程使用，不再跳转到管理后台。
+首次启动会执行 Flyway 迁移，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。管理员登录后会进入 `/admin`，也可直接调用 `/api/admin/**` 管理用户和 OAuth 客户端；普通成员没有用户后台。
+
+## 管理入口
+
+浏览器打开 `https://<认证服务域名>/admin` 即可进入管理员后台。未登录时会跳转到 `/login?redirect=/admin`，使用 ADMIN 账户登录后会返回管理页；普通成员登录后只会看到“没有管理员权限”的提示，不会渲染任何用户后台页面。
+
+管理后台包含：
+
+- `/admin`：用户名册、角色调整与账户启停
+- `/admin/clients`：OAuth 应用、回调地址、scope 与客户端密钥管理
+
+生产环境也可以直接调用 `/api/admin/**` 完成同样操作。根路径 `/` 与 `/app/**` 不提供页面，始终返回 404。
 
 `config/application.yml` 设置 `auth.setup.enabled: false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 只在 Compose 内部网络开放，不映射到宿主机公网。
 
@@ -114,7 +125,7 @@ java -jar target/NekoAuth-1.0.0.jar
 
 ## OAuth 2.0 与 OIDC
 
-NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。管理员通过 `/api/admin/oauth-clients` 登记应用与精确回调地址；用户通过 `/authorize` 查看并确认公开的权限范围。除 OAuth 所需的登录、注册和授权确认页外，服务不提供业务页面。
+NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。管理员通过 `/admin/clients` 或 `/api/admin/oauth-clients` 登记应用与精确回调地址；用户通过 `/authorize` 查看并确认公开的权限范围。除 OAuth 所需的登录、注册、授权确认页和管理员后台外，服务不提供业务页面。
 
 `oauth.issuer` 会写入发现文档、ID Token 的 `iss` 与端点地址，必须是客户端实际访问的公网根地址（例如 `https://auth.fantasy.network`，末尾不要带 `/`）。反向代理需要保留 `Host` 并传递 `X-Forwarded-Proto`。
 
@@ -487,7 +498,7 @@ MySQL/MariaDB 可先将 NekoMusic 用户复制到临时表 `nekomusic_users`，�
 cd frontend && npm run build
 ```
 
-后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、NekoMusic 注册字段、Argon2i 固定哈希、旧 BCrypt 自动升级、重复昵称与根路径/后台页面 404。
+后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、NekoMusic 注册字段、Argon2i 固定哈希、旧 BCrypt 自动升级、重复昵称、根路径 404 与管理员页面转发。
 
 ## 目录
 
