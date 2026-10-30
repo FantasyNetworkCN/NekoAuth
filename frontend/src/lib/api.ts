@@ -12,6 +12,7 @@ import type {
   SetupResult,
   SetupStatus,
   User,
+  VerificationCodeSent,
 } from '@/types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
@@ -157,10 +158,18 @@ export const api = {
     )
   },
 
-  register(input: { email: string; password: string }) {
+  register(input: { email: string; password: string; verificationCode: string }) {
     return request<AuthPayload>(
       '/auth/register',
       { method: 'POST', body: JSON.stringify(input) },
+      { auth: false, retry: false },
+    )
+  },
+
+  requestRegistrationCode(email: string) {
+    return request<VerificationCodeSent>(
+      '/auth/register/code',
+      { method: 'POST', body: JSON.stringify({ email }) },
       { auth: false, retry: false },
     )
   },

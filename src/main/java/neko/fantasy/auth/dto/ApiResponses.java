@@ -35,6 +35,9 @@ public final class ApiResponses {
     public record Message(String message) {
     }
 
+    public record VerificationCodeSent(String message, long expiresInSeconds, long resendAfterSeconds) {
+    }
+
     public record Error(Instant timestamp, int status, String code, String message,
                         Map<String, String> fields) {
     }

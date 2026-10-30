@@ -20,6 +20,12 @@ export interface AuthPayload {
   user: User
 }
 
+export interface VerificationCodeSent {
+  message: string
+  expiresInSeconds: number
+  resendAfterSeconds: number
+}
+
 export interface PageResponse<T> {
   content: T[]
   page: number
@@ -66,6 +72,7 @@ export type MailSecurity = 'STARTTLS' | 'SSL' | 'NONE'
 
 export interface RegistrationPolicy {
   enabled: boolean
+  emailVerificationRequired: boolean
   emailDomains: string[]
 }
 

@@ -66,9 +66,6 @@ router.beforeEach((to) => {
     if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
       return redirect
     }
-    if (auth.isAdmin.value) {
-      return { name: 'admin' }
-    }
   }
   if (to.meta.requiresAdmin && !auth.isAdmin.value) {
     return { name: 'login', query: { reason: 'forbidden' } }

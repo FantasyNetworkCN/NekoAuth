@@ -41,6 +41,7 @@ class SettingsIntegrationTest {
         mockMvc.perform(get("/api/auth/registration-policy"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.emailVerificationRequired").value(false))
                 .andExpect(jsonPath("$.emailDomains", contains(
                         "qq.com", "gmail.com", "163.com", "139.com",
                         "126.com", "outlook.com", "hotmail.com", "icloud.com")));

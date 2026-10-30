@@ -40,12 +40,14 @@ public class AuthService {
     private final AuthProperties properties;
     private final LoginRateLimiter rateLimiter;
     private final SettingsService settingsService;
+    private final EmailVerificationService emailVerificationService;
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
                        UserPasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy,
                        JwtService jwtService, AuthProperties properties,
-                       LoginRateLimiter rateLimiter, SettingsService settingsService) {
+                       LoginRateLimiter rateLimiter, SettingsService settingsService,
+                       EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -54,6 +56,7 @@ public class AuthService {
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.settingsService = settingsService;
+        this.emailVerificationService = emailVerificationService;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-42");
     }
 
@@ -72,6 +75,10 @@ public class AuthService {
         }
         if (userRepository.existsByEmail(email)) {
             throw ApiException.conflict("EMAIL_TAKEN", "该邮箱已被注册");
+        }
+
+        if (emailVerificationService.isRequired()) {
+            emailVerificationService.verifyAndConsume(email, request.verificationCode());
         }
 
         User user = new User();

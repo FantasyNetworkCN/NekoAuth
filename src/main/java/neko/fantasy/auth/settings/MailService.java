@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Properties;
 
 @Service
@@ -29,6 +30,27 @@ public class MailService {
 
     public void sendTest(String recipient) {
         SettingsService.SmtpConfig config = settingsService.getSmtpConfig();
+        send(config, recipient, config.serviceName() + " SMTP 测试", """
+                这是一封来自 %s 的 SMTP 测试邮件。
+
+                如果你收到这封邮件，说明后台保存的 SMTP 服务器、认证信息和发件地址均可正常使用。
+                """.formatted(config.serviceName()));
+    }
+
+    public void sendRegistrationCode(String recipient, SettingsService.SmtpConfig config,
+                                     String code, Duration ttl) {
+        send(config, recipient, "[" + config.serviceName() + "] 注册验证码", """
+                你的 %s 注册验证码是：
+
+                %s
+
+                验证码 %d 分钟内有效且只能使用一次。请勿将验证码转发给他人。
+                如果这不是你本人操作，请忽略这封邮件。
+                """.formatted(config.serviceName(), code, ttl.toMinutes()));
+    }
+
+    private void send(SettingsService.SmtpConfig config, String recipient,
+                      String subject, String text) {
         JavaMailSenderImpl sender = new JavaMailSenderImpl();
         sender.setHost(config.host());
         sender.setPort(config.port());
@@ -59,19 +81,15 @@ public class MailService {
             helper.setFrom(new InternetAddress(
                     config.fromEmail(), config.fromName(), StandardCharsets.UTF_8.name()));
             helper.setTo(recipient);
-            helper.setSubject(config.serviceName() + " SMTP 测试");
-            helper.setText("""
-                    这是一封来自 %s 的 SMTP 测试邮件。
-
-                    如果你收到这封邮件，说明后台保存的 SMTP 服务器、认证信息和发件地址均可正常使用。
-                    """.formatted(config.serviceName()));
+            helper.setSubject(subject);
+            helper.setText(text);
             sender.send(message);
         } catch (MailException | MessagingException | UnsupportedEncodingException exception) {
-            log.warn("SMTP 测试邮件发送失败", exception);
+            log.warn("SMTP 邮件发送失败", exception);
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY,
                     "MAIL_SEND_FAILED",
-                    "SMTP 测试邮件发送失败：" + conciseMessage(exception));
+                    "邮件发送失败：" + conciseMessage(exception));
         }
     }
 

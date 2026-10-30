@@ -51,6 +51,8 @@ auth:
   rate-limit:
     attempts: 20
     window: 5m
+  registration:
+    require-email-verification: true
   setup:
     state-dir: ./data
     token:

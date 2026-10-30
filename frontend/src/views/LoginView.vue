@@ -49,12 +49,7 @@ async function submit() {
       await router.replace(redirectTarget.value)
       return
     }
-    if (auth.isAdmin.value) {
-      showToast(`欢迎回来，${name}`, 'success')
-      await router.replace({ name: 'admin' })
-      return
-    }
-    loginSuccess.value = `登录成功，${name}。NekoAuth 仅提供 API 与 OAuth 授权，请从发起登录的应用继续。`
+    loginSuccess.value = `登录成功，${name}。此页面仅提供身份 API 与 OAuth 授权，请从发起登录的应用继续。`
     showToast(`欢迎回来，${name}`, 'success')
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '网络异常，请稍后重试'
@@ -81,7 +76,7 @@ async function logout() {
     :title="isOAuthFlow ? '确认身份，继续冒险' : '欢迎回到梦幻网络'"
     :subtitle="isOAuthFlow
       ? '小梦正在把你的身份交给发起授权的应用。登录后就能看到它申请的权限喵。'
-      : '使用梦幻网络通行证登录。管理员会进入猫屋后台，普通成员没有用户后台。'"
+      : '使用梦幻网络通行证登录，继续访问已接入的 OAuth 应用。'"
   >
     <div v-if="signedInWithoutRedirect" class="notice-banner">
       <AppIcon name="check" :size="17" />
@@ -171,10 +166,6 @@ async function logout() {
       <RouterLink :to="registerLink">和猫娘签订契约</RouterLink>
     </div>
 
-    <div v-if="!isOAuthFlow" class="admin-entry">
-      <RouterLink class="text-link" to="/admin">管理员入口</RouterLink>
-    </div>
-
     <div class="trust-strip">
       <span><AppIcon name="lock" :size="14" /> HttpOnly</span>
       <span><AppIcon name="refresh" :size="14" /> 令牌轮换</span>
@@ -189,9 +180,4 @@ async function logout() {
   flex: none;
 }
 
-.admin-entry {
-  margin-top: 0.7rem;
-  text-align: center;
-  font-size: 0.68rem;
-}
 </style>

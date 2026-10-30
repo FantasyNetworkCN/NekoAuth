@@ -1,6 +1,7 @@
 package neko.fantasy.auth.settings;
 
 import neko.fantasy.auth.exception.ApiException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -35,10 +36,14 @@ public class SettingsService {
 
     private final ApplicationSettingsRepository repository;
     private final SettingSecretCipher secretCipher;
+    private final boolean emailVerificationRequired;
 
-    public SettingsService(ApplicationSettingsRepository repository, SettingSecretCipher secretCipher) {
+    public SettingsService(ApplicationSettingsRepository repository, SettingSecretCipher secretCipher,
+                           @Value("${auth.registration.require-email-verification:true}")
+                           boolean emailVerificationRequired) {
         this.repository = repository;
         this.secretCipher = secretCipher;
+        this.emailVerificationRequired = emailVerificationRequired;
     }
 
     @Transactional
@@ -50,7 +55,8 @@ public class SettingsService {
     public SettingsResponses.RegistrationPolicy getRegistrationPolicy() {
         ApplicationSettings settings = loadOrCreate();
         return new SettingsResponses.RegistrationPolicy(
-                settings.isRegistrationEnabled(), readDomains(settings.getEmailDomainWhitelist()));
+                settings.isRegistrationEnabled(), emailVerificationRequired,
+                readDomains(settings.getEmailDomainWhitelist()));
     }
 
     @Transactional

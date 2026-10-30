@@ -16,6 +16,8 @@ auth:
   rate-limit:
     attempts: 100
     window: 5m
+  registration:
+    require-email-verification: false
   setup:
     state-dir: target/test-setup-state
     token: test-setup-token

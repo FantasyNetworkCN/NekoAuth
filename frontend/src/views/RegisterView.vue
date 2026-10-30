@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AuthLayout from '@/components/AuthLayout.vue'
 import AppIcon from '@/components/AppIcon.vue'
@@ -11,18 +11,23 @@ const route = useRoute()
 const router = useRouter()
 const form = reactive({
   email: '',
+  verificationCode: '',
   password: '',
   confirmPassword: '',
 })
 const showPassword = ref(false)
 const loading = ref(false)
+const sendingCode = ref(false)
+const codeCooldown = ref(0)
 const error = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 const registrationPolicy = ref({
   enabled: true,
+  emailVerificationRequired: true,
   emailDomains: ['qq.com', 'gmail.com', '163.com', '139.com', '126.com', 'outlook.com', 'hotmail.com', 'icloud.com'],
 })
 const policyLoaded = ref(false)
+let cooldownTimer: ReturnType<typeof setInterval> | undefined
 
 const redirectTarget = computed(() => {
   const value = route.query.redirect
@@ -42,20 +47,63 @@ const passwordStrength = computed(() => {
   return { score, label: labels[score] || '软乎乎' }
 })
 
+function emailValidationError() {
+  if (!/^\S+@\S+\.\S+$/.test(form.email)) return '请输入有效的邮箱'
+  if (form.email.trim().length > 100) return '邮箱不能超过 100 个字符'
+  const domain = form.email.trim().toLowerCase().split('@').pop() || ''
+  if (!registrationPolicy.value.emailDomains.includes(domain)) {
+    return `该邮箱域名不在注册白名单中，支持：${registrationPolicy.value.emailDomains.join('、')}`
+  }
+  return ''
+}
+
 function validate() {
   const errors: Record<string, string> = {}
-  if (!/^\S+@\S+\.\S+$/.test(form.email)) errors.email = '请输入有效的邮箱'
-  else if (form.email.trim().length > 100) errors.email = '邮箱不能超过 100 个字符'
-  else {
-    const domain = form.email.trim().toLowerCase().split('@').pop() || ''
-    if (!registrationPolicy.value.emailDomains.includes(domain)) {
-      errors.email = `该邮箱域名不在注册白名单中，支持：${registrationPolicy.value.emailDomains.join('、')}`
-    }
+  const emailError = emailValidationError()
+  if (emailError) errors.email = emailError
+  else if (registrationPolicy.value.emailVerificationRequired && !/^\d{6}$/.test(form.verificationCode)) {
+    errors.verificationCode = '请输入 6 位邮箱验证码'
   }
   if (form.password.length < 6 || form.password.length > 30) errors.password = '密码长度需为 6-30 个字符'
   if (form.confirmPassword !== form.password) errors.confirmPassword = '两次输入的密码不一致'
   fieldErrors.value = errors
   return Object.keys(errors).length === 0
+}
+
+function startCooldown(seconds: number) {
+  if (cooldownTimer) clearInterval(cooldownTimer)
+  codeCooldown.value = Math.max(1, Math.floor(seconds))
+  cooldownTimer = setInterval(() => {
+    codeCooldown.value = Math.max(0, codeCooldown.value - 1)
+    if (codeCooldown.value === 0 && cooldownTimer) {
+      clearInterval(cooldownTimer)
+      cooldownTimer = undefined
+    }
+  }, 1000)
+}
+
+async function sendCode() {
+  if (sendingCode.value || codeCooldown.value > 0 || !registrationPolicy.value.enabled) return
+  const emailError = emailValidationError()
+  fieldErrors.value = emailError ? { email: emailError } : {}
+  if (emailError) return
+
+  error.value = ''
+  sendingCode.value = true
+  try {
+    const result = await api.requestRegistrationCode(form.email.trim())
+    startCooldown(result.resendAfterSeconds)
+    showToast(result.message, 'success')
+  } catch (caught) {
+    if (caught instanceof ApiError) {
+      error.value = caught.message
+      fieldErrors.value = caught.fields
+    } else {
+      error.value = '验证码发送失败，请稍后重试'
+    }
+  } finally {
+    sendingCode.value = false
+  }
 }
 
 async function submit() {
@@ -66,6 +114,7 @@ async function submit() {
     await auth.register({
       email: form.email.trim(),
       password: form.password,
+      verificationCode: registrationPolicy.value.emailVerificationRequired ? form.verificationCode.trim() : '',
     })
     showToast('契约成立，欢迎来到梦幻网络喵！', 'success')
     if (redirectTarget.value) {
@@ -93,6 +142,10 @@ onMounted(async () => {
   } finally {
     policyLoaded.value = true
   }
+})
+
+onUnmounted(() => {
+  if (cooldownTimer) clearInterval(cooldownTimer)
 })
 </script>
 
@@ -123,6 +176,34 @@ onMounted(async () => {
         </span>
         <span class="field-hint">支持邮箱：{{ registrationPolicy.emailDomains.join('、') }}</span>
         <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
+      </label>
+
+      <label v-if="registrationPolicy.emailVerificationRequired" class="field">
+        <span class="field-label">邮箱验证码</span>
+        <span class="input-shell" :class="{ 'has-error': fieldErrors.verificationCode }">
+          <AppIcon name="shield-cat" :size="18" />
+          <input
+            v-model="form.verificationCode"
+            name="verificationCode"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            placeholder="6 位数字验证码"
+            maxlength="6"
+            pattern="\d{6}"
+            required
+          />
+          <button
+            class="input-action code-action"
+            type="button"
+            :disabled="sendingCode || codeCooldown > 0 || !registrationPolicy.enabled"
+            @click="sendCode"
+          >
+            {{ sendingCode ? '发送中…' : codeCooldown > 0 ? `${codeCooldown}s 后重发` : '获取验证码' }}
+          </button>
+        </span>
+        <span class="field-hint">验证码 10 分钟内有效，请检查垃圾邮件目录。</span>
+        <span v-if="fieldErrors.verificationCode" class="field-error">{{ fieldErrors.verificationCode }}</span>
       </label>
 
       <label class="field">
@@ -198,6 +279,19 @@ onMounted(async () => {
 .strength-label[data-score='2'] { color: #ffc26f; }
 .strength-label[data-score='3'] { color: #a4df8a; }
 .strength-label[data-score='4'] { color: #77f1df; }
+
+.code-action {
+  width: auto;
+  padding: 0 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.code-action:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
 
 .password-meter {
   display: grid;

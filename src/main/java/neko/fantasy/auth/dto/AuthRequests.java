@@ -21,7 +21,18 @@ public final class AuthRequests {
 
             @NotBlank(message = "密码不能为空")
             @Size(min = 6, max = 30, message = "密码长度需为 6-30 个字符")
-            String password
+            String password,
+
+            @Pattern(regexp = "^$|^\\d{6}$", message = "邮箱验证码需为 6 位数字")
+            String verificationCode
+    ) {
+    }
+
+    public record RegistrationCode(
+            @NotBlank(message = "邮箱不能为空")
+            @Email(message = "邮箱格式不正确")
+            @Size(max = 100, message = "邮箱不能超过 100 个字符")
+            String email
     ) {
     }
 

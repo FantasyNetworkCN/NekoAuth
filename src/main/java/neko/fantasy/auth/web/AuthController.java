@@ -9,6 +9,7 @@ import neko.fantasy.auth.exception.ApiException;
 import neko.fantasy.auth.security.UserPrincipal;
 import neko.fantasy.auth.service.AuthCookieService;
 import neko.fantasy.auth.service.AuthService;
+import neko.fantasy.auth.service.EmailVerificationService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,10 +31,13 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthCookieService cookieService;
+    private final EmailVerificationService emailVerificationService;
 
-    public AuthController(AuthService authService, AuthCookieService cookieService) {
+    public AuthController(AuthService authService, AuthCookieService cookieService,
+                          EmailVerificationService emailVerificationService) {
         this.authService = authService;
         this.cookieService = cookieService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @PostMapping("/register")
@@ -42,6 +46,16 @@ public class AuthController {
             HttpServletRequest servletRequest
     ) {
         return authResponse(HttpStatus.CREATED, authService.register(request, servletRequest));
+    }
+
+    @PostMapping("/register/code")
+    public ApiResponses.VerificationCodeSent registrationCode(
+            @Valid @RequestBody AuthRequests.RegistrationCode request
+    ) {
+        EmailVerificationService.CodeDelivery delivery =
+                emailVerificationService.sendRegistrationCode(request.email());
+        return new ApiResponses.VerificationCodeSent(
+                delivery.message(), delivery.expiresInSeconds(), delivery.resendAfterSeconds());
     }
 
     @PostMapping("/login")
