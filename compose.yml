@@ -1,4 +1,15 @@
 services:
+  secrets-init:
+    image: alpine:3.21
+    command: ["/bin/sh", "/scripts/docker-secrets-init.sh"]
+    environment:
+      NEKO_ADMIN_PASSWORD: ${NEKO_ADMIN_PASSWORD:-}
+    volumes:
+      - ./scripts/docker-secrets-init.sh:/scripts/docker-secrets-init.sh:ro
+      - ./config:/bootstrap-config:ro
+      - auth-secrets:/run/secrets
+    restart: "no"
+
   mysql:
     image: mysql:8.4
     command:
@@ -9,11 +20,12 @@ services:
       MYSQL_USER: nekoauth
       MYSQL_PASSWORD_FILE: /run/secrets/db_password
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
-    secrets:
-      - db_password
-      - mysql_root_password
     volumes:
       - mysql-data:/var/lib/mysql
+      - auth-secrets:/run/secrets:ro
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$$MYSQL_USER\" -p\"$$(cat /run/secrets/db_password)\" --silent"]
       interval: 5s
@@ -37,14 +49,20 @@ services:
     build: .
     ports:
       - "65534:65534"
-    secrets:
-      - db_password
-      - jwt_secret
-      - admin_password
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      NEKO_ADMIN_USERNAME: ${NEKO_ADMIN_USERNAME:-admin}
+      NEKO_ADMIN_EMAIL: ${NEKO_ADMIN_EMAIL:-support@nekocore.cn}
+      NEKO_OAUTH_ISSUER: ${NEKO_OAUTH_ISSUER:-https://auth.nekocore.cn}
+      NEKO_CORS_ORIGIN: ${NEKO_CORS_ORIGIN:-https://auth.nekocore.cn}
+      NEKO_COOKIE_SECURE: ${NEKO_COOKIE_SECURE:-true}
     volumes:
       - ./config:/app/config:ro
       - nekoauth-data:/app/data
+      - auth-secrets:/run/secrets:ro
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       redis:
@@ -55,13 +73,4 @@ volumes:
   mysql-data:
   redis-data:
   nekoauth-data:
-
-secrets:
-  db_password:
-    file: ./config/secrets/db_password
-  jwt_secret:
-    file: ./config/secrets/jwt_secret
-  admin_password:
-    file: ./config/secrets/admin_password
-  mysql_root_password:
-    file: ./config/secrets/mysql_root_password
+  auth-secrets:

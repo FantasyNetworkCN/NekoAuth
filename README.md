@@ -1,6 +1,6 @@
 # NekoAuth
 
-NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认、可选安装页面、最小化的 `/account` 账户中心，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 不提供页面。默认部署使用 MySQL 8 与 Redis 7，管理员由 `config/application.yml` 在首次启动时创建；生产 Compose 会关闭 `/setup` 安装入口。
+NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认、可选安装页面、最小化的 `/account` 账户中心，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 不提供页面。默认部署使用 MySQL 8 与 Redis 7；Compose 首次启动会自动生成并持久化密钥，内置的 `docker` profile 会创建管理员并关闭 `/setup` 安装入口。
 
 ## 功能
 
@@ -30,30 +30,12 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 
 ## 快速开始（Docker Compose）
 
-要求 Docker 24+ 与 Compose v2。配置使用 Spring YAML 与独立文件密钥：
+要求 Docker 24+ 与 Compose v2。首次启动不需要手工创建密钥文件，也不需要 `config/application.yml`：
 
-```bash
-cp config/application.example.yml config/application.yml
-mkdir -p config/secrets
-
-printf '%s' "$(openssl rand -base64 48)" > config/secrets/db_password
-printf '%s' "$(openssl rand -base64 48)" > config/secrets/jwt_secret
-printf '%s' "$(openssl rand -base64 48)" > config/secrets/mysql_root_password
-printf '%s' 'ChangeMe-2026-NekoAuth' > config/secrets/admin_password
-chmod 600 config/secrets/*
-```
-
-然后编辑 `config/application.yml`，至少确认以下配置：
-
-| 配置项 | 要求 |
-| --- | --- |
-| `oauth.issuer` | 客户端实际访问的根地址，不带末尾 `/` |
-| `auth.cookie.secure` | HTTPS 部署必须设为 `true` |
-| `auth.bootstrap-admin.username` | 初始管理员用户名 |
-| `auth.bootstrap-admin.email` | 初始管理员邮箱 |
-| `auth.setup.enabled` | 生产保持 `false` |
-
-`config/secrets/db_password` 会同时供 Spring 数据源和 MySQL 初始化使用；`config/secrets/admin_password` 长度为 6-30 个字符，与 NekoMusic 的注册密码规则一致。Compose 会把四份文件挂载为 `/run/secrets` 下的 Docker secrets，应用容器以非 root 用户运行也能读取，不依赖宿主机文件的 UID 与 `600` 权限。`config/application.yml` 与 `config/secrets/` 默认已被 Git 和 Docker 构建上下文忽略。
+- `secrets-init` 会在命名卷 `auth-secrets` 中自动生成数据库密码、JWT 密钥、MySQL root 密码和管理员密码，后续重启与重建复用。
+- 内置 `docker` profile 自动连接 Compose 内的 MySQL/Redis，启用 HTTPS Cookie、生产 issuer，并关闭安装向导。
+- 如需使用自己生成的密钥，可继续放在 `config/secrets/`；Compose 启动时会优先复制这些文件到命名卷。
+- 如需固定管理员密码，可在首次启动前设置 `NEKO_ADMIN_PASSWORD`（6–30 字符）。用户名、邮箱、issuer 和 CORS Origin 可分别用 `NEKO_ADMIN_USERNAME`、`NEKO_ADMIN_EMAIL`、`NEKO_OAUTH_ISSUER`、`NEKO_CORS_ORIGIN` 覆盖。
 
 启动整套服务：
 
@@ -61,6 +43,14 @@ chmod 600 config/secrets/*
 docker compose up -d --build
 docker compose logs -f auth
 ```
+
+首次启动后读取自动生成的管理员密码：
+
+```bash
+docker compose exec auth cat /run/secrets/admin_password
+```
+
+若通过 `NEKO_ADMIN_PASSWORD` 或 `config/secrets/admin_password` 指定了密码，则直接使用指定值。自动生成的密钥保存在 `auth-secrets` 数据卷中；`docker compose down` 不会删除，`docker compose down -v` 会删除。
 
 首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员只能通过直接访问 `/admin` 进入管理后台，登录页和其他公共页面均不显示管理员入口；也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置。普通用户登录后进入 `/account`，只能查看只读资料、修改密码和管理自己的登录会话。
 
@@ -95,11 +85,11 @@ docker compose logs -f auth
 - 注册必须通过 SMTP 发送邮箱验证码；服务端强制同一邮箱 60 秒内只能发送一次、滚动 24 小时最多发送 5 次。验证码 10 分钟内有效、最多允许输错 5 次，验证成功后立即删除且不可复用。注册页会展示当前支持的邮箱域名、有效期与发送限制，这些时间参数由公开注册策略接口返回。
 - SMTP 关闭或配置不完整时，注册验证码接口返回明确错误，新用户无法完成注册；启用后可使用“保存并发送测试”验证服务器、端口、加密方式、认证信息与发件地址。
 - SMTP 密码不会通过 API 回显，使用由 `auth.jwt.secret` 派生的 AES-GCM 密钥加密后落库。**更换 JWT 密钥后，已保存的 SMTP 密码将无法解密，需要在设置页重新填写。**
-- 当前运行的 `config/application.yml` 仍负责端口、数据库、Redis、JWT、Cookie、CORS、管理员引导、安装向导与 OAuth 签名等启动级配置；这些项目不会暴露给管理员网页修改。
+- 端口、数据库、Redis、JWT、Cookie、CORS、管理员引导、安装向导与 OAuth 签名等启动级配置由内置 `docker` profile 或可选的 `config/application.yml` 提供，不会暴露给管理员网页修改。
 
-`config/application.yml` 设置 `auth.setup.enabled: false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 只在 Compose 内部网络开放，不映射到宿主机公网。
+内置 `docker` profile 设置 `auth.setup.enabled: false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 只在 Compose 内部网络开放，不映射到宿主机公网。
 
-`mysql-data`、`redis-data` 与 `nekoauth-data` 分别保存数据库、Redis AOF 和 OAuth RS256 签名私钥。备份时必须同时备份 MySQL 与 `nekoauth-data`；丢失签名私钥后，已有令牌与 JWKS 将无法继续验证。
+`mysql-data`、`redis-data`、`nekoauth-data` 与 `auth-secrets` 分别保存数据库、Redis AOF、OAuth RS256 签名私钥，以及自动生成或从 `config/secrets/` 覆盖的密钥。备份时必须同时备份 MySQL、`nekoauth-data` 与 `auth-secrets`；丢失签名私钥后，已有令牌与 JWKS 将无法继续验证。
 
 ## 本地开发
 
@@ -432,11 +422,11 @@ docker compose down
 
 生产环境应把认证服务放在 HTTPS 反向代理之后，设置 `auth.cookie.secure: true`，并确保 `oauth.issuer` 与外部访问根地址完全一致。反向代理需保留 `Host` 并传递 `X-Forwarded-Proto`；`auth.cors.allowed-origins` 必须包含浏览器实际访问的完整 Origin（例如 `https://auth.nekocore.cn`），否则登录 POST 会被 Spring 以 `Invalid CORS request` 拒绝。源站默认关闭 HTTP 压缩，由 CDN 或反向代理统一启用 gzip/brotli；不要在源站与 CDN 同时压缩，否则部分 CDN 会保留未压缩的 `Content-Length`，导致浏览器报 `ERR_HTTP2_PROTOCOL_ERROR` 并白屏。
 
-不要用 `docker compose down -v` 做常规重启，它会删除数据库、Redis AOF 和 OAuth 签名私钥。若确实需要完全重建环境，请先备份并确认不再需要现有账户、令牌与客户端配置。
+不要用 `docker compose down -v` 做常规重启，它会删除数据库、Redis AOF、OAuth 签名私钥和自动生成的认证密钥。若确实需要完全重建环境，请先备份并确认不再需要现有账户、令牌与客户端配置。
 
 ## 配置
 
-生产配置以 `config/application.yml` 为主，默认从 `/run/secrets/` 读取 Docker secrets；本地开发启用 `local` profile，由 `config/application-local.yml` 覆盖数据库、Redis 地址与密钥目录。`config/secrets/` 通过 Spring `configtree` 导入，文件名即配置键名。
+生产 Compose 使用内置 `docker` profile，从 `auth-secrets` 卷挂载的 `/run/secrets/` 读取自动生成或由 `config/secrets/` 覆盖的密钥，不需要 `config/application.yml`。需要覆盖启动级配置时再创建 `config/application.yml`。本地开发启用 `local` profile，由 `config/application-local.yml` 覆盖数据库、Redis 地址与密钥目录；`config/secrets/` 通过 Spring `configtree` 导入，文件名即配置键名。
 
 时间统一使用中国标准时间 UTC+8（`Asia/Shanghai`），不按 UTC 存储或输出。JDBC 连接参数、Hibernate JDBC 时区与 Jackson 时区必须保持一致；MySQL 使用 `serverTimezone=Asia/Shanghai`，MariaDB 使用 `timezone=Asia/Shanghai`。数据库中的 `datetime/timestamp` 墙钟值直接表示 UTC+8；API 中的 `Instant` 统一序列化为带 `+08:00` 偏移的 ISO-8601 字符串（例如 `2026-10-31T02:00:00+08:00`），不会输出 `Z`，客户端不需要再做时区换算。
 
@@ -565,7 +555,7 @@ docker compose down
 - Compose 默认关闭安装入口；可选安装向导在完成后同样由 Servlet 过滤器直接返回 404，不依赖前端隐藏。
 - 安装和服务连接过程不会把 MySQL/MariaDB、Redis 或管理员密码写入日志。
 - 安装文件以临时文件 + 原子移动写入，使用 POSIX `0600` 权限；完成标记使用独占创建。
-- 首次启动可由 `config/application.yml` 创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户；安装向导通过一次性标记让安装页密码在首次重启中生效，并在同步成功后删除标记。
+- 首次启动可由 `docker` profile（或 `config/application.yml`）创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户；安装向导通过一次性标记让安装页密码在首次重启中生效，并在同步成功后删除标记。
 - 用户密码使用 Argon2i 参数 `t=10`、`m=65536 KiB`、`p=1`；密码长度 6-30 个字符。
 - 注册人机验证使用服务端生成的图形挑战，答案只保存带服务端密钥的 HMAC-SHA256 摘要；挑战一次性消费，5 分钟过期，错误 3 次后删除。
 - 注册与找回密码验证码使用 `SecureRandom` 生成，数据库只保存带服务端密钥的 HMAC-SHA256 摘要，并记录用途防止跨流程复用；验证码 10 分钟过期、最多 5 次尝试，成功或失败次数耗尽后立即删除。发送限流使用独立记录，60 秒冷却与滚动 24 小时 5 次上限不随验证码删除而重置。
