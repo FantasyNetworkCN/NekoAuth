@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AppLogo from '@/components/AppLogo.vue'
 import NekoMascot from '@/components/NekoMascot.vue'
+import guardNeko from '@/assets/catgirl/guard-neko.webp'
 import { ApiError, api } from '@/lib/api'
 import { auth } from '@/stores/auth'
 import type { OAuthAuthorizeView } from '@/types'
@@ -113,7 +114,12 @@ onMounted(() => void load())
         </div>
         <div class="art-stage">
           <span class="art-halo"></span>
-          <NekoMascot pose="guard" />
+          <figure class="art-portrait">
+            <img :src="guardNeko" alt="守护梦幻网络授权的猫娘插画" />
+            <span class="portrait-shine" aria-hidden="true"></span>
+            <figcaption><span><small>CONSENT KEEPER</small><strong>小梦 · 授权守护者</strong></span><b>ฅ</b></figcaption>
+          </figure>
+          <NekoMascot class="art-chibi" pose="wink" compact />
           <div class="art-bubble">
             <strong>“身份安全，就交给小梦吧。”</strong>
             <span>绝不把主人卖给出价更高的罐头！</span>
@@ -313,11 +319,53 @@ onMounted(() => void load())
   place-items: center;
 }
 
-.art-stage :deep(.neko-mascot) {
+.art-portrait {
   position: relative;
   z-index: 1;
-  width: min(88%, 390px);
-  max-height: 380px;
+  width: min(62%, 294px);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 225, 249, 0.36);
+  border-radius: 26px;
+  background: rgba(39, 22, 59, 0.78);
+  box-shadow: 0 28px 72px rgba(3, 0, 12, 0.4), 0 0 0 7px rgba(255, 205, 240, 0.035);
+  transform: rotate(2deg);
+}
+
+.art-portrait img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+
+.portrait-shine {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), transparent);
+  pointer-events: none;
+}
+
+.art-portrait figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.72rem;
+  border-top: 1px solid rgba(255, 219, 247, 0.13);
+  color: #fff1fb;
+}
+
+.art-portrait figcaption span { display: grid; text-align: left; }
+.art-portrait figcaption small { color: #a58bb6; font-size: 0.41rem; letter-spacing: 0.11em; }
+.art-portrait figcaption strong { margin-top: 0.08rem; font-size: 0.58rem; }
+.art-portrait figcaption b { color: #ffaddc; font-size: 1.05rem; font-weight: 500; }
+
+.art-chibi {
+  position: absolute;
+  z-index: 2;
+  bottom: 3%;
+  left: 2%;
+  width: 82px;
 }
 
 .art-halo {
@@ -334,7 +382,7 @@ onMounted(() => void load())
   position: absolute;
   z-index: 2;
   right: 0;
-  bottom: 9%;
+  bottom: 12%;
   display: grid;
   gap: 0.15rem;
   max-width: 190px;

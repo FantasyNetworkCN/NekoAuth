@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import AppLogo from './AppLogo.vue'
-import NekoMascot from './NekoMascot.vue'
+import adminNeko from '@/assets/catgirl/admin-neko.webp'
 import { auth } from '@/stores/auth'
 import { initials } from '@/lib/format'
 import { showToast } from '@/lib/toast'
@@ -87,7 +87,7 @@ async function logout() {
       </nav>
 
       <div class="sidebar-neko-wrap">
-        <NekoMascot pose="wink" compact class="sidebar-neko" />
+        <img :src="adminNeko" class="sidebar-neko-portrait" alt="戴眼镜的猫屋管理员小梦" />
         <div class="sidebar-bubble">小梦已上线，<br />数据都安全喵。</div>
       </div>
 
@@ -218,8 +218,8 @@ async function logout() {
 .side-copy small { color: #5e4d6d; font-size: 0.45rem; }
 .nav-cat-dot { color: #ffacd8; font-size: 0.62rem; }
 
-.sidebar-neko-wrap { position: relative; display: flex; align-items: flex-end; gap: 0.2rem; margin: 1.1rem 0.25rem 0; padding: 0.2rem 0.2rem 0; border-radius: 14px; background: radial-gradient(circle at 30% 50%, rgba(255, 166, 219, 0.08), transparent 66%); }
-.sidebar-neko { width: 78px; flex: none; margin-bottom: -0.2rem; }
+.sidebar-neko-wrap { position: relative; display: flex; align-items: flex-end; gap: 0.45rem; margin: 1.1rem 0.25rem 0; padding: 0.35rem; border-radius: 14px; background: radial-gradient(circle at 30% 50%, rgba(255, 166, 219, 0.08), transparent 66%); }
+.sidebar-neko-portrait { width: 56px; height: 64px; flex: none; border: 1px solid rgba(255, 213, 245, 0.18); border-radius: 12px; object-fit: cover; box-shadow: 0 8px 18px rgba(4, 1, 12, 0.28); }
 .sidebar-bubble { position: relative; margin-bottom: 0.7rem; padding: 0.45rem 0.55rem; border: 1px solid rgba(255, 205, 239, 0.12); border-radius: 10px 10px 10px 3px; color: #aa92b8; background: rgba(38, 25, 56, 0.76); font-size: 0.49rem; line-height: 1.5; }
 
 .sidebar-spacer { flex: 1; min-height: 0.8rem; }

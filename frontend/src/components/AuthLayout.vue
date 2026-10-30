@@ -2,6 +2,7 @@
 import AppIcon from './AppIcon.vue'
 import AppLogo from './AppLogo.vue'
 import NekoMascot from './NekoMascot.vue'
+import heroNeko from '@/assets/catgirl/hero-neko.webp'
 
 defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 </script>
@@ -22,7 +23,15 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 
       <div class="visual-stage">
         <div class="mascot-halo" aria-hidden="true"></div>
-        <NekoMascot class="visual-mascot" pose="greet" />
+        <figure class="neko-id-card">
+          <span class="id-card-chip"><span></span> FANTASY NETWORK</span>
+          <img :src="heroNeko" alt="撑伞的梦幻网络猫娘身份向导" />
+          <figcaption>
+            <span><small>NEKO ID · FN-001</small><strong>星野小梦</strong></span>
+            <span class="id-card-heart">♡</span>
+          </figcaption>
+        </figure>
+        <NekoMascot class="chibi-companion" pose="wink" compact />
         <div class="speech-bubble">
           <span>欢迎回家，主人～</span>
           <small>今天也由小梦守护你的身份喵♡</small>
@@ -64,6 +73,11 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
       <div class="form-sparkles" aria-hidden="true"><span>✧</span><span>♡</span><span>✦</span></div>
       <div class="auth-form-wrap">
         <div class="mobile-brand"><AppLogo :size="36" /></div>
+        <div class="mobile-neko-banner" aria-hidden="true">
+          <img :src="heroNeko" alt="" />
+          <span><strong>小梦在身份门前等你</strong><small>OAuth 2.0 · PKCE · OIDC</small></span>
+          <b>ฅ</b>
+        </div>
         <div class="auth-heading">
           <p class="auth-eyebrow"><span></span>{{ eyebrow }}</p>
           <h2>{{ title }}</h2>
@@ -186,7 +200,7 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 .visual-stage {
   position: relative;
   display: grid;
-  min-height: 330px;
+  min-height: 390px;
   flex: 1;
   place-items: center;
   margin: -0.4rem 0 -0.8rem;
@@ -218,12 +232,91 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   opacity: 0.6;
 }
 
-.visual-mascot {
+.neko-id-card {
   position: relative;
   z-index: 1;
-  width: min(85%, 390px);
+  width: min(64%, 322px);
+  margin: 0;
+  padding: 0.62rem 0.62rem 0.52rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 231, 250, 0.35);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(255, 246, 253, 0.22), transparent 45%),
+    rgba(35, 20, 56, 0.82);
+  box-shadow:
+    0 34px 80px rgba(7, 2, 20, 0.46),
+    0 0 0 7px rgba(255, 207, 242, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: rotate(-2deg);
+  backdrop-filter: blur(18px);
+}
+
+.neko-id-card::after {
+  position: absolute;
+  inset: -30% -80%;
+  background: linear-gradient(115deg, transparent 39%, rgba(255, 255, 255, 0.14) 49%, transparent 59%);
+  content: '';
+  pointer-events: none;
+  transform: translateX(-25%);
+  animation: id-shimmer 6.5s ease-in-out infinite;
+}
+
+.neko-id-card img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 18px;
+  object-fit: cover;
+}
+
+.id-card-chip {
+  position: absolute;
+  z-index: 2;
+  top: 1rem;
+  left: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  padding: 0.38rem 0.54rem;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 999px;
+  color: #fff2fb;
+  background: rgba(25, 13, 43, 0.55);
+  font-size: 0.43rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  backdrop-filter: blur(10px);
+}
+
+.id-card-chip span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #83f5e1;
+  box-shadow: 0 0 9px #83f5e1;
+}
+
+.neko-id-card figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.52rem 0.34rem 0.1rem;
+  color: #fff2fb;
+}
+
+.neko-id-card figcaption > span:first-child { display: grid; text-align: left; }
+.neko-id-card figcaption small { color: #a996b9; font-size: 0.42rem; letter-spacing: 0.11em; }
+.neko-id-card figcaption strong { margin-top: 0.08rem; font-size: 0.7rem; letter-spacing: 0.02em; }
+.id-card-heart { color: #ffaddb; font-size: 1.1rem; transform: rotate(8deg); }
+
+.chibi-companion {
+  z-index: 2;
+  position: absolute;
+  bottom: 1%;
+  left: 1%;
+  width: 112px;
   height: auto;
-  max-height: 410px;
+  filter: drop-shadow(0 16px 22px rgba(7, 2, 18, 0.3));
 }
 
 .speech-bubble {
@@ -455,7 +548,31 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   animation: form-in 0.5s ease-out both;
 }
 
-.mobile-brand { display: none; margin-bottom: 1.8rem; }
+.mobile-brand { display: none; margin-bottom: 1.1rem; }
+
+.mobile-neko-banner {
+  display: none;
+  align-items: center;
+  gap: 0.72rem;
+  margin-bottom: 1.25rem;
+  padding: 0.55rem 0.72rem 0.55rem 0.55rem;
+  border: 1px solid rgba(255, 202, 238, 0.13);
+  border-radius: 16px;
+  background: linear-gradient(105deg, rgba(255, 166, 218, 0.1), rgba(83, 56, 122, 0.1));
+}
+
+.mobile-neko-banner img {
+  width: 52px;
+  height: 62px;
+  flex: none;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.mobile-neko-banner span { display: grid; flex: 1; }
+.mobile-neko-banner strong { color: #f6e8f5; font-size: 0.66rem; }
+.mobile-neko-banner small { margin-top: 0.16rem; color: #917da7; font-size: 0.49rem; letter-spacing: 0.06em; }
+.mobile-neko-banner b { color: #ffabd9; font-size: 1rem; font-weight: 500; }
 
 .auth-heading {
   margin-bottom: 1.35rem;
@@ -528,10 +645,16 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes id-shimmer {
+  0%, 68% { transform: translateX(-35%); }
+  86%, 100% { transform: translateX(35%); }
+}
+
 @media (max-width: 1040px) {
   .auth-page { grid-template-columns: 1fr; }
   .auth-visual { display: none; }
   .mobile-brand { display: block; }
+  .mobile-neko-banner { display: flex; }
   .auth-form-side { min-height: 100svh; }
 }
 
@@ -542,6 +665,7 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 
 @media (prefers-reduced-motion: reduce) {
   .visual-stars span,
-  .auth-form-wrap { animation: none; }
+  .auth-form-wrap,
+  .neko-id-card::after { animation: none; }
 }
 </style>
