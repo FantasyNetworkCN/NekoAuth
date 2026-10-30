@@ -507,8 +507,10 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   position: relative;
   display: flex;
   align-items: center;
+  align-items: safe center;
   justify-content: center;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: clamp(1.5rem, 4vw, 3.5rem);
   background:
     radial-gradient(circle at 96% 4%, rgba(249, 137, 202, 0.13), transparent 26%),

@@ -265,7 +265,8 @@ onMounted(() => void load())
 .consent-page {
   position: relative;
   min-height: 100svh;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 10% 15%, rgba(249, 133, 200, 0.16), transparent 30%),
     radial-gradient(circle at 91% 5%, rgba(102, 226, 217, 0.09), transparent 28%),
@@ -343,7 +344,7 @@ onMounted(() => void load())
   width: min(1330px, calc(100% - 2.5rem));
   min-height: calc(100svh - 90px);
   grid-template-columns: minmax(360px, 0.88fr) minmax(450px, 1.12fr);
-  align-items: center;
+  align-items: safe center;
   gap: clamp(1rem, 4vw, 4rem);
   margin: 0 auto;
   padding: 1rem 0 2.2rem;
@@ -513,15 +514,6 @@ onMounted(() => void load())
     rgba(24, 16, 42, 0.84);
   box-shadow: 0 30px 90px rgba(2, 0, 10, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(22px);
-}
-
-.consent-panel::before {
-  position: absolute;
-  inset: 9px;
-  border: 1px solid rgba(255, 207, 240, 0.045);
-  border-radius: 19px;
-  content: '';
-  pointer-events: none;
 }
 
 .consent-title-row {
