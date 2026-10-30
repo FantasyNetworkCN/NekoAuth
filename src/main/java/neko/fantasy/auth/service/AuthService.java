@@ -67,13 +67,41 @@ public class AuthService {
 
     @Transactional
     public AuthResult register(AuthRequests.Register request, HttpServletRequest servletRequest) {
-        passwordPolicy.validate(request.password());
-        String requestedUsername = trimToNull(request.username());
+        User user = registerAccount(request);
+        return createSession(user, servletRequest, user.getLastLoginAt());
+    }
+
+    /**
+     * 创建账号但**不签发 NekoAuth 浏览器会话**，供可信服务端桥接使用。
+     * 密码与邮箱验证码仍由本服务统一校验，调用方只负责传递原始注册信息。
+     */
+    @Transactional
+    public User registerAccount(AuthRequests.Register request) {
+        return createAccount(request.username(), request.email(), request.password(),
+                request.verificationCode(), true, true);
+    }
+
+    /**
+     * 管理后台创建普通用户：仍由 NekoAuth 保存密码与身份，但跳过邮箱验证码。
+     * 管理员权限已在调用方后台校验。
+     */
+    @Transactional
+    public User createAccountForAdmin(String rawEmail, String password) {
+        return createAccount(null, rawEmail, password, null, false, false);
+    }
+
+    private User createAccount(String rawUsername, String rawEmail, String password,
+                               String verificationCode, boolean requireVerificationCode,
+                               boolean enforceRegistrationPolicy) {
+        passwordPolicy.validate(password);
+        String requestedUsername = trimToNull(rawUsername);
         String username = requestedUsername == null
                 ? generateUsername()
                 : requestedUsername.toLowerCase(Locale.ROOT);
-        String email = normalizeEmail(request.email());
-        settingsService.requireRegistrationAllowed(email);
+        String email = normalizeEmail(rawEmail);
+        if (enforceRegistrationPolicy) {
+            settingsService.requireRegistrationAllowed(email);
+        }
 
         if (userRepository.existsByUsername(username)) {
             throw ApiException.conflict("USERNAME_TAKEN", "该用户名已被使用");
@@ -82,21 +110,18 @@ public class AuthService {
             throw ApiException.conflict("EMAIL_TAKEN", "该邮箱已被注册");
         }
 
-        if (emailVerificationService.isRequired()) {
+        if (requireVerificationCode && emailVerificationService.isRequired()) {
             emailVerificationService.verifyAndConsume(
-                    email, request.verificationCode(), EmailVerificationPurpose.REGISTRATION);
+                    email, verificationCode, EmailVerificationPurpose.REGISTRATION);
         }
 
         User user = new User();
         user.setUsername(username);
         user.setEmail(email);
         user.setDisplayName(defaultDisplayName(email));
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
-        Instant authenticatedAt = Instant.now();
-        user.setLastLoginAt(authenticatedAt);
-        userRepository.save(user);
-
-        return createSession(user, servletRequest, authenticatedAt);
+        user.setPasswordHash(passwordEncoder.encode(password));
+        user.setLastLoginAt(Instant.now());
+        return userRepository.saveAndFlush(user);
     }
 
     @Transactional
@@ -104,30 +129,43 @@ public class AuthService {
         String clientKey = clientKey(servletRequest);
         rateLimiter.check(clientKey);
 
-        String identifier = request.identifier().trim();
+        User user;
+        try {
+            user = authenticateAccount(request.identifier(), request.password());
+        } catch (ApiException exception) {
+            rateLimiter.recordFailure(clientKey);
+            throw exception;
+        }
+
+        rateLimiter.recordSuccess(clientKey);
+        return createSession(user, servletRequest, user.getLastLoginAt());
+    }
+
+    /**
+     * 校验账号口令并刷新最后登录时间，但不创建任何会话。
+     * 供内部账号桥接使用；登录限流由桥接调用方在其用户入口完成。
+     */
+    @Transactional
+    public User authenticateAccount(String rawIdentifier, String password) {
+        String identifier = rawIdentifier.trim();
         User user = identifier.contains("@")
                 ? userRepository.findByEmail(normalizeEmail(identifier)).orElse(null)
                 : userRepository.findByUsername(identifier.toLowerCase(Locale.ROOT)).orElse(null);
 
         String passwordHash = user == null ? dummyPasswordHash : user.getPasswordHash();
-        boolean passwordMatches = passwordEncoder.matches(request.password(), passwordHash);
-
+        boolean passwordMatches = passwordEncoder.matches(password, passwordHash);
         if (user == null || !passwordMatches) {
-            rateLimiter.recordFailure(clientKey);
             throw ApiException.unauthorized("INVALID_CREDENTIALS", "用户名或密码错误");
         }
         if (!user.isEnabled()) {
             throw ApiException.forbidden("ACCOUNT_DISABLED", "该账户已被停用");
         }
 
-        rateLimiter.recordSuccess(clientKey);
         if (passwordEncoder.needsUpgrade(user.getPasswordHash())) {
-            user.setPasswordHash(passwordEncoder.encode(request.password()));
+            user.setPasswordHash(passwordEncoder.encode(password));
         }
-        Instant authenticatedAt = Instant.now();
-        user.setLastLoginAt(authenticatedAt);
-        userRepository.save(user);
-        return createSession(user, servletRequest, authenticatedAt);
+        user.setLastLoginAt(Instant.now());
+        return userRepository.saveAndFlush(user);
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -194,7 +232,29 @@ public class AuthService {
         if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
             throw ApiException.badRequest("PASSWORD_UNCHANGED", "新密码不能与当前密码相同");
         }
-        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        replacePassword(user, request.newPassword());
+    }
+
+    @Transactional
+    public void changePasswordByEmail(String rawEmail, AuthRequests.ChangePassword request) {
+        User user = userRepository.findByEmail(normalizeEmail(rawEmail))
+                .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "用户不存在"));
+        changePassword(user.getId(), request);
+    }
+
+    /**
+     * 管理员重置普通用户密码。管理员权限由调用它的管理后台校验；这里只负责统一改密与撤销会话。
+     */
+    @Transactional
+    public void setPasswordByEmail(String rawEmail, String newPassword) {
+        passwordPolicy.validate(newPassword);
+        User user = userRepository.findByEmail(normalizeEmail(rawEmail))
+                .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "用户不存在"));
+        replacePassword(user, newPassword);
+    }
+
+    private void replacePassword(User user, String newPassword) {
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.incrementTokenVersion();
         userRepository.saveAndFlush(user);
         revokeSessionsAndOAuthGrants(user.getId());

@@ -170,6 +170,44 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 
 登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。登出只会撤销发起应用对应的 OAuth 刷新令牌，不影响其他平台。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。
 
+### 第一方服务端账号桥接
+
+NekoMusic 等第一方应用不再保存用户密码。它们的旧登录、注册、验证码、改密与找回密码 API 保持原路径和请求格式，由应用后端通过下面的内部接口转发到 NekoAuth；浏览器不会获得客户端密钥，也不会被签发 NekoAuth 会话。NekoMusic 继续使用自己的 Redis 用户令牌。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/internal/accounts/login` | 校验邮箱密码并返回账号身份 |
+| `POST` | `/api/internal/accounts/register/code` | 发送注册邮箱验证码 |
+| `POST` | `/api/internal/accounts/register` | 校验验证码并创建账号 |
+| `POST` | `/api/internal/accounts/admin-create` | 由已校验权限的第一方后台创建普通用户，跳过验证码 |
+| `POST` | `/api/internal/accounts/password/reset-code` | 发送找回密码验证码，保持账号不可枚举 |
+| `POST` | `/api/internal/accounts/password/reset` | 验证验证码并重置密码 |
+| `POST` | `/api/internal/accounts/password/change` | 校验当前密码后修改密码 |
+| `POST` | `/api/internal/accounts/password/admin-reset` | 由已校验权限的第一方后台重置密码 |
+
+这些接口不接受用户 JWT，只接受 HTTP Basic 客户端认证。客户端必须同时满足：已启用、`publicClient=false`，并且 scope 明确包含 `account:bridge`。`account:bridge` 不会出现在公开发现文档中，也不能用于浏览器授权请求；它只表示“允许这个可信后端调用账号桥接接口”。管理员创建、管理员重置等接口的可信边界是调用方 NekoMusic 后端——NekoMusic 必须先校验自己的管理员权限，NekoAuth 不会猜测其后台角色。
+
+客户端 ID 和密钥都不写死在代码中。部署时在 `/admin/clients` 或 `/api/admin/oauth-clients` 自行创建一个机密客户端，然后把凭据填入 NekoMusic 的 `oauth.client_id`、`oauth.client_secret`，并将 `oauth.issuer` 指向本服务公网根地址。若同一客户端还要完成浏览器 OAuth 登录，按其需要加入 `openid email roles` 等公开 scope；只做账号桥接时，`account:bridge` 即可。示例：
+
+```bash
+curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "NekoMusic 服务端",
+    "description": "NekoMusic 账号桥接",
+    "redirectUris": ["https://music.nekocore.cn/oauth/callback"],
+    "scopes": ["openid", "email", "roles", "account:bridge"],
+    "publicClient": false
+  }'
+```
+
+创建响应中的 `clientSecret` 只显示一次，只能保存在 NekoMusic 服务端设置中，不能下发到浏览器或客户端安装包。轮换密钥后必须同步更新 NekoMusic；只改一端会得到 `401 INVALID_CLIENT`。
+
+桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录成功后返回 NekoAuth 的稳定数字用户 ID 与邮箱，NekoMusic 用该 ID 绑定本地昵称、VIP、头像等业务资料。密码、验证码和账号状态始终以 NekoAuth 为唯一权威源。
+
+`oauth.enabled` 只控制浏览器 OAuth 登录是否开放，不替代桥接所需的客户端配置。桥接请求失败时，内部接口返回统一业务错误与必要的 `Retry-After`；调用方应原样映射冷却时间，不要自行重试发送验证码。
+
 ### NekoAI / New API 接入
 
 以下配置以 NekoAI 当前部署为例：认证服务位于 `https://auth.nekocore.cn`，New API 位于 `https://ai.nekocore.cn`，New API 自定义 OAuth Provider 的 `slug` 为 `nekoai`。部署到其他域名时只需替换对应根地址。
@@ -473,6 +511,7 @@ docker compose down
 | `GET` | `/api/admin/settings` | 管理员读取注册策略与 SMTP 设置，密码仅返回是否已配置 |
 | `PUT` | `/api/admin/settings` | 管理员更新注册开关、邮箱域名白名单与 SMTP/发件人配置 |
 | `POST` | `/api/admin/settings/mail/test` | 使用已保存的 SMTP 配置发送测试邮件 |
+| `POST` | `/api/internal/accounts/**` | 第一方服务端账号桥接；仅接受带 `account:bridge` 的机密客户端 Basic 认证，不适用于浏览器 |
 
 错误响应统一为：
 
