@@ -59,7 +59,8 @@ class SettingsIntegrationTest {
                                 {"email":"outside@example.com","password":"Password123"}
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("EMAIL_DOMAIN_NOT_ALLOWED"));
+                .andExpect(jsonPath("$.code").value("EMAIL_DOMAIN_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value("不允许的邮箱"));
     }
 
     @Test

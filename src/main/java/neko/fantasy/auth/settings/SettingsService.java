@@ -78,7 +78,7 @@ public class SettingsService {
         if (!allowedDomains.contains(domain)) {
             throw ApiException.badRequest(
                     "EMAIL_DOMAIN_NOT_ALLOWED",
-                    "该邮箱域名不在注册白名单中，支持：" + String.join("、", allowedDomains));
+                    "不允许的邮箱");
         }
     }
 
