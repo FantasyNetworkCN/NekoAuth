@@ -6,6 +6,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import { ApiError, api } from '@/lib/api'
 import { auth } from '@/stores/auth'
 import { showToast } from '@/lib/toast'
+import type { RegistrationPolicy } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,14 +29,14 @@ const captcha = reactive({
   expiresInSeconds: 300,
   loading: false,
 })
-const registrationPolicy = ref({
-  enabled: true,
-  emailVerificationRequired: true,
-  emailDomains: ['qq.com', 'gmail.com', '163.com', '139.com', '126.com', 'outlook.com', 'hotmail.com', 'icloud.com'],
-  emailCodeExpiresInSeconds: 600,
-  emailCodeResendAfterSeconds: 60,
-  emailCodeDailyLimit: 5,
-  emailCodeWindowSeconds: 86400,
+const registrationPolicy = ref<RegistrationPolicy>({
+  enabled: false,
+  emailVerificationRequired: false,
+  emailDomains: [],
+  emailCodeExpiresInSeconds: 0,
+  emailCodeResendAfterSeconds: 0,
+  emailCodeDailyLimit: 0,
+  emailCodeWindowSeconds: 0,
 })
 const policyLoaded = ref(false)
 let cooldownTimer: ReturnType<typeof setInterval> | undefined
@@ -58,22 +59,9 @@ const passwordStrength = computed(() => {
   return { score, label: labels[score] || '软乎乎' }
 })
 
-function formatDuration(seconds: number) {
-  const value = Math.max(1, Math.floor(seconds))
-  if (value === 60) return '60 秒'
-  if (value % 86400 === 0) return `${value / 86400} 小时`
-  if (value % 3600 === 0) return `${value / 3600} 小时`
-  if (value % 60 === 0) return `${value / 60} 分钟`
-  return `${value} 秒`
-}
-
 function emailValidationError() {
   if (!/^\S+@\S+\.\S+$/.test(form.email)) return '请输入有效的邮箱'
   if (form.email.trim().length > 100) return '邮箱不能超过 100 个字符'
-  const domain = form.email.trim().toLowerCase().split('@').pop() || ''
-  if (!registrationPolicy.value.emailDomains.includes(domain)) {
-    return `该邮箱域名不在注册白名单中，支持：${registrationPolicy.value.emailDomains.join('、')}`
-  }
   return ''
 }
 
@@ -187,13 +175,12 @@ async function submit() {
 }
 
 onMounted(async () => {
-  void loadCaptcha()
   try {
     registrationPolicy.value = await api.registrationPolicy()
-  } catch {
-    // Keep the built-in defaults when the public policy endpoint is unavailable.
-  } finally {
     policyLoaded.value = true
+    if (registrationPolicy.value.emailVerificationRequired) void loadCaptcha()
+  } catch {
+    error.value = '注册策略加载失败，请刷新页面后重试'
   }
 })
 
@@ -215,7 +202,7 @@ onUnmounted(() => {
       <span>{{ error }}</span>
     </div>
 
-    <div v-if="!registrationPolicy.enabled" class="alert alert-error" role="alert">
+    <div v-if="policyLoaded && !registrationPolicy.enabled" class="alert alert-error" role="alert">
       <AppIcon name="alert" :size="18" />
       <span>当前暂未开放新用户注册，请联系猫屋管理员。</span>
     </div>
@@ -225,7 +212,7 @@ onUnmounted(() => {
         <span class="field-label">邮箱地址</span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.email }">
           <AppIcon name="mail" :size="18" />
-          <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="you@qq.com" maxlength="100" required />
+          <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="name@example.com" maxlength="100" required />
         </span>
         <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
       </label>
