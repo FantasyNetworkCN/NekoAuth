@@ -11,8 +11,8 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 修改密码后立即失效所有旧访问令牌与刷新会话
 - API 支持设备会话管理、密码修改与全部会话退出；不提供用户后台或个人资料页
 - 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态与 OAuth 应用
-- 用户密码使用与 NekoMusic 一致的 Argon2i（10 次、64 MiB、并行度 1），旧 BCrypt 哈希登录后自动升级
-- Flyway 数据库迁移，支持 H2、PostgreSQL、MySQL、MariaDB
+- 用户密码使用 Argon2i（10 次、64 MiB、并行度 1）
+- 表结构由 JPA 实体自动管理，支持 H2、PostgreSQL、MySQL、MariaDB
 - 仅保留猫娘主题的登录、注册、OAuth 授权确认、可选安装页与管理员后台；`/admin`、`/admin/clients` 仅限 ADMIN，`/`、`/app/**` 返回 404
 - OAuth 2.0 授权码 + PKCE S256，OIDC 发现、JWKS、UserInfo、自省与撤销
 - OAuth 访问令牌按 scope 最小化声明；管理员通过 `/admin/clients` 或 `/api/admin/oauth-clients` 管理回调地址、scope、公共/机密客户端与密钥轮换
@@ -22,7 +22,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 ## 技术栈
 
 - Java 21 + Spring Boot 4.1
-- Spring Security 7、Spring Data JPA、Flyway
+- Spring Security 7、Spring Data JPA、Hibernate
 - MySQL 8 / MariaDB 10.6+、Redis 7、H2 / PostgreSQL
 - JJWT 0.13、Vue 3.5、TypeScript、Vite、Vue Router
 
@@ -61,7 +61,7 @@ docker compose up -d --build
 docker compose logs -f auth
 ```
 
-首次启动会执行 Flyway 迁移，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。管理员登录后会进入 `/admin`，也可直接调用 `/api/admin/**` 管理用户和 OAuth 客户端；普通成员没有用户后台。
+首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。管理员登录后会进入 `/admin`，也可直接调用 `/api/admin/**` 管理用户和 OAuth 客户端；普通成员没有用户后台。
 
 ## 管理入口
 
@@ -462,15 +462,11 @@ docker compose down
 - 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。旧客户端继续可显式提交 `username`。
 - `verificationCode` 字段可以被接收以兼容 NekoMusic 注册载荷，但 NekoAuth 当前没有邮件发信和验证码存储流程，因此不会校验它。不要仅凭该字段把邮箱视为已验证。
 
-### 用户 ID 与 NekoMusic 迁移
+### 用户 ID 与密码格式
 
-- Flyway `V4` 将新用户自增起点设为 `1000000`，已存在的用户 ID 不变；`refresh_tokens`、OAuth 授权码与 consent 的外键不会被重排。
-- 用户密码规则对齐 NekoMusic：`Argon2Factory.create()` 的 Argon2i、`t=10`、`m=65536 KiB`、`p=1`。NekoMusic 的 `$argon2i$...` 哈希可以原样迁移到 `users.password_hash`。
-- 旧 NekoAuth 用户的 BCrypt(12) 哈希仍可登录；登录成功后会自动改写为当前 Argon2i 参数。OAuth 客户端密钥仍独立使用 BCrypt(12)，不受用户密码算法影响。
-- 迁移 NekoMusic 用户时建议映射：`id -> id`、`nickname -> display_name`、`email -> email`、`password -> password_hash`。为满足 NekoAuth 唯一用户名约束，可暂时生成 `CONCAT('neko_', id)` 作为 `username`。
-- 导入前必须检查 NekoMusic 的旧 ID 是否与当前 NekoAuth 的小于 `1000000` 的历史用户 ID 冲突。若冲突，应先设计一次性 ID 映射并同步处理所有外键，不能直接覆盖或重排线上用户。
-
-MySQL/MariaDB 可先将 NekoMusic 用户复制到临时表 `nekomusic_users`，审计 ID 冲突后执行相同字段的 `INSERT ... SELECT`。显式写入更大 ID 后，MySQL/MariaDB 会自动把下一个自增值提升到最大 ID 之后；PostgreSQL 则还需要同步 identity sequence。
+- 用户 ID 由实体上的 `@TableGenerator` 分配，从 `1000000` 开始逐个递增；不依赖数据库厂商的 `AUTO_INCREMENT` 起始值。
+- 用户密码使用 `Argon2Factory.create()` 生成的 Argon2i，参数为 `t=10`、`m=65536 KiB`、`p=1`；数据库列长度为 255。
+- 旧 BCrypt 用户仍可在登录后自动升级为 Argon2i；OAuth 客户端密钥独立使用 BCrypt(12)，不受用户密码算法影响。
 
 ## 安全设计
 
@@ -478,8 +474,8 @@ MySQL/MariaDB 可先将 NekoMusic 用户复制到临时表 `nekomusic_users`，�
 - 安装和服务连接过程不会把 MySQL/MariaDB、Redis 或管理员密码写入日志。
 - 安装文件以临时文件 + 原子移动写入，使用 POSIX `0600` 权限；完成标记使用独占创建。
 - 首次启动可由 `config/application.yml` 创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户。
-- 用户密码使用 NekoMusic 同款 Argon2i 参数；密码长度 6-30 个字符。旧 BCrypt 用户只在成功登录后升级，避免迁移前强制重置。
-- 新用户 ID 从 `1000000` 开始，避免与后续导入的 NekoMusic 旧 ID 段混用；OAuth 客户端密钥继续使用 BCrypt cost 12。
+- 用户密码使用 Argon2i 参数 `t=10`、`m=65536 KiB`、`p=1`；密码长度 6-30 个字符。
+- 新用户 ID 从 `1000000` 开始；OAuth 客户端密钥使用 BCrypt cost 12。
 - JWT 仅存 JS 内存。刷新令牌不暴露给 JavaScript，数据库只保存其 SHA-256 哈希。
 - 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，撤销该用户在同一 OAuth 客户端下的全部活动刷新令牌。
 - 用户 `tokenVersion` 使密码修改、角色变化或停用立即让旧 JWT 失效。
@@ -505,7 +501,6 @@ cd frontend && npm run build
 ```text
 src/main/java/neko/fantasy/auth/          后端应用、领域模型、服务、安全与 API
 src/main/java/neko/fantasy/auth/setup/    一次性安装流程、连接校验、配置落盘与 404 过滤器
-src/main/resources/db/migration/          按数据库厂商拆分的 Flyway 迁移
 src/main/resources/META-INF/spring.factories  安装配置高优先级加载器
 src/test/                                 集成测试与安装测试
 frontend/src/                             Vue 页面、组件、API 客户端与状态

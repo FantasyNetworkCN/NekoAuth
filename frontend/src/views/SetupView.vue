@@ -229,7 +229,7 @@ async function submit() {
             <section class="form-section">
               <div class="section-title">
                 <span class="section-number">02</span>
-                <div><h3>MySQL / MariaDB</h3><p>目标数据库需已存在；支持 MySQL 8 与 MariaDB 10.6+，安装后 Flyway 会自动创建表结构。</p></div>
+                <div><h3>MySQL / MariaDB</h3><p>目标数据库需已存在；支持 MySQL 8 与 MariaDB 10.6+，启动后 Hibernate 会按实体自动创建表结构。</p></div>
               </div>
               <div class="field-grid">
                 <label class="setup-field span-two">

@@ -6,15 +6,20 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import neko.fantasy.auth.domain.User;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 
 @Entity
-@Table(name = "oauth_authorization_codes")
+@Table(name = "oauth_authorization_codes", indexes = {
+        @Index(name = "idx_oauth_codes_expires", columnList = "expires_at")
+})
 public class OAuthAuthorizationCode {
 
     @Id
@@ -26,10 +31,12 @@ public class OAuthAuthorizationCode {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "client_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private OAuthClient client;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private User user;
 
     @Column(nullable = false, length = 512)

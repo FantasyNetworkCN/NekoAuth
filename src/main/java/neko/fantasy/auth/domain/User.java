@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.TableGenerator;
 
 import java.time.Instant;
 
@@ -18,7 +19,16 @@ import java.time.Instant;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.TABLE, generator = "users_id_generator")
+    @TableGenerator(
+            name = "users_id_generator",
+            table = "id_generators",
+            pkColumnName = "generator_name",
+            valueColumnName = "next_value",
+            pkColumnValue = "users",
+            initialValue = 999_999,
+            allocationSize = 1
+    )
     private Long id;
 
     @Column(nullable = false, unique = true, length = 32)

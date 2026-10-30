@@ -100,6 +100,13 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void bootstrapAdminStartsWithTheConfiguredUserIdBase() {
+        User admin = userRepository.findByUsername("admin").orElseThrow();
+
+        assertThat(admin.getId()).isEqualTo(1_000_000L);
+    }
+
+    @Test
     void usersStartAtOneMillionAndNekoMusicRegistrationShapeWorks() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String email = "nekomusic_" + suffix + "@example.com";

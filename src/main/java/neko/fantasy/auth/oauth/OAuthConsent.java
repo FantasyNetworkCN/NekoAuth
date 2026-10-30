@@ -11,12 +11,17 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import neko.fantasy.auth.domain.User;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 
 @Entity
-@Table(name = "oauth_consents")
+@Table(name = "oauth_consents", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_oauth_consents_user_client", columnNames = {"user_id", "client_id"})
+})
 public class OAuthConsent {
 
     @Id
@@ -25,10 +30,12 @@ public class OAuthConsent {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "client_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private OAuthClient client;
 
     @Column(nullable = false, length = 512)
