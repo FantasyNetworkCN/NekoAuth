@@ -69,8 +69,10 @@ class AuthFlowIntegrationTest {
                 .andReturn();
 
         String accessToken = JsonPath.read(registration.getResponse().getContentAsString(), "$.accessToken");
+        String createdAt = JsonPath.read(registration.getResponse().getContentAsString(), "$.user.createdAt");
         Cookie firstRefresh = registration.getResponse().getCookie("refresh_token");
         assertThat(accessToken).isNotBlank();
+        assertThat(createdAt).endsWith("+08:00");
         assertThat(firstRefresh).isNotNull();
 
         mockMvc.perform(get("/api/auth/me")
