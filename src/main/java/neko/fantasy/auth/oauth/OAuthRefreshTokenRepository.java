@@ -19,6 +19,14 @@ public interface OAuthRefreshTokenRepository extends JpaRepository<OAuthRefreshT
     Optional<OAuthRefreshToken> findByHashForUpdate(@Param("hash") String hash);
 
     @Modifying
+    @Query("""
+            update OAuthRefreshToken r set r.revokedAt = :now
+            where r.user.id = :userId and r.client.id = :clientId and r.revokedAt is null
+            """)
+    int revokeActiveForFamily(@Param("userId") Long userId, @Param("clientId") Long clientId,
+                              @Param("now") Instant now);
+
+    @Modifying
     @Query("delete from OAuthRefreshToken r where r.expiresAt < :cutoff or r.revokedAt < :cutoff")
     int deleteStale(@Param("cutoff") Instant cutoff);
 }

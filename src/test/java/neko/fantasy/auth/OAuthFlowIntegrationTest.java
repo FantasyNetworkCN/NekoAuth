@@ -1,5 +1,7 @@
 package neko.fantasy.auth;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OAuthFlowIntegrationTest {
 
     private static final String REDIRECT_URI = "https://fantasy.example/oauth/callback";
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,6 +45,12 @@ class OAuthFlowIntegrationTest {
     void publicClientAuthorizationCodePkceOidcRefreshAndRevocationWork() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         String clientId = createPublicClient(adminToken);
+
+        mockMvc.perform(post("/oauth2/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", clientId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_request"));
 
         String username = "oauth_" + UUID.randomUUID().toString().substring(0, 8);
         String userToken = register(username);
@@ -149,6 +158,21 @@ class OAuthFlowIntegrationTest {
                 .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.token_type").value("refresh_token"));
 
+        mockMvc.perform(post("/oauth2/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("grant_type", "refresh_token")
+                        .param("client_id", clientId)
+                        .param("refresh_token", refreshToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"));
+
+        mockMvc.perform(post("/oauth2/introspect")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", clientId)
+                        .param("token", rotatedRefresh))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+
         mockMvc.perform(post("/oauth2/revoke")
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("client_id", clientId)
@@ -215,7 +239,7 @@ class OAuthFlowIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("invalid_client"));
 
-        mockMvc.perform(post("/oauth2/token")
+        MvcResult tokenResult = mockMvc.perform(post("/oauth2/token")
                         .header(HttpHeaders.AUTHORIZATION, basicAuth(client.clientId(), client.clientSecret()))
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("grant_type", "authorization_code")
@@ -223,7 +247,13 @@ class OAuthFlowIntegrationTest {
                         .param("redirect_uri", REDIRECT_URI))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.access_token").isNotEmpty())
-                .andExpect(jsonPath("$.scope").value("openid"));
+                .andExpect(jsonPath("$.scope").value("openid"))
+                .andReturn();
+
+        String accessToken = JsonPath.read(tokenResult.getResponse().getContentAsString(), "$.access_token");
+        Map<String, Object> claims = jwtClaims(accessToken);
+        assertThat(claims).containsEntry("typ", "oauth_access").containsEntry("scope", "openid");
+        assertThat(claims).doesNotContainKeys("username", "role", "email");
     }
 
     @Test
@@ -440,6 +470,11 @@ class OAuthFlowIntegrationTest {
     private static String basicAuth(String clientId, String secret) {
         return "Basic " + Base64.getEncoder().encodeToString(
                 (clientId + ":" + secret).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static Map<String, Object> jwtClaims(String token) throws Exception {
+        byte[] payload = Base64.getUrlDecoder().decode(token.split("\\.")[1]);
+        return JSON.readValue(payload, new TypeReference<>() { });
     }
 
     private String register(String username) throws Exception {

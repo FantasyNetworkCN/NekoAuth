@@ -30,6 +30,6 @@ public record AuthProperties(
     public record RateLimit(int attempts, Duration window) {
     }
 
-    public record Setup(String stateDir, String token) {
+    public record Setup(String stateDir, String token, boolean enabled) {
     }
 }

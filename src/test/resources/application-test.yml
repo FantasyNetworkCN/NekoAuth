@@ -20,6 +20,7 @@ auth:
   setup:
     state-dir: target/test-setup-state
     token: test-setup-token
+    enabled: true
 
 oauth:
   issuer: https://auth.fantasy.example

@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:65534}
+  port: 65534
   forward-headers-strategy: framework
   compression:
     enabled: true
@@ -8,9 +8,9 @@ spring:
   application:
     name: neko-auth
   datasource:
-    url: ${DB_URL:jdbc:h2:file:./data/nekoauth;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH}
-    username: ${DB_USERNAME:sa}
-    password: ${DB_PASSWORD:}
+    url: jdbc:h2:file:./data/nekoauth;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password:
   jpa:
     open-in-view: false
     hibernate:
@@ -35,35 +35,36 @@ spring:
 
 auth:
   jwt:
-    secret: ${AUTH_JWT_SECRET:dev-only-change-me-nekoauth-secret-key-please-use-env-2026}
-    issuer: ${AUTH_JWT_ISSUER:neko-auth}
-    access-ttl: ${AUTH_ACCESS_TTL:15m}
-    refresh-ttl: ${AUTH_REFRESH_TTL:14d}
+    secret: dev-only-change-me-nekoauth-secret-key-please-configure-2026
+    issuer: neko-auth
+    access-ttl: 15m
+    refresh-ttl: 14d
   cookie:
     name: refresh_token
-    secure: ${AUTH_COOKIE_SECURE:false}
-    same-site: ${AUTH_COOKIE_SAME_SITE:Strict}
+    secure: false
+    same-site: Strict
   cors:
-    allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-origins: http://localhost:5173
   bootstrap-admin:
-    username: ${AUTH_ADMIN_USERNAME:}
-    email: ${AUTH_ADMIN_EMAIL:}
-    display-name: ${AUTH_ADMIN_DISPLAY_NAME:Neko Admin}
-    password: ${AUTH_ADMIN_PASSWORD:}
+    username:
+    email:
+    display-name: Neko Admin
+    password:
   rate-limit:
-    attempts: ${AUTH_LOGIN_ATTEMPTS:20}
-    window: ${AUTH_LOGIN_WINDOW:5m}
+    attempts: 20
+    window: 5m
   setup:
-    state-dir: ${AUTH_SETUP_STATE_DIR:./data}
-    token: ${AUTH_SETUP_TOKEN:}
+    state-dir: ./data
+    token:
+    enabled: true
 
 oauth:
-  issuer: ${AUTH_OAUTH_ISSUER:http://localhost:65534}
-  key-file: ${AUTH_OAUTH_KEY_FILE:${AUTH_SETUP_STATE_DIR:./data}/oauth-signing-key.pem}
-  authorization-code-ttl: ${AUTH_OAUTH_CODE_TTL:5m}
-  access-token-ttl: ${AUTH_OAUTH_ACCESS_TTL:1h}
-  id-token-ttl: ${AUTH_OAUTH_ID_TTL:10m}
-  refresh-token-ttl: ${AUTH_OAUTH_REFRESH_TTL:30d}
+  issuer: http://localhost:65534
+  key-file: ./data/oauth-signing-key.pem
+  authorization-code-ttl: 5m
+  access-token-ttl: 1h
+  id-token-ttl: 10m
+  refresh-token-ttl: 30d
 
 logging:
   level:

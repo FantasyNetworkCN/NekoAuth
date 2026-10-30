@@ -33,9 +33,13 @@ public class OAuthTokenService {
         claims.put("typ", "oauth_access");
         claims.put("client_id", clientId);
         claims.put("scope", OAuthScopes.encode(scopes));
-        claims.put("username", user.getUsername());
-        claims.put("role", user.getRole().name());
         claims.put("ver", user.getTokenVersion());
+        if (scopes.contains(OAuthScopes.PROFILE)) {
+            claims.put("username", user.getUsername());
+        }
+        if (scopes.contains(OAuthScopes.ROLES)) {
+            claims.put("role", user.getRole().name());
+        }
         String value = keyService.issue(claims, user.getId().toString(), properties.accessTokenTtl());
         return new IssuedAccessToken(value, expiresAt);
     }

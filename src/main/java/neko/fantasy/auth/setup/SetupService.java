@@ -76,7 +76,8 @@ public class SetupService {
     }
 
     public boolean isComplete() {
-        return Files.isRegularFile(stateDirectory().resolve(COMPLETE_MARKER));
+        return properties.setup() != null && !properties.setup().enabled()
+                || Files.isRegularFile(stateDirectory().resolve(COMPLETE_MARKER));
     }
 
     public SetupResponses.Status status() {

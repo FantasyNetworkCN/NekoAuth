@@ -45,13 +45,13 @@ public class AdminBootstrap implements ApplicationRunner {
         }
         if (username.isEmpty() || email.isEmpty() || password.isEmpty()) {
             throw new IllegalStateException(
-                    "初始化管理员时，AUTH_ADMIN_USERNAME、AUTH_ADMIN_EMAIL、AUTH_ADMIN_PASSWORD 必须同时设置");
+                    "初始化管理员时，auth.bootstrap-admin.username、auth.bootstrap-admin.email、auth.bootstrap-admin.password 必须同时设置");
         }
 
         String normalizedUsername = username.toLowerCase(Locale.ROOT);
         String normalizedEmail = email.toLowerCase(Locale.ROOT);
         if (!normalizedUsername.matches("^[a-z0-9_]{3,32}$")) {
-            throw new IllegalStateException("AUTH_ADMIN_USERNAME 只能包含 3-32 位字母、数字或下划线");
+            throw new IllegalStateException("auth.bootstrap-admin.username 只能包含 3-32 位字母、数字或下划线");
         }
         passwordPolicy.validate(password);
 

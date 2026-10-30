@@ -84,4 +84,8 @@ public class OAuthRefreshToken {
     public void revoke() {
         this.revokedAt = Instant.now();
     }
+
+    public boolean wasRotated() {
+        return revokedAt != null && lastUsedAt.isAfter(createdAt);
+    }
 }

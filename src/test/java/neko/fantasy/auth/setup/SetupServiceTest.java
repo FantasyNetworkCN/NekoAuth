@@ -22,7 +22,7 @@ class SetupServiceTest {
                 null,
                 null,
                 null,
-                new AuthProperties.Setup(stateDirectory.toString(), "test-token")
+                new AuthProperties.Setup(stateDirectory.toString(), "test-token", true)
         );
         SetupService service = new SetupService(properties, new PasswordPolicy());
 
@@ -39,5 +39,21 @@ class SetupServiceTest {
         assertThat(yaml)
                 .contains("url: \"jdbc:mariadb://mysql:3306/nekoauth\"")
                 .contains("driver-class-name: \"org.mariadb.jdbc.Driver\"");
+    }
+
+    @Test
+    void disablingSetupClosesTheWizardWithoutACompletionMarker() {
+        AuthProperties properties = new AuthProperties(
+                null,
+                null,
+                null,
+                null,
+                null,
+                new AuthProperties.Setup(stateDirectory.toString(), "unused-token", false)
+        );
+
+        SetupService service = new SetupService(properties, new PasswordPolicy());
+
+        assertThat(service.isComplete()).isTrue();
     }
 }

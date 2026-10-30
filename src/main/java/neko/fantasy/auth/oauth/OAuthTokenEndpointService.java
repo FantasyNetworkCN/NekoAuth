@@ -33,25 +33,31 @@ public class OAuthTokenEndpointService {
     private final OAuthTokenService tokenService;
     private final PasswordEncoder passwordEncoder;
     private final OAuthProperties properties;
+    private final OAuthRefreshTokenReuseService reuseService;
 
     public OAuthTokenEndpointService(OAuthClientRepository clientRepository,
                                      OAuthAuthorizationCodeRepository codeRepository,
                                      OAuthRefreshTokenRepository refreshTokenRepository,
                                      OAuthTokenService tokenService,
                                      PasswordEncoder passwordEncoder,
-                                     OAuthProperties properties) {
+                                     OAuthProperties properties,
+                                     OAuthRefreshTokenReuseService reuseService) {
         this.clientRepository = clientRepository;
         this.codeRepository = codeRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tokenService = tokenService;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
+        this.reuseService = reuseService;
     }
 
     @Transactional
     public Map<String, Object> token(Map<String, String> form, String authorizationHeader) {
         OAuthClient client = authenticateClient(form, authorizationHeader);
         String grantType = form.get("grant_type");
+        if (grantType == null || grantType.isBlank()) {
+            throw OAuthException.invalidRequest("缺少参数：grant_type");
+        }
         if ("authorization_code".equals(grantType)) {
             return authorizationCodeGrant(client, form);
         }
@@ -110,7 +116,9 @@ public class OAuthTokenEndpointService {
             response.put("token_type", "Bearer");
             response.put("scope", claims.scope());
             response.put("sub", claims.userId().toString());
-            response.put("username", claims.username());
+            if (claims.username() != null) {
+                response.put("username", claims.username());
+            }
             response.put("exp", claims.expiresAt().getEpochSecond());
             response.put("iat", claims.issuedAt().getEpochSecond());
             response.put("iss", tokenService.issuer());
@@ -144,11 +152,20 @@ public class OAuthTokenEndpointService {
 
     private Map<String, Object> refreshTokenGrant(OAuthClient client, Map<String, String> form) {
         String rawToken = required(form, "refresh_token");
-        OAuthRefreshToken refreshToken = refreshTokenRepository.findByHashForUpdate(sha256(rawToken))
+        String tokenHash = sha256(rawToken);
+        OAuthRefreshToken observed = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> OAuthException.invalidGrant("刷新令牌无效"));
-        if (!refreshToken.getClient().getId().equals(client.getId())) {
+        if (!observed.getClient().getId().equals(client.getId())) {
             throw OAuthException.invalidGrant("刷新令牌不属于当前客户端");
         }
+        if (!observed.isActive(Instant.now())) {
+            if (observed.wasRotated()) {
+                reuseService.revokeFamily(observed.getUser().getId(), observed.getClient().getId());
+            }
+            throw OAuthException.invalidGrant("刷新令牌已过期或已被撤销");
+        }
+        OAuthRefreshToken refreshToken = refreshTokenRepository.findByHashForUpdate(tokenHash)
+                .orElseThrow(() -> OAuthException.invalidGrant("刷新令牌无效"));
         if (!refreshToken.isActive(Instant.now())) {
             throw OAuthException.invalidGrant("刷新令牌已过期或已被撤销");
         }
