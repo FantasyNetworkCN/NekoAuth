@@ -22,6 +22,10 @@ public final class OAuthScopes {
             OFFLINE_ACCESS, new Definition(OFFLINE_ACCESS, "保持登录", "允许应用在你离线时刷新访问令牌。")
     );
 
+    private static final Map<String, String> ALIASES = Map.of(
+            "user:email", EMAIL
+    );
+
     private static final List<Definition> ORDERED = List.of(
             CATALOG.get(OPENID), CATALOG.get(PROFILE), CATALOG.get(EMAIL),
             CATALOG.get(ROLES), CATALOG.get(OFFLINE_ACCESS));
@@ -33,10 +37,11 @@ public final class OAuthScopes {
         String value = scope == null || scope.isBlank() ? OPENID : scope.trim();
         LinkedHashSet<String> result = new LinkedHashSet<>();
         for (String part : value.split("\\s+")) {
-            if (!CATALOG.containsKey(part)) {
+            String canonical = ALIASES.getOrDefault(part, part);
+            if (!CATALOG.containsKey(canonical)) {
                 throw OAuthException.invalidScope("不支持权限范围：" + part);
             }
-            result.add(part);
+            result.add(canonical);
         }
         return result;
     }

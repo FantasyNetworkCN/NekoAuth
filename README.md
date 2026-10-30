@@ -17,6 +17,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 管理员后台仅通过 `/admin` 访问，未登录会跳转登录页，非管理员无法进入；`/app` 已移除并返回 404
 - OAuth 2.0 授权码 + PKCE S256，OIDC 发现、JWKS、UserInfo、自省与撤销
 - OAuth 访问令牌按 scope 最小化声明；管理员 OAuth 应用猫屋支持回调地址、scope、公共/机密客户端与密钥轮换
+- 兼容 GitHub 风格的 `user:email` 请求，并规范化为 OIDC 的 `email` scope
 - 可选的一次性安装向导，供非 Compose 的本机或特殊部署使用
 
 ## 技术栈

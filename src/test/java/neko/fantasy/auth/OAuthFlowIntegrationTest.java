@@ -42,6 +42,27 @@ class OAuthFlowIntegrationTest {
     private MockMvc mockMvc;
 
     @Test
+    void acceptsGithubEmailScopeAlias() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        String clientId = createPublicClient(adminToken);
+        String userToken = register("alias_" + UUID.randomUUID().toString().substring(0, 8));
+        String verifier = randomUrlToken(48);
+        String challenge = base64UrlSha256(verifier);
+
+        mockMvc.perform(get("/api/oauth/authorize")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .param("client_id", clientId)
+                        .param("redirect_uri", REDIRECT_URI)
+                        .param("response_type", "code")
+                        .param("scope", "user:email")
+                        .param("code_challenge", challenge)
+                        .param("code_challenge_method", "S256"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scopes[0]").value("email"))
+                .andExpect(jsonPath("$.scopeDetails[0].name").value("email"));
+    }
+
+    @Test
     void publicClientAuthorizationCodePkceOidcRefreshAndRevocationWork() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         String clientId = createPublicClient(adminToken);
