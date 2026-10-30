@@ -10,6 +10,7 @@ import neko.fantasy.auth.exception.ApiException;
 import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.security.JwtService;
+import neko.fantasy.auth.settings.SettingsService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,12 +39,13 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthProperties properties;
     private final LoginRateLimiter rateLimiter;
+    private final SettingsService settingsService;
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
                        UserPasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy,
                        JwtService jwtService, AuthProperties properties,
-                       LoginRateLimiter rateLimiter) {
+                       LoginRateLimiter rateLimiter, SettingsService settingsService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -51,6 +53,7 @@ public class AuthService {
         this.jwtService = jwtService;
         this.properties = properties;
         this.rateLimiter = rateLimiter;
+        this.settingsService = settingsService;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-42");
     }
 
@@ -62,6 +65,7 @@ public class AuthService {
                 ? generateUsername()
                 : requestedUsername.toLowerCase(Locale.ROOT);
         String email = normalizeEmail(request.email());
+        settingsService.requireRegistrationAllowed(email);
 
         if (userRepository.existsByUsername(username)) {
             throw ApiException.conflict("USERNAME_TAKEN", "该用户名已被使用");

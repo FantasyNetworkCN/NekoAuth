@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AuthLayout from '@/components/AuthLayout.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import { ApiError } from '@/lib/api'
+import { ApiError, api } from '@/lib/api'
 import { auth } from '@/stores/auth'
 import { showToast } from '@/lib/toast'
 
@@ -18,6 +18,11 @@ const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
 const fieldErrors = ref<Record<string, string>>({})
+const registrationPolicy = ref({
+  enabled: true,
+  emailDomains: ['qq.com', 'gmail.com', '163.com', '139.com', '126.com', 'outlook.com', 'hotmail.com', 'icloud.com'],
+})
+const policyLoaded = ref(false)
 
 const redirectTarget = computed(() => {
   const value = route.query.redirect
@@ -41,6 +46,12 @@ function validate() {
   const errors: Record<string, string> = {}
   if (!/^\S+@\S+\.\S+$/.test(form.email)) errors.email = '请输入有效的邮箱'
   else if (form.email.trim().length > 100) errors.email = '邮箱不能超过 100 个字符'
+  else {
+    const domain = form.email.trim().toLowerCase().split('@').pop() || ''
+    if (!registrationPolicy.value.emailDomains.includes(domain)) {
+      errors.email = `该邮箱域名不在注册白名单中，支持：${registrationPolicy.value.emailDomains.join('、')}`
+    }
+  }
   if (form.password.length < 6 || form.password.length > 30) errors.password = '密码长度需为 6-30 个字符'
   if (form.confirmPassword !== form.password) errors.confirmPassword = '两次输入的密码不一致'
   fieldErrors.value = errors
@@ -73,6 +84,16 @@ async function submit() {
     loading.value = false
   }
 }
+
+onMounted(async () => {
+  try {
+    registrationPolicy.value = await api.registrationPolicy()
+  } catch {
+    // Keep the built-in defaults when the public policy endpoint is unavailable.
+  } finally {
+    policyLoaded.value = true
+  }
+})
 </script>
 
 <template>
@@ -88,13 +109,19 @@ async function submit() {
       <span>{{ error }}</span>
     </div>
 
+    <div v-if="!registrationPolicy.enabled" class="alert alert-error" role="alert">
+      <AppIcon name="alert" :size="18" />
+      <span>当前暂未开放新用户注册，请联系猫屋管理员。</span>
+    </div>
+
     <form class="auth-form" novalidate @submit.prevent="submit">
       <label class="field">
         <span class="field-label">邮箱地址</span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.email }">
           <AppIcon name="mail" :size="18" />
-          <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="you@fantasy.network" maxlength="100" required />
+          <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="you@qq.com" maxlength="100" required />
         </span>
+        <span class="field-hint">支持邮箱：{{ registrationPolicy.emailDomains.join('、') }}</span>
         <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
       </label>
 
@@ -144,7 +171,7 @@ async function submit() {
         <span>签订契约即表示你同意梦幻网络的服务条款与隐私约定。小梦不会偷看你的秘密咒语。</span>
       </div>
 
-      <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
+      <button class="btn btn-primary btn-block" type="submit" :disabled="loading || !policyLoaded || !registrationPolicy.enabled">
         <span v-if="loading" class="spinner"></span>
         <template v-else>
           <AppIcon name="heart" :size="17" />

@@ -1,10 +1,13 @@
 import type {
   ApiErrorBody,
+  AdminSettings,
   AuthPayload,
   CreatedOAuthClient,
   OAuthAuthorizeView,
   OAuthClient,
   PageResponse,
+  RegistrationPolicy,
+  SettingsUpdate,
   SetupInstallRequest,
   SetupResult,
   SetupStatus,
@@ -170,6 +173,10 @@ export const api = {
     return request<User>('/auth/me')
   },
 
+  registrationPolicy() {
+    return request<RegistrationPolicy>('/auth/registration-policy', {}, { auth: false, retry: false })
+  },
+
   users(query = '', page = 0, size = 20) {
     const params = new URLSearchParams({ query, page: String(page), size: String(size) })
     return request<PageResponse<User>>(`/admin/users?${params}`)
@@ -179,6 +186,24 @@ export const api = {
     return request<User>(`/admin/users/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
+    })
+  },
+
+  settings() {
+    return request<AdminSettings>('/admin/settings')
+  },
+
+  updateSettings(input: SettingsUpdate) {
+    return request<AdminSettings>('/admin/settings', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    })
+  },
+
+  sendTestEmail(recipient: string) {
+    return request<{ message: string }>('/admin/settings/mail/test', {
+      method: 'POST',
+      body: JSON.stringify({ recipient }),
     })
   },
 

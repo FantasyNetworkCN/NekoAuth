@@ -512,7 +512,7 @@ class OAuthMultiPlatformIntegrationTest {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"%s","email":"%s@example.com","password":"Password123"}
+                                {"username":"%s","email":"%s@gmail.com","password":"Password123"}
                                 """.formatted(username, username)))
                 .andExpect(status().isCreated())
                 .andReturn();

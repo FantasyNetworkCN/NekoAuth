@@ -63,6 +63,46 @@ export interface SetupResult {
   message: string
 }
 
+export type MailSecurity = 'STARTTLS' | 'SSL' | 'NONE'
+
+export interface RegistrationPolicy {
+  enabled: boolean
+  emailDomains: string[]
+}
+
+export interface AdminSettings {
+  serviceName: string
+  registrationEnabled: boolean
+  emailDomainWhitelist: string[]
+  updatedAt: string
+  smtp: SmtpSettings
+}
+
+export interface SmtpSettings {
+  enabled: boolean
+  host: string
+  port: number
+  username: string
+  passwordConfigured: boolean
+  security: MailSecurity
+  authEnabled: boolean
+  fromEmail: string
+  fromName: string
+  connectionTimeoutMs: number
+  readTimeoutMs: number
+  writeTimeoutMs: number
+}
+
+export interface SettingsUpdate {
+  serviceName: string
+  registrationEnabled: boolean
+  emailDomainWhitelist: string[]
+  smtp: Omit<SmtpSettings, 'passwordConfigured'> & {
+    password?: string
+    clearPassword: boolean
+  }
+}
+
 export interface OAuthScopeDetail {
   name: string
   label: string

@@ -5,6 +5,7 @@ import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 import AdminView from '@/views/AdminView.vue'
 import OAuthClientsView from '@/views/OAuthClientsView.vue'
+import AdminSettingsView from '@/views/AdminSettingsView.vue'
 import OAuthConsentView from '@/views/OAuthConsentView.vue'
 import NotFoundView from '@/views/NotFoundView.vue'
 import SetupView from '@/views/SetupView.vue'
@@ -44,6 +45,7 @@ const router = createRouter({
       children: [
         { path: '', name: 'admin', component: AdminView },
         { path: 'clients', name: 'oauth-clients', component: OAuthClientsView },
+        { path: 'settings', name: 'admin-settings', component: AdminSettingsView },
       ],
     },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },

@@ -10,10 +10,12 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 刷新令牌轮换、SHA-256 哈希落库、重放检测与授权链撤销
 - 修改密码后立即失效所有旧访问令牌与刷新会话
 - API 支持设备会话管理、密码修改与全部会话退出；不提供用户后台或个人资料页
-- 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态与 OAuth 应用
+- 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态、OAuth 应用与运行设置
+- 注册邮箱默认只允许 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`，可在 `/admin/settings` 修改
+- `/admin/settings` 可维护注册开关、邮箱域名白名单、SMTP 服务器、认证信息、发件地址与发件人名称，并发送测试邮件
 - 用户密码使用 Argon2i（10 次、64 MiB、并行度 1）
 - 表结构由 JPA 实体自动管理，支持 H2、PostgreSQL、MySQL、MariaDB
-- 仅保留猫娘主题的登录、注册、OAuth 授权确认、可选安装页与管理员后台；`/admin`、`/admin/clients` 仅限 ADMIN，`/`、`/app/**` 返回 404
+- 仅保留猫娘主题的登录、注册、OAuth 授权确认、可选安装页与管理员后台；`/admin`、`/admin/clients`、`/admin/settings` 仅限 ADMIN，`/`、`/app/**` 返回 404
 - OAuth 2.0 授权码 + PKCE S256，OIDC 发现、JWKS、UserInfo、自省与撤销
 - OAuth 访问令牌按 scope 最小化声明；管理员通过 `/admin/clients` 或 `/api/admin/oauth-clients` 管理回调地址、scope、公共/机密客户端与密钥轮换
 - 兼容 GitHub 风格的 `user:email` 请求，并规范化为 OIDC 的 `email` scope
@@ -61,7 +63,7 @@ docker compose up -d --build
 docker compose logs -f auth
 ```
 
-首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。管理员登录后会进入 `/admin`，也可直接调用 `/api/admin/**` 管理用户和 OAuth 客户端；普通成员没有用户后台。
+首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。管理员登录后会进入 `/admin`，也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置；普通成员没有用户后台。
 
 ## 管理入口
 
@@ -71,8 +73,19 @@ docker compose logs -f auth
 
 - `/admin`：用户名册、角色调整与账户启停
 - `/admin/clients`：OAuth 应用、回调地址、scope 与客户端密钥管理
+- `/admin/settings`：注册开关、邮箱域名白名单、SMTP、发件地址与测试邮件
 
 生产环境也可以直接调用 `/api/admin/**` 完成同样操作。根路径 `/` 与 `/app/**` 不提供页面，始终返回 404。
+
+### 运行设置
+
+注册与发信设置保存在数据库的 `application_settings` 表，后台保存后立即生效，无需重启。首次读取或首次注册时会自动建立默认配置：
+
+- 默认开放注册，邮箱域名白名单为 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`。
+- 域名精确匹配 `@` 后的部分，统一转小写，不支持通配符；可在设置页填写 `@qq.com` 或 `qq.com`，保存时会自动规范化。
+- SMTP 关闭时保存配置不会连接邮件服务器；启用后可使用“保存并发送测试”验证服务器、端口、加密方式、认证信息与发件地址。
+- SMTP 密码不会通过 API 回显，使用由 `auth.jwt.secret` 派生的 AES-GCM 密钥加密后落库。**更换 JWT 密钥后，已保存的 SMTP 密码将无法解密，需要在设置页重新填写。**
+- 当前运行的 `config/application.yml` 仍负责端口、数据库、Redis、JWT、Cookie、CORS、管理员引导、安装向导与 OAuth 签名等启动级配置；这些项目不会暴露给管理员网页修改。
 
 `config/application.yml` 设置 `auth.setup.enabled: false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 只在 Compose 内部网络开放，不映射到宿主机公网。
 
@@ -420,6 +433,7 @@ docker compose down
 | `GET` | `/api/setup/status` | 可选安装状态；安装完成或禁用后返回 404 |
 | `POST` | `/api/setup/install` | 校验并保存安装配置；需要 `X-Setup-Token` |
 | `POST` | `/api/auth/register` | 注册并登录；只提交 `email/password`，昵称由服务端生成且不可修改 |
+| `GET` | `/api/auth/registration-policy` | 公开查询注册是否开放及当前邮箱域名白名单 |
 | `POST` | `/api/auth/login` | 用户名或邮箱登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
 | `POST` | `/api/auth/logout` | 退出当前会话 |
@@ -435,6 +449,9 @@ docker compose down
 | `POST` | `/api/admin/oauth-clients` | 登记 OAuth 应用并一次性返回客户端密钥 |
 | `PATCH` | `/api/admin/oauth-clients/{id}` | 修改回调、scope、启用状态或客户端类型 |
 | `POST` | `/api/admin/oauth-clients/{id}/secret` | 轮换机密客户端密钥 |
+| `GET` | `/api/admin/settings` | 管理员读取注册策略与 SMTP 设置，密码仅返回是否已配置 |
+| `PUT` | `/api/admin/settings` | 管理员更新注册开关、邮箱域名白名单与 SMTP/发件人配置 |
+| `POST` | `/api/admin/settings/mail/test` | 使用已保存的 SMTP 配置发送测试邮件 |
 
 错误响应统一为：
 
@@ -452,12 +469,12 @@ docker compose down
 
 ```json
 {
-  "email": "neko@example.com",
+  "email": "neko@qq.com",
   "password": "secret123"
 }
 ```
 
-- `email` 长度不超过 100、统一转小写且必须唯一；密码长度 6-30，不强制字母与数字组合。
+- `email` 长度不超过 100、统一转小写且必须唯一；域名必须命中当前注册白名单，否则返回 `400 EMAIL_DOMAIN_NOT_ALLOWED`；关闭注册时返回 `403 REGISTRATION_DISABLED`。密码长度 6-30，不强制字母与数字组合。
 - 注册页只显示邮箱和密码。昵称取邮箱 `@` 前的部分（最多 20 个 Unicode 字符），允许重复；创建后不能通过用户 API 或网页修改。
 - 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。
 
@@ -483,6 +500,7 @@ docker compose down
 - 公共客户端强制 PKCE S256；授权码短期有效、只保存哈希且只能交换一次。
 - 回调地址精确匹配，非回环地址禁止明文 HTTP；OAuth 协议错误与业务 API 错误分别保持标准响应格式。
 - OAuth 访问令牌仅在 `profile` scope 下包含用户名、仅在 `roles` scope 下包含角色；RS256 私钥落盘到受限数据目录，JWKS 仅暴露公钥。
+- 管理后台保存的 SMTP 密码使用 AES-GCM 加密，设置接口不回显明文；认证失败、连接失败或测试收件地址被拒绝时，测试邮件接口返回 `502 MAIL_SEND_FAILED`，不会静默成功。
 
 生产环境至少必须：使用 HTTPS、设置 `auth.cookie.secure: true`、保持 `auth.setup.enabled: false`、使用独立数据库账号、备份 `nekoauth-data`，并在反向代理层增加更严格的限流与审计。
 
@@ -493,13 +511,14 @@ docker compose down
 cd frontend && npm run build
 ```
 
-后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、邮箱派生且不可修改的昵称、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发。
+后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、邮箱派生且不可修改的昵称、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发；设置测试覆盖默认域名白名单、非白名单拒绝、注册开关、管理员更新与 SMTP 密码不回显。
 
 ## 目录
 
 ```text
 src/main/java/neko/fantasy/auth/          后端应用、领域模型、服务、安全与 API
 src/main/java/neko/fantasy/auth/setup/    一次性安装流程、连接校验、配置落盘与 404 过滤器
+src/main/java/neko/fantasy/auth/settings/ 运行设置持久化、注册白名单、SMTP 配置与测试发信
 src/main/resources/META-INF/spring.factories  安装配置高优先级加载器
 src/test/                                 集成测试与安装测试
 frontend/src/                             Vue 页面、组件、API 客户端与状态

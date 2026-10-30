@@ -146,7 +146,7 @@ class OAuthFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sub").isNotEmpty())
                 .andExpect(jsonPath("$.preferred_username").value(username))
-                .andExpect(jsonPath("$.email").value(username + "@example.com"))
+                .andExpect(jsonPath("$.email").value(username + "@gmail.com"))
                 .andExpect(jsonPath("$.email_verified").value(true));
 
         mockMvc.perform(post("/oauth2/token")
@@ -511,7 +511,7 @@ class OAuthFlowIntegrationTest {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"%s","email":"%s@example.com","password":"Password123"}
+                                {"username":"%s","email":"%s@gmail.com","password":"Password123"}
                                 """.formatted(username, username)))
                 .andExpect(status().isCreated())
                 .andReturn();

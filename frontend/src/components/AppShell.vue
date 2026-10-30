@@ -16,11 +16,14 @@ const loggingOut = ref(false)
 const navItems = [
   { name: 'admin', to: '/admin', label: '用户名册', icon: 'users', note: '猫屋成员' },
   { name: 'oauth-clients', to: '/admin/clients', label: 'OAuth 应用', icon: 'apps', note: '接入契约' },
+  { name: 'admin-settings', to: '/admin/settings', label: '系统设置', icon: 'sliders', note: '注册与发信' },
 ]
 
-const pageTitle = computed(() => (
-  route.name === 'oauth-clients' ? 'OAuth 应用猫屋' : '用户名册'
-))
+const pageTitle = computed(() => {
+  if (route.name === 'oauth-clients') return 'OAuth 应用猫屋'
+  if (route.name === 'admin-settings') return '系统设置'
+  return '用户名册'
+})
 const displayName = computed(() => auth.state.user?.displayName || auth.state.user?.username || '访客')
 const avatarText = computed(() => initials(displayName.value))
 

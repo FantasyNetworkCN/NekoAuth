@@ -54,7 +54,7 @@ class AuthFlowIntegrationTest {
     @Test
     void registerLoginRefreshAndReuseDetectionWork() throws Exception {
         String username = "user_" + UUID.randomUUID().toString().substring(0, 8);
-        String email = username + "@example.com";
+        String email = username + "@gmail.com";
 
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,7 +110,7 @@ class AuthFlowIntegrationTest {
     void usersStartAtOneMillionAndRegistrationFillsImmutableNickname() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String nickname = "nekomusic_" + suffix;
-        String email = nickname + "@example.com";
+        String email = nickname + "@gmail.com";
 
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -142,8 +142,8 @@ class AuthFlowIntegrationTest {
     void derivedNicknameAllowsDuplicatesAndLegacyBcryptUpgradesOnLogin() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String nickname = "duplicate_" + suffix;
-        String firstEmail = nickname + "@example.com";
-        String secondEmail = nickname + "@example.org";
+        String firstEmail = nickname + "@gmail.com";
+        String secondEmail = nickname + "@outlook.com";
 
         MvcResult first = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -168,7 +168,7 @@ class AuthFlowIntegrationTest {
 
         User legacy = new User();
         legacy.setUsername("legacy_" + suffix);
-        legacy.setEmail("legacy_" + suffix + "@example.com");
+        legacy.setEmail("legacy_" + suffix + "@gmail.com");
         legacy.setDisplayName("旧版用户");
         legacy.setPasswordHash(new BCryptPasswordEncoder(12).encode("Password123"));
         userRepository.saveAndFlush(legacy);
@@ -187,7 +187,7 @@ class AuthFlowIntegrationTest {
     @Test
     void loginValidationAndLogoutWork() throws Exception {
         String username = "user_" + UUID.randomUUID().toString().substring(0, 8);
-        String email = username + "@example.com";
+        String email = username + "@gmail.com";
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -272,7 +272,7 @@ class AuthFlowIntegrationTest {
     @Test
     void changingPasswordInvalidatesAccessAndRefreshTokens() throws Exception {
         String username = "user_" + UUID.randomUUID().toString().substring(0, 8);
-        String email = username + "@example.com";
+        String email = username + "@gmail.com";
 
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -309,7 +309,7 @@ class AuthFlowIntegrationTest {
     @Test
     void sessionsCanBeListedAndRevoked() throws Exception {
         String username = "user_" + UUID.randomUUID().toString().substring(0, 8);
-        String email = username + "@example.com";
+        String email = username + "@gmail.com";
 
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)

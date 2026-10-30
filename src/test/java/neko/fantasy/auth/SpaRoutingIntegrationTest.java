@@ -27,7 +27,7 @@ class SpaRoutingIntegrationTest {
 
     @Test
     void adminPagesServeTheVueApplication() throws Exception {
-        for (String path : new String[]{"/admin", "/admin/clients"}) {
+        for (String path : new String[]{"/admin", "/admin/clients", "/admin/settings"}) {
             mockMvc.perform(get(path))
                     .andExpect(status().isOk())
                     .andExpect(forwardedUrl("/index.html"));
