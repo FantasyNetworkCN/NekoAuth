@@ -46,8 +46,6 @@ public class SetupService {
 
     private static final Logger log = LoggerFactory.getLogger(SetupService.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static final String CONFIG_FILE = "nekoauth-setup.yml";
-    private static final String COMPLETE_MARKER = ".setup-complete";
     private static final String MYSQL_URL_SUFFIX =
             "?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"
                     + "&connectTimeout=5000&socketTimeout=5000&allowPublicKeyRetrieval=true&sslMode=PREFERRED";
@@ -77,7 +75,7 @@ public class SetupService {
 
     public boolean isComplete() {
         return properties.setup() != null && !properties.setup().enabled()
-                || Files.isRegularFile(stateDirectory().resolve(COMPLETE_MARKER));
+                || Files.isRegularFile(stateDirectory().resolve(SetupState.COMPLETE_MARKER));
     }
 
     public SetupResponses.Status status() {
@@ -232,11 +230,12 @@ public class SetupService {
         }
     }
 
-    private void writeConfiguration(AdminConfig admin, DatabaseConfig database, RedisConfig redis) {
+    void writeConfiguration(AdminConfig admin, DatabaseConfig database, RedisConfig redis) {
         Path stateDirectory = stateDirectory();
-        Path configFile = stateDirectory.resolve(CONFIG_FILE);
-        Path markerFile = stateDirectory.resolve(COMPLETE_MARKER);
-        Path temporaryFile = stateDirectory.resolve(CONFIG_FILE + ".tmp-" + randomToken());
+        Path configFile = stateDirectory.resolve(SetupState.CONFIG_FILE);
+        Path markerFile = stateDirectory.resolve(SetupState.COMPLETE_MARKER);
+        Path pendingAdminMarker = stateDirectory.resolve(SetupState.PENDING_ADMIN_MARKER);
+        Path temporaryFile = stateDirectory.resolve(SetupState.CONFIG_FILE + ".tmp-" + randomToken());
         String yaml = setupYaml(admin, database, redis);
         try {
             Files.createDirectories(stateDirectory);
@@ -249,10 +248,16 @@ public class SetupService {
                 Files.move(temporaryFile, configFile, StandardCopyOption.REPLACE_EXISTING);
             }
             setPermissions(configFile, PRIVATE_FILE_PERMISSIONS);
+            writeReplaceableMarker(pendingAdminMarker, "username=" + admin.username() + "\n");
             writeMarker(markerFile);
         } catch (FileAlreadyExistsException exception) {
             throw ApiException.notFound("SETUP_NOT_FOUND", "请求的资源不存在");
         } catch (IOException exception) {
+            try {
+                Files.deleteIfExists(pendingAdminMarker);
+            } catch (IOException ignored) {
+                // Keep the original setup failure as the reported cause.
+            }
             log.error("无法写入 NekoAuth 安装配置", exception);
             throw ApiException.badRequest("SETUP_WRITE_FAILED", "安装配置写入失败，请检查数据目录权限");
         } finally {
@@ -314,11 +319,8 @@ public class SetupService {
         return quoted.append('"').toString();
     }
 
-    private Path stateDirectory() {
-        String configured = properties.setup() == null ? "./data" : properties.setup().stateDir();
-        return Path.of(StringUtils.hasText(configured) ? configured : "./data")
-                .toAbsolutePath()
-                .normalize();
+    Path stateDirectory() {
+        return SetupState.directory(properties);
     }
 
     private static void writePrivateFile(Path path, byte[] content) throws IOException {
@@ -334,10 +336,28 @@ public class SetupService {
     }
 
     private static void writeMarker(Path markerFile) throws IOException {
-        byte[] content = ("installedAt=" + Instant.now() + "\n").getBytes(StandardCharsets.UTF_8);
+        writeMarker(markerFile, "installedAt=" + Instant.now() + "\n");
+    }
+
+    private static void writeMarker(Path markerFile, String markerContent) throws IOException {
+        byte[] content = markerContent.getBytes(StandardCharsets.UTF_8);
         try (FileChannel channel = FileChannel.open(
                 markerFile,
                 StandardOpenOption.CREATE_NEW,
+                StandardOpenOption.WRITE
+        )) {
+            channel.write(ByteBuffer.wrap(content));
+            channel.force(true);
+        }
+        setPermissions(markerFile, PRIVATE_FILE_PERMISSIONS);
+    }
+
+    private static void writeReplaceableMarker(Path markerFile, String markerContent) throws IOException {
+        byte[] content = markerContent.getBytes(StandardCharsets.UTF_8);
+        try (FileChannel channel = FileChannel.open(
+                markerFile,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
                 StandardOpenOption.WRITE
         )) {
             channel.write(ByteBuffer.wrap(content));

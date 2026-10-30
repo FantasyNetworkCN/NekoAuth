@@ -62,7 +62,7 @@ docker compose up -d --build
 docker compose logs -f auth
 ```
 
-首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。管理员登录后会进入 `/admin`，也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置；普通成员没有用户后台。
+首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员登录后会进入 `/admin`，也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置；普通成员没有用户后台。
 
 ## 管理入口
 
@@ -131,7 +131,7 @@ java -jar target/NekoAuth-1.0.0.jar
 
 ## 可选：一次性安装向导
 
-非 Compose 场景仍可使用安装向导。不创建 `config/application.yml` 时，内置配置会使用内存 H2、保持 `auth.setup.enabled: true` 并启动安装入口，不会在项目中生成 `.db` 文件；打开 `/setup`，提交一次性令牌、管理员、MySQL/MariaDB 与 Redis 连接信息，再重启服务。配置会写入 `data/nekoauth-setup.yml` 与 `data/.setup-complete`，重启后启用真实数据库并令安装入口返回 404。
+非 Compose 场景仍可使用安装向导。不创建 `config/application.yml` 时，内置配置会使用内存 H2、保持 `auth.setup.enabled: true` 并启动安装入口，不会在项目中生成 `.db` 文件；打开 `/setup`，提交一次性令牌、管理员、MySQL/MariaDB 与 Redis 连接信息，再重启服务。配置会写入 `data/nekoauth-setup.yml`、一次性管理员标记 `data/.admin-bootstrap-pending` 与完成标记 `data/.setup-complete`，重启后启用真实数据库并令安装入口返回 404。管理员标记在安装后的首次成功启动中保证安装页密码生效，然后被删除。
 
 未配置 `auth.setup.token` 时，一次性令牌会打印在启动日志中；安装完成后令牌立即失效。生产环境推荐使用前面的 Compose 直连模式，并保持安装向导关闭。
 
@@ -420,7 +420,7 @@ docker compose down
 | `oauth.id-token-ttl` | `10m` | OIDC ID Token 有效期 |
 | `oauth.refresh-token-ttl` | `30d` | OAuth 刷新令牌有效期 |
 
-管理员初始化只在该用户名和邮箱都不存在时执行，不会在后续重启时重置密码或角色。
+管理员初始化在未检测到一次性安装标记时，只在该用户名和邮箱都不存在时创建账户，不会在后续重启时重置密码或角色。若安装标记存在且用户名或邮箱已属于已有账户，首次启动会同步安装页填写的用户名、邮箱、密码、ADMIN 角色与启用状态；若用户名和邮箱分别属于两个不同账户，启动会明确失败，要求先清理冲突数据。
 
 ## API
 
@@ -488,7 +488,7 @@ docker compose down
 - Compose 默认关闭安装入口；可选安装向导在完成后同样由 Servlet 过滤器直接返回 404，不依赖前端隐藏。
 - 安装和服务连接过程不会把 MySQL/MariaDB、Redis 或管理员密码写入日志。
 - 安装文件以临时文件 + 原子移动写入，使用 POSIX `0600` 权限；完成标记使用独占创建。
-- 首次启动可由 `config/application.yml` 创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户。
+- 首次启动可由 `config/application.yml` 创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户；安装向导通过一次性标记让安装页密码在首次重启中生效，并在同步成功后删除标记。
 - 用户密码使用 Argon2i 参数 `t=10`、`m=65536 KiB`、`p=1`；密码长度 6-30 个字符。
 - 新用户 ID 从 `1000000` 开始；OAuth 客户端密钥使用 BCrypt cost 12。
 - JWT 仅存 JS 内存。刷新令牌不暴露给 JavaScript，数据库只保存其 SHA-256 哈希。

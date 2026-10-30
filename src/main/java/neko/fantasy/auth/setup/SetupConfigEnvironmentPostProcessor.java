@@ -26,9 +26,6 @@ import java.util.Map;
 
 public class SetupConfigEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
-    private static final String CONFIG_FILE = "nekoauth-setup.yml";
-    private static final String COMPLETE_MARKER = ".setup-complete";
-
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         if (Arrays.asList(environment.getActiveProfiles()).contains("test")) {
@@ -38,8 +35,8 @@ public class SetupConfigEnvironmentPostProcessor implements EnvironmentPostProce
         Path stateDirectory = Path.of(environment.getProperty("auth.setup.state-dir", "./data"))
                 .toAbsolutePath()
                 .normalize();
-        Path marker = stateDirectory.resolve(COMPLETE_MARKER);
-        Path config = stateDirectory.resolve(CONFIG_FILE);
+        Path marker = stateDirectory.resolve(SetupState.COMPLETE_MARKER);
+        Path config = stateDirectory.resolve(SetupState.CONFIG_FILE);
         if (!Files.isRegularFile(marker) || !Files.isRegularFile(config)) {
             return;
         }

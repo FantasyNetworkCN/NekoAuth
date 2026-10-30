@@ -56,4 +56,29 @@ class SetupServiceTest {
 
         assertThat(service.isComplete()).isTrue();
     }
+
+    @Test
+    void installationWritesOneTimeAdminBootstrapMarker() {
+        AuthProperties properties = new AuthProperties(
+                null,
+                null,
+                null,
+                null,
+                null,
+                new AuthProperties.Setup(stateDirectory.toString(), "test-token", true)
+        );
+        SetupService service = new SetupService(properties, new PasswordPolicy());
+
+        service.writeConfiguration(
+                new SetupService.AdminConfig("admin", "support@nekocore.cn", "AdminPass123"),
+                new SetupService.DatabaseConfig(
+                        DatabaseKind.MARIADB,
+                        "jdbc:mariadb://mysql:3306/nekoauth", "nekoauth", "db-secret", "mysql", 3306, "nekoauth"),
+                new SetupService.RedisConfig("redis", 6379, "redis-secret", 0)
+        );
+
+        assertThat(stateDirectory.resolve(SetupState.CONFIG_FILE)).isRegularFile();
+        assertThat(stateDirectory.resolve(SetupState.PENDING_ADMIN_MARKER)).isRegularFile();
+        assertThat(stateDirectory.resolve(SetupState.COMPLETE_MARKER)).isRegularFile();
+    }
 }
