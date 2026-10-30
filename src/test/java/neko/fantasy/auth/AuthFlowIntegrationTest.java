@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +31,19 @@ class AuthFlowIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Test
+    void productionOriginCanSubmitLoginRequest() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .header(HttpHeaders.ORIGIN, "https://auth.nekocore.cn")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"cors-probe@example.com","password":"WrongPass123"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        "https://auth.nekocore.cn"));
+    }
 
     @Test
     void registerLoginRefreshAndReuseDetectionWork() throws Exception {

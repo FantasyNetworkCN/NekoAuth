@@ -44,7 +44,9 @@ auth:
     secure: false
     same-site: Strict
   cors:
-    allowed-origins: http://localhost:5173
+    allowed-origins:
+      - http://localhost:5173
+      - https://auth.nekocore.cn
   bootstrap-admin:
     username:
     email:

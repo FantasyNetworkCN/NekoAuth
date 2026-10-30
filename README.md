@@ -204,7 +204,7 @@ docker compose up -d --build auth
 docker compose down
 ```
 
-生产环境应把认证服务放在 HTTPS 反向代理之后，设置 `auth.cookie.secure: true`，并确保 `oauth.issuer` 与外部访问根地址完全一致。反向代理需保留 `Host` 并传递 `X-Forwarded-Proto`。源站默认关闭 HTTP 压缩，由 CDN 或反向代理统一启用 gzip/brotli；不要在源站与 CDN 同时压缩，否则部分 CDN 会保留未压缩的 `Content-Length`，导致浏览器报 `ERR_HTTP2_PROTOCOL_ERROR` 并白屏。
+生产环境应把认证服务放在 HTTPS 反向代理之后，设置 `auth.cookie.secure: true`，并确保 `oauth.issuer` 与外部访问根地址完全一致。反向代理需保留 `Host` 并传递 `X-Forwarded-Proto`；`auth.cors.allowed-origins` 必须包含浏览器实际访问的完整 Origin（例如 `https://auth.nekocore.cn`），否则登录 POST 会被 Spring 以 `Invalid CORS request` 拒绝。源站默认关闭 HTTP 压缩，由 CDN 或反向代理统一启用 gzip/brotli；不要在源站与 CDN 同时压缩，否则部分 CDN 会保留未压缩的 `Content-Length`，导致浏览器报 `ERR_HTTP2_PROTOCOL_ERROR` 并白屏。
 
 不要用 `docker compose down -v` 做常规重启，它会删除数据库、Redis AOF 和 OAuth 签名私钥。若确实需要完全重建环境，请先备份并确认不再需要现有账户、令牌与客户端配置。
 
@@ -232,7 +232,7 @@ docker compose down
 | `auth.jwt.refresh-ttl` | `14d` | 刷新令牌有效期 |
 | `auth.cookie.secure` | `false` | HTTPS 部署时设为 `true` |
 | `auth.cookie.same-site` | `Strict` | 刷新 Cookie 的 SameSite |
-| `auth.cors.allowed-origins` | `http://localhost:5173` | 允许跨域的 API 来源，可用 YAML 列表配置多个 |
+| `auth.cors.allowed-origins` | `http://localhost:5173`, `https://auth.nekocore.cn` | 允许的浏览器 Origin；生产必须包含实际访问域名，可用 YAML 列表配置多个 |
 | `auth.rate-limit.attempts` | `20` | 单 IP 限流窗口内失败次数 |
 | `auth.rate-limit.window` | `5m` | 登录限流窗口 |
 | `auth.bootstrap-admin.username` | 空 | 首次启动创建管理员的用户名；需与邮箱、密码同时设置 |

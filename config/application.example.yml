@@ -19,6 +19,9 @@ auth:
     secret: ${jwt_secret}
   cookie:
     secure: false
+  cors:
+    allowed-origins:
+      - https://auth.nekocore.cn
   bootstrap-admin:
     username: admin
     email: admin@fantasy.network
