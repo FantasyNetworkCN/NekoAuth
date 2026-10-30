@@ -33,7 +33,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public class EmailVerificationService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final Duration CODE_TTL = Duration.ofMinutes(10);
     private static final int MAX_ATTEMPTS = 5;
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final int LOCK_STRIPES = 256;
@@ -46,6 +45,7 @@ public class EmailVerificationService {
     private final TransactionTemplate transactionTemplate;
     private final SecretKeySpec codeKey;
     private final boolean required;
+    private final Duration codeTtl;
     private final Duration resendCooldown;
     private final int dailyLimit;
     private final Duration dailyWindow;
@@ -67,6 +67,7 @@ public class EmailVerificationService {
         this.mailService = mailService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.required = properties.registration().requireEmailVerification();
+        this.codeTtl = properties.registration().emailCodeTtl();
         this.resendCooldown = properties.registration().emailCodeCooldown();
         this.dailyLimit = Math.max(1, properties.registration().emailCodeDailyLimit());
         this.dailyWindow = properties.registration().emailCodeWindow();
@@ -105,10 +106,10 @@ public class EmailVerificationService {
             lock.unlock();
         }
 
-        mailService.sendRegistrationCode(email, smtp, code, CODE_TTL);
+        mailService.sendRegistrationCode(email, smtp, code, codeTtl);
         return new CodeDelivery(
                 "验证码已发送，请查收邮件",
-                CODE_TTL.toSeconds(),
+                codeTtl.toSeconds(),
                 resendCooldown.toSeconds());
     }
 
@@ -198,7 +199,7 @@ public class EmailVerificationService {
             record.setEmail(email);
         }
         record.setCodeHash(hashCode(email, code));
-        record.setExpiresAt(now.plus(CODE_TTL));
+        record.setExpiresAt(now.plus(codeTtl));
         record.setLastSentAt(now);
         record.setAttempts(0);
         codeRepository.saveAndFlush(record);

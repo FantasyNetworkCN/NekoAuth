@@ -92,7 +92,7 @@ docker compose logs -f auth
 - 默认开放注册，邮箱域名白名单为 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`。
 - 域名精确匹配 `@` 后的部分，统一转小写，不支持通配符；可在设置页填写 `@qq.com` 或 `qq.com`，保存时会自动规范化。
 - 获取注册邮箱验证码前必须完成一次性图形人机验证；人机验证码 5 分钟内有效，错误 3 次后失效，前端每次发送尝试后都会自动换新。
-- 注册必须通过 SMTP 发送邮箱验证码；服务端强制同一邮箱 60 秒内只能发送一次、滚动 24 小时最多发送 5 次。验证码 10 分钟内有效、最多允许输错 5 次，验证成功后立即删除且不可复用。
+- 注册必须通过 SMTP 发送邮箱验证码；服务端强制同一邮箱 60 秒内只能发送一次、滚动 24 小时最多发送 5 次。验证码 10 分钟内有效、最多允许输错 5 次，验证成功后立即删除且不可复用。注册页会展示当前支持的邮箱域名、有效期与发送限制，这些时间参数由公开注册策略接口返回。
 - SMTP 关闭或配置不完整时，注册验证码接口返回明确错误，新用户无法完成注册；启用后可使用“保存并发送测试”验证服务器、端口、加密方式、认证信息与发件地址。
 - SMTP 密码不会通过 API 回显，使用由 `auth.jwt.secret` 派生的 AES-GCM 密钥加密后落库。**更换 JWT 密钥后，已保存的 SMTP 密码将无法解密，需要在设置页重新填写。**
 - 当前运行的 `config/application.yml` 仍负责端口、数据库、Redis、JWT、Cookie、CORS、管理员引导、安装向导与 OAuth 签名等启动级配置；这些项目不会暴露给管理员网页修改。
@@ -422,6 +422,7 @@ docker compose down
 | `auth.rate-limit.attempts` | `20` | 单 IP 限流窗口内失败次数 |
 | `auth.rate-limit.window` | `5m` | 登录限流窗口 |
 | `auth.registration.require-email-verification` | `true` | 注册是否必须通过邮箱验证码；生产保持开启 |
+| `auth.registration.email-code-ttl` | `10m` | 注册邮箱验证码有效期；同时通过公开注册策略接口返回 |
 | `auth.registration.email-code-cooldown` | `60s` | 同一邮箱两次发送注册验证码的最小间隔，由服务端强制 |
 | `auth.registration.email-code-daily-limit` | `5` | 同一邮箱在发送窗口内最多可请求的验证码数量 |
 | `auth.registration.email-code-window` | `24h` | 注册验证码发送计数窗口；从该窗口首次发送开始滚动计算 |
@@ -449,7 +450,7 @@ docker compose down
 | `GET` | `/api/auth/register/captcha` | 获取一次性注册图形人机验证码、挑战 ID 与有效期 |
 | `POST` | `/api/auth/register/code` | 完成人机验证后向白名单邮箱发送 6 位注册验证码；提交 `email/captchaId/captchaAnswer`，需要先配置 SMTP |
 | `POST` | `/api/auth/register` | 使用 `email/password/verificationCode` 注册并登录；昵称由服务端生成且不可修改 |
-| `GET` | `/api/auth/registration-policy` | 公开查询注册是否开放、是否需要邮箱验证码及当前邮箱域名白名单 |
+| `GET` | `/api/auth/registration-policy` | 公开查询注册是否开放、是否需要邮箱验证码、邮箱域名白名单，以及验证码有效期、发送冷却、每日上限与计数窗口 |
 | `POST` | `/api/auth/login` | 用户名或邮箱登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
 | `POST` | `/api/auth/logout` | 退出当前会话 |

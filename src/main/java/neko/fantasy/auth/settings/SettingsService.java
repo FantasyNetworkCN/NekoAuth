@@ -1,7 +1,7 @@
 package neko.fantasy.auth.settings;
 
+import neko.fantasy.auth.config.AuthProperties;
 import neko.fantasy.auth.exception.ApiException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -36,14 +36,15 @@ public class SettingsService {
 
     private final ApplicationSettingsRepository repository;
     private final SettingSecretCipher secretCipher;
+    private final AuthProperties properties;
     private final boolean emailVerificationRequired;
 
     public SettingsService(ApplicationSettingsRepository repository, SettingSecretCipher secretCipher,
-                           @Value("${auth.registration.require-email-verification:true}")
-                           boolean emailVerificationRequired) {
+                           AuthProperties properties) {
         this.repository = repository;
         this.secretCipher = secretCipher;
-        this.emailVerificationRequired = emailVerificationRequired;
+        this.properties = properties;
+        this.emailVerificationRequired = properties.registration().requireEmailVerification();
     }
 
     @Transactional
@@ -54,9 +55,14 @@ public class SettingsService {
     @Transactional
     public SettingsResponses.RegistrationPolicy getRegistrationPolicy() {
         ApplicationSettings settings = loadOrCreate();
+        AuthProperties.Registration registration = properties.registration();
         return new SettingsResponses.RegistrationPolicy(
                 settings.isRegistrationEnabled(), emailVerificationRequired,
-                readDomains(settings.getEmailDomainWhitelist()));
+                readDomains(settings.getEmailDomainWhitelist()),
+                registration.emailCodeTtl().toSeconds(),
+                registration.emailCodeCooldown().toSeconds(),
+                Math.max(1, registration.emailCodeDailyLimit()),
+                registration.emailCodeWindow().toSeconds());
     }
 
     @Transactional

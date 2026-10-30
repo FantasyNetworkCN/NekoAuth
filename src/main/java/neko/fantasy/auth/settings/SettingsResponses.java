@@ -33,8 +33,15 @@ public final class SettingsResponses {
     ) {
     }
 
-    public record RegistrationPolicy(boolean enabled, boolean emailVerificationRequired,
-                                     List<String> emailDomains) {
+    public record RegistrationPolicy(
+            boolean enabled,
+            boolean emailVerificationRequired,
+            List<String> emailDomains,
+            long emailCodeExpiresInSeconds,
+            long emailCodeResendAfterSeconds,
+            int emailCodeDailyLimit,
+            long emailCodeWindowSeconds
+    ) {
     }
 
     public record MailTestResult(String message) {

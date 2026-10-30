@@ -90,6 +90,10 @@ export interface RegistrationPolicy {
   enabled: boolean
   emailVerificationRequired: boolean
   emailDomains: string[]
+  emailCodeExpiresInSeconds: number
+  emailCodeResendAfterSeconds: number
+  emailCodeDailyLimit: number
+  emailCodeWindowSeconds: number
 }
 
 export interface AdminSettings {

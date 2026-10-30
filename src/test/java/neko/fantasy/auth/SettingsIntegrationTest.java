@@ -44,7 +44,11 @@ class SettingsIntegrationTest {
                 .andExpect(jsonPath("$.emailVerificationRequired").value(false))
                 .andExpect(jsonPath("$.emailDomains", contains(
                         "qq.com", "gmail.com", "163.com", "139.com",
-                        "126.com", "outlook.com", "hotmail.com", "icloud.com")));
+                        "126.com", "outlook.com", "hotmail.com", "icloud.com")))
+                .andExpect(jsonPath("$.emailCodeExpiresInSeconds").value(600))
+                .andExpect(jsonPath("$.emailCodeResendAfterSeconds").value(60))
+                .andExpect(jsonPath("$.emailCodeDailyLimit").value(5))
+                .andExpect(jsonPath("$.emailCodeWindowSeconds").value(86400));
     }
 
     @Test

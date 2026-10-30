@@ -32,6 +32,10 @@ const registrationPolicy = ref({
   enabled: true,
   emailVerificationRequired: true,
   emailDomains: ['qq.com', 'gmail.com', '163.com', '139.com', '126.com', 'outlook.com', 'hotmail.com', 'icloud.com'],
+  emailCodeExpiresInSeconds: 600,
+  emailCodeResendAfterSeconds: 60,
+  emailCodeDailyLimit: 5,
+  emailCodeWindowSeconds: 86400,
 })
 const policyLoaded = ref(false)
 let cooldownTimer: ReturnType<typeof setInterval> | undefined
@@ -52,6 +56,20 @@ const passwordStrength = computed(() => {
   if (/[^A-Za-z0-9]/.test(form.password)) score++
   const labels = ['软乎乎', '小猫爪', '渐入佳境', '星光守护', '传说级']
   return { score, label: labels[score] || '软乎乎' }
+})
+
+function formatDuration(seconds: number) {
+  const value = Math.max(1, Math.floor(seconds))
+  if (value === 60) return '60 秒'
+  if (value % 86400 === 0) return `${value / 86400} 小时`
+  if (value % 3600 === 0) return `${value / 3600} 小时`
+  if (value % 60 === 0) return `${value / 60} 分钟`
+  return `${value} 秒`
+}
+
+const registrationCodeNotice = computed(() => {
+  const policy = registrationPolicy.value
+  return `验证码 ${formatDuration(policy.emailCodeExpiresInSeconds)}内有效；同一邮箱 ${formatDuration(policy.emailCodeResendAfterSeconds)}内只能发送一次，${formatDuration(policy.emailCodeWindowSeconds)}内最多 ${policy.emailCodeDailyLimit} 次。`
 })
 
 function emailValidationError() {
@@ -207,6 +225,15 @@ onUnmounted(() => {
       <span>当前暂未开放新用户注册，请联系猫屋管理员。</span>
     </div>
 
+    <div v-if="registrationPolicy.enabled && registrationPolicy.emailVerificationRequired" class="registration-guide">
+      <span class="registration-guide-icon"><AppIcon name="mail" :size="18" /></span>
+      <div>
+        <strong>注册前须知</strong>
+        <p>支持邮箱：{{ registrationPolicy.emailDomains.join('、') }}</p>
+        <p>{{ registrationCodeNotice }}</p>
+      </div>
+    </div>
+
     <form class="auth-form" novalidate @submit.prevent="submit">
       <label class="field">
         <span class="field-label">邮箱地址</span>
@@ -279,7 +306,7 @@ onUnmounted(() => {
             {{ sendingCode ? '发送中…' : codeCooldown > 0 ? `${codeCooldown}s 后重发` : '获取验证码' }}
           </button>
         </span>
-        <span class="field-hint">验证码 10 分钟内有效；同一邮箱 60 秒内只能发送一次，24 小时最多 5 次。</span>
+        <span class="field-hint">{{ registrationCodeNotice }}</span>
         <span v-if="fieldErrors.verificationCode" class="field-error">{{ fieldErrors.verificationCode }}</span>
       </label>
 
@@ -351,6 +378,41 @@ onUnmounted(() => {
   color: #8a789e;
   font-size: 0.56rem;
 }
+
+.registration-guide {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid rgba(255, 196, 234, 0.13);
+  border-radius: 12px;
+  color: #a18bac;
+  background: rgba(255, 214, 245, 0.045);
+  font-size: 0.61rem;
+  line-height: 1.6;
+}
+
+.registration-guide-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid rgba(255, 181, 226, 0.13);
+  border-radius: 10px;
+  color: #ffb2df;
+  background: rgba(255, 156, 214, 0.075);
+  place-items: center;
+}
+
+.registration-guide strong {
+  display: block;
+  margin-bottom: 0.12rem;
+  color: #f3d9ec;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.registration-guide p { margin: 0; }
 
 .strength-label[data-score='1'] { color: #ff92b4; }
 .strength-label[data-score='2'] { color: #ffc26f; }

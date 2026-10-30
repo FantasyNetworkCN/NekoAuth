@@ -33,6 +33,7 @@ public record AuthProperties(
 
     public record Registration(
             boolean requireEmailVerification,
+            Duration emailCodeTtl,
             Duration emailCodeCooldown,
             int emailCodeDailyLimit,
             Duration emailCodeWindow,

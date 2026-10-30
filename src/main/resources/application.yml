@@ -53,6 +53,7 @@ auth:
     window: 5m
   registration:
     require-email-verification: true
+    email-code-ttl: 10m
     email-code-cooldown: 60s
     email-code-daily-limit: 5
     email-code-window: 24h
