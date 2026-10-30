@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -44,6 +45,7 @@ public class OAuthClientAdminService {
         List<String> postLogoutRedirectUris = validatePostLogoutRedirectUris(
                 request.postLogoutRedirectUris(), request.publicClient());
         LinkedHashSet<String> scopes = validateScopes(request.scopes());
+        validateClientMode(scopes, request.publicClient());
         String secret = request.publicClient() ? null : "fns_" + randomToken(32);
         OAuthClient client = new OAuthClient(
                 clientId,
@@ -93,6 +95,7 @@ public class OAuthClientAdminService {
             }
             client.setPublicClient(publicClient);
         }
+        validateClientMode(client.getScopes(), client.isPublicClient());
         if (request.enabled() != null) {
             client.setEnabled(request.enabled());
         }
@@ -220,6 +223,13 @@ public class OAuthClientAdminService {
             throw ApiException.badRequest("INVALID_SCOPE", exception.getMessage());
         }
         return normalized;
+    }
+
+    private static void validateClientMode(Collection<String> scopes, boolean publicClient) {
+        if (publicClient && scopes.contains(OAuthScopes.ACCOUNT_BRIDGE)) {
+            throw ApiException.badRequest("INVALID_CLIENT_TYPE",
+                    "account:bridge 只能授予机密客户端");
+        }
     }
 
     private static String trimToNull(String value) {

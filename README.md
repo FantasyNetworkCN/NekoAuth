@@ -187,7 +187,7 @@ NekoMusic 等第一方应用不再保存用户密码。它们的旧登录、注�
 
 这些接口不接受用户 JWT，只接受 HTTP Basic 客户端认证。客户端必须同时满足：已启用、`publicClient=false`，并且 scope 明确包含 `account:bridge`。`account:bridge` 不会出现在公开发现文档中，也不能用于浏览器授权请求；它只表示“允许这个可信后端调用账号桥接接口”。管理员创建、管理员重置等接口的可信边界是调用方 NekoMusic 后端——NekoMusic 必须先校验自己的管理员权限，NekoAuth 不会猜测其后台角色。
 
-客户端 ID 和密钥都不写死在代码中。部署时在 `/admin/clients` 或 `/api/admin/oauth-clients` 自行创建一个机密客户端，然后把凭据填入 NekoMusic 的 `oauth.client_id`、`oauth.client_secret`，并将 `oauth.issuer` 指向本服务公网根地址。若同一客户端还要完成浏览器 OAuth 登录，按其需要加入 `openid email roles` 等公开 scope；只做账号桥接时，`account:bridge` 即可。示例：
+客户端 ID 和密钥都不写死在代码中。部署时在 `/admin/clients` 创建或编辑客户端，在“申请权限”中勾选“账号桥接”（`account:bridge`）；选择该 scope 后界面会强制使用机密客户端。该 scope 只通过管理员接口 `GET /api/admin/oauth-clients/scopes` 返回，不出现在公开发现文档或用户授权页。然后把同一客户端的 ID 与密钥填入 NekoMusic 的 `oauth.client_id`、`oauth.client_secret`，并将 `oauth.issuer` 指向本服务公网根地址。若同一客户端还要完成浏览器 OAuth 登录，按其需要加入 `openid email roles` 等公开 scope；只做账号桥接时，`account:bridge` 即可。示例：
 
 ```bash
 curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
@@ -203,6 +203,8 @@ curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
 ```
 
 创建响应中的 `clientSecret` 只显示一次，只能保存在 NekoMusic 服务端设置中，不能下发到浏览器或客户端安装包。轮换密钥后必须同步更新 NekoMusic；只改一端会得到 `401 INVALID_CLIENT`。
+
+若仍返回 `401 INVALID_CLIENT`，先查看 NekoAuth 日志中的 `reason`：`not_found_or_disabled` 表示 NekoMusic 保存的 client_id 与实际客户端不一致或客户端被停用；`secret_mismatch` 表示两端密钥不同；`public_client` 表示误建成了公共客户端；`missing_account_bridge_scope` 表示忘了勾选“账号桥接”。修改 scope 不会自动轮换密钥；需要时在客户端卡片上执行“轮换密钥”，再一次性同步到 NekoMusic。日志不会输出客户端密钥。
 
 桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录成功后返回 NekoAuth 的稳定数字用户 ID 与邮箱，NekoMusic 用该 ID 绑定本地昵称、VIP、头像等业务资料。密码、验证码和账号状态始终以 NekoAuth 为唯一权威源。
 

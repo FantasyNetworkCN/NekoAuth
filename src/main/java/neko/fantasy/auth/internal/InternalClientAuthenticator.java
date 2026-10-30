@@ -4,6 +4,8 @@ import neko.fantasy.auth.exception.ApiException;
 import neko.fantasy.auth.oauth.OAuthClient;
 import neko.fantasy.auth.oauth.OAuthClientRepository;
 import neko.fantasy.auth.oauth.OAuthScopes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +23,8 @@ import java.util.Base64;
  */
 @Component
 public class InternalClientAuthenticator {
+
+    private static final Logger log = LoggerFactory.getLogger(InternalClientAuthenticator.class);
 
     private final OAuthClientRepository clientRepository;
     private final PasswordEncoder passwordEncoder;
@@ -51,15 +55,32 @@ public class InternalClientAuthenticator {
             throw ApiException.unauthorized("INVALID_CLIENT", "HTTP Basic 客户端认证格式不正确");
         }
 
-        OAuthClient client = clientRepository.findByClientId(clientId)
-                .filter(OAuthClient::isEnabled)
-                .orElseThrow(() -> ApiException.unauthorized("INVALID_CLIENT", "客户端不存在或已停用"));
-        if (client.isPublicClient() || !passwordEncoder.matches(secret, client.getClientSecretHash())) {
+        OAuthClient client = clientRepository.findByClientId(clientId).orElse(null);
+        if (client == null || !client.isEnabled()) {
+            log.warn("账号桥接客户端认证失败: client_id={} reason=not_found_or_disabled",
+                    loggableClientId(clientId));
+            throw ApiException.unauthorized("INVALID_CLIENT", "客户端不存在或已停用");
+        }
+        if (client.isPublicClient()) {
+            log.warn("账号桥接客户端认证失败: client_id={} reason=public_client",
+                    loggableClientId(clientId));
+            throw ApiException.unauthorized("INVALID_CLIENT", "公共客户端不能调用账号桥接");
+        }
+        if (!passwordEncoder.matches(secret, client.getClientSecretHash())) {
+            log.warn("账号桥接客户端认证失败: client_id={} reason=secret_mismatch",
+                    loggableClientId(clientId));
             throw ApiException.unauthorized("INVALID_CLIENT", "客户端密钥不正确");
         }
         if (!client.getScopes().contains(OAuthScopes.ACCOUNT_BRIDGE)) {
+            log.warn("账号桥接客户端认证失败: client_id={} reason=missing_account_bridge_scope",
+                    loggableClientId(clientId));
             throw ApiException.unauthorized("INVALID_CLIENT", "客户端未获准调用账号桥接");
         }
         return client;
+    }
+
+    private static String loggableClientId(String clientId) {
+        String sanitized = clientId.replaceAll("[^A-Za-z0-9._-]", "?");
+        return sanitized.length() <= 64 ? sanitized : sanitized.substring(0, 64);
     }
 }

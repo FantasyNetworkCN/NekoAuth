@@ -274,6 +274,51 @@ class OAuthFlowIntegrationTest {
     }
 
     @Test
+    void bridgeScopeIsAdminOnlyAndRequiresConfidentialClient() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+
+        mockMvc.perform(get("/.well-known/openid-configuration"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scopes_supported[?(@ == 'account:bridge')]").isEmpty());
+
+        mockMvc.perform(get("/api/admin/oauth-clients/scopes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'account:bridge')]").isNotEmpty());
+
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        mockMvc.perform(post("/api/admin/oauth-clients")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"公共桥接 %s",
+                                  "redirectUris":["%s"],
+                                  "scopes":["account:bridge"],
+                                  "publicClient":true
+                                }
+                                """.formatted(suffix, REDIRECT_URI)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CLIENT_TYPE"));
+
+        mockMvc.perform(post("/api/admin/oauth-clients")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"服务端桥接 %s",
+                                  "redirectUris":["%s"],
+                                  "scopes":["account:bridge"],
+                                  "publicClient":false
+                                }
+                                """.formatted(suffix, REDIRECT_URI)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.client.publicClient").value(false))
+                .andExpect(jsonPath("$.client.scopes[0]").value("account:bridge"))
+                .andExpect(jsonPath("$.clientSecret").isNotEmpty());
+    }
+
+    @Test
     void invalidBearerTokenUsesAsciiAuthenticationHeader() throws Exception {
         mockMvc.perform(get("/oauth2/userinfo"))
                 .andExpect(status().isUnauthorized())

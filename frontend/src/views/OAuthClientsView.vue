@@ -5,7 +5,7 @@ import NekoMascot from '@/components/NekoMascot.vue'
 import { ApiError, api } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { showToast } from '@/lib/toast'
-import type { CreatedOAuthClient, OAuthClient } from '@/types'
+import type { CreatedOAuthClient, OAuthClient, OAuthScopeDetail } from '@/types'
 
 const clients = ref<OAuthClient[]>([])
 const loading = ref(true)
@@ -18,13 +18,7 @@ const error = ref('')
 const secretReveal = ref<CreatedOAuthClient | null>(null)
 const copied = ref('')
 
-const allScopes = [
-  { name: 'openid', label: 'OpenID', description: '签发 OIDC 身份' },
-  { name: 'profile', label: '资料', description: '昵称与用户名' },
-  { name: 'email', label: '邮箱', description: '邮箱与验证状态' },
-  { name: 'roles', label: '阵营', description: '用户或管理员角色' },
-  { name: 'offline_access', label: '保持登录', description: '签发刷新令牌' },
-]
+const allScopes = ref<OAuthScopeDetail[]>([])
 const form = reactive({
   name: '',
   description: '',
@@ -43,12 +37,15 @@ const editForm = reactive({
 
 const enabledCount = computed(() => clients.value.filter((client) => client.enabled).length)
 const confidentialCount = computed(() => clients.value.filter((client) => !client.publicClient).length)
+const bridgeSelected = computed(() => form.scopes.includes('account:bridge'))
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    clients.value = await api.oauthClients()
+    const [clientList, scopeList] = await Promise.all([api.oauthClients(), api.oauthAdminScopes()])
+    clients.value = clientList
+    allScopes.value = scopeList
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '无法加载 OAuth 应用'
   } finally {
@@ -62,6 +59,9 @@ function toggleScope(name: string) {
     form.scopes = form.scopes.filter((scope) => scope !== name)
   } else {
     form.scopes = [...form.scopes, name]
+  }
+  if (form.scopes.includes('account:bridge')) {
+    form.publicClient = false
   }
 }
 
@@ -273,7 +273,7 @@ onMounted(() => void load())
                 v-for="scope in allScopes"
                 :key="scope.name"
                 class="scope-choice"
-                :class="{ active: form.scopes.includes(scope.name) }"
+                :class="{ active: form.scopes.includes(scope.name), internal: scope.name === 'account:bridge' }"
                 type="button"
                 @click="toggleScope(scope.name)"
               >
@@ -284,9 +284,12 @@ onMounted(() => void load())
           </div>
           <div class="client-mode-row">
             <label class="mode-switch">
-              <input v-model="form.publicClient" type="checkbox" />
+              <input v-model="form.publicClient" type="checkbox" :disabled="bridgeSelected" />
               <span class="switch-track"><i></i></span>
-              <span><strong>公共客户端</strong><small>强制 PKCE S256，不保存客户端密钥</small></span>
+              <span>
+                <strong>公共客户端</strong>
+                <small>{{ bridgeSelected ? '账号桥接只能使用机密客户端，已锁定' : '强制 PKCE S256，不保存客户端密钥' }}</small>
+              </span>
             </label>
             <button class="btn btn-primary" type="submit" :disabled="creating">
               <span v-if="creating" class="spinner"></span>
@@ -419,7 +422,7 @@ onMounted(() => void load())
                   v-for="scope in allScopes"
                   :key="scope.name"
                   class="scope-choice"
-                  :class="{ active: editForm.scopes.includes(scope.name) }"
+                  :class="{ active: editForm.scopes.includes(scope.name), internal: scope.name === 'account:bridge' }"
                   type="button"
                   @click="toggleEditScope(scope.name)"
                 >
@@ -558,6 +561,8 @@ onMounted(() => void load())
 }
 
 .scope-choice.active { border-color: rgba(255, 172, 224, 0.24); color: #f4a9d8; background: rgba(255, 147, 211, 0.07); }
+.scope-choice.internal { border-color: rgba(120, 224, 208, 0.16); }
+.scope-choice.internal.active { border-color: rgba(120, 224, 208, 0.34); color: #8be3d3; background: rgba(77, 214, 196, 0.07); }
 .scope-choice span { display: grid; min-width: 0; }
 .scope-choice strong { color: #c9b7d0; font-size: 0.55rem; white-space: nowrap; }
 .scope-choice small { overflow: hidden; color: #6c5b7e; font-size: 0.45rem; text-overflow: ellipsis; white-space: nowrap; }
@@ -566,6 +571,7 @@ onMounted(() => void load())
 .client-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 
 .mode-switch { display: flex; align-items: center; gap: 0.55rem; cursor: pointer; }
+.mode-switch:has(input:disabled) { cursor: not-allowed; opacity: 0.72; }
 .mode-switch input { position: absolute; opacity: 0; pointer-events: none; }
 .switch-track { position: relative; width: 36px; height: 20px; flex: none; border-radius: 999px; background: #352846; transition: background 0.18s ease; }
 .switch-track i { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 999px; background: #8a779c; transition: transform 0.18s ease, background 0.18s ease; }

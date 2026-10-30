@@ -5,6 +5,7 @@ import type {
   CreatedOAuthClient,
   OAuthAuthorizeView,
   OAuthClient,
+  OAuthScopeDetail,
   PageResponse,
   RegistrationCaptcha,
   RegistrationPolicy,
@@ -275,6 +276,10 @@ export const api = {
 
   oauthClients() {
     return request<OAuthClient[]>('/admin/oauth-clients')
+  },
+
+  oauthAdminScopes() {
+    return request<OAuthScopeDetail[]>('/admin/oauth-clients/scopes')
   },
 
   createOAuthClient(input: {

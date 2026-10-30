@@ -33,6 +33,10 @@ public final class OAuthScopes {
             CATALOG.get(OPENID), CATALOG.get(PROFILE), CATALOG.get(EMAIL),
             CATALOG.get(ROLES), CATALOG.get(OFFLINE_ACCESS));
 
+    private static final List<Definition> ADMIN_ORDERED = List.of(
+            CATALOG.get(OPENID), CATALOG.get(PROFILE), CATALOG.get(EMAIL),
+            CATALOG.get(ROLES), CATALOG.get(OFFLINE_ACCESS), CATALOG.get(ACCOUNT_BRIDGE));
+
     private OAuthScopes() {
     }
 
@@ -75,6 +79,14 @@ public final class OAuthScopes {
 
     public static List<Definition> all() {
         return ORDERED;
+    }
+
+    /**
+     * 管理后台可分配的 scope。与 {@link #all()} 不同，这里包含仅限服务端使用的
+     * {@link #ACCOUNT_BRIDGE}；它不能出现在公开发现文档或浏览器授权流程中。
+     */
+    public static List<Definition> allForAdministration() {
+        return ADMIN_ORDERED;
     }
 
     public static String encode(Set<String> scopes) {

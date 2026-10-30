@@ -26,6 +26,11 @@ public class OAuthAdminController {
         return clientAdminService.list();
     }
 
+    @GetMapping("/scopes")
+    public List<OAuthScopes.Definition> scopes() {
+        return OAuthScopes.allForAdministration();
+    }
+
     @PostMapping
     public OAuthDtos.CreatedClient create(
             @Valid @RequestBody OAuthAdminRequests.CreateClient request
