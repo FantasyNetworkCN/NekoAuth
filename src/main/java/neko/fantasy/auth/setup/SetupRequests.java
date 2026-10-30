@@ -23,9 +23,6 @@ public final class SetupRequests {
             @Size(max = 254, message = "管理员邮箱过长")
             String adminEmail,
 
-            @Size(max = 64, message = "管理员昵称不能超过 64 个字符")
-            String adminDisplayName,
-
             @NotBlank(message = "管理员密码不能为空")
             @Size(min = 6, max = 30, message = "管理员密码长度需为 6-30 个字符")
             String adminPassword,

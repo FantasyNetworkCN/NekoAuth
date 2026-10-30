@@ -153,7 +153,7 @@ public class OAuthAuthorizationService {
                 validated.client().getDescription(),
                 safeHost(validated.redirectUri()),
                 user.getUsername(),
-                user.getDisplayName(),
+                user.publicName(),
                 validated.scopes(),
                 OAuthScopes.describe(validated.scopes()),
                 previouslyApproved,

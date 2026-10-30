@@ -54,7 +54,7 @@ public class OAuthUserInfoService {
         response.put("sub", user.getId().toString());
         if (scopes.contains(OAuthScopes.PROFILE)) {
             response.put("preferred_username", user.getUsername());
-            response.put("name", user.getDisplayName());
+            response.put("name", user.publicName());
             response.put("updated_at", user.getUpdatedAt().getEpochSecond());
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {

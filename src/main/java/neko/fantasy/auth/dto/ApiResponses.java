@@ -15,8 +15,9 @@ public final class ApiResponses {
                        boolean enabled, Instant createdAt, Instant updatedAt, Instant lastLoginAt) {
 
         public static User from(neko.fantasy.auth.domain.User user) {
-            return new User(user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(),
-                    user.getDisplayName(), user.getRole(), user.isEnabled(), user.getCreatedAt(),
+            String nickname = user.getRole() == Role.ADMIN ? null : user.getDisplayName();
+            return new User(user.getId(), user.getUsername(), nickname, user.getEmail(),
+                    user.publicName(), user.getRole(), user.isEnabled(), user.getCreatedAt(),
                     user.getUpdatedAt(), user.getLastLoginAt());
         }
     }

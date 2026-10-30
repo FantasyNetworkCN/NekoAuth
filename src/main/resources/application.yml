@@ -8,7 +8,7 @@ spring:
   application:
     name: neko-auth
   datasource:
-    url: jdbc:h2:file:./data/nekoauth;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    url: jdbc:h2:mem:nekoauth;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
     username: sa
     password:
   jpa:
@@ -47,7 +47,6 @@ auth:
   bootstrap-admin:
     username:
     email:
-    display-name: Neko Admin
     password:
   rate-limit:
     attempts: 20

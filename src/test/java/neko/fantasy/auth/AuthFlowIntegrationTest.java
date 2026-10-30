@@ -107,6 +107,19 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void adminUsesUsernameAndHasNoNickname() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"admin","password":"AdminPass123"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.username").value("admin"))
+                .andExpect(jsonPath("$.user.displayName").value("admin"))
+                .andExpect(jsonPath("$.user.nickname").doesNotExist());
+    }
+
+    @Test
     void usersStartAtOneMillionAndRegistrationFillsImmutableNickname() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String nickname = "nekomusic_" + suffix;

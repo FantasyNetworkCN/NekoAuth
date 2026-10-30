@@ -51,7 +51,6 @@ chmod 600 config/secrets/*
 | `auth.cookie.secure` | HTTPS 部署必须设为 `true` |
 | `auth.bootstrap-admin.username` | 初始管理员用户名 |
 | `auth.bootstrap-admin.email` | 初始管理员邮箱 |
-| `auth.bootstrap-admin.display-name` | 初始管理员昵称 |
 | `auth.setup.enabled` | 生产保持 `false` |
 
 `config/secrets/db_password` 会同时供 Spring 数据源和 MySQL 初始化使用；`config/secrets/admin_password` 长度为 6-30 个字符，与 NekoMusic 的注册密码规则一致。Compose 会把四份文件挂载为 `/run/secrets` 下的 Docker secrets，应用容器以非 root 用户运行也能读取，不依赖宿主机文件的 UID 与 `600` 权限。`config/application.yml` 与 `config/secrets/` 默认已被 Git 和 Docker 构建上下文忽略。
@@ -132,7 +131,7 @@ java -jar target/NekoAuth-1.0.0.jar
 
 ## 可选：一次性安装向导
 
-非 Compose 场景仍可使用安装向导。不创建 `config/application.yml` 时，内置配置会使用本地 H2、保持 `auth.setup.enabled: true` 并启动安装入口；打开 `/setup`，提交一次性令牌、管理员、MySQL/MariaDB 与 Redis 连接信息，再重启服务。配置会写入 `data/nekoauth-setup.yml` 与 `data/.setup-complete`，重启后启用真实数据库并令安装入口返回 404。
+非 Compose 场景仍可使用安装向导。不创建 `config/application.yml` 时，内置配置会使用内存 H2、保持 `auth.setup.enabled: true` 并启动安装入口，不会在项目中生成 `.db` 文件；打开 `/setup`，提交一次性令牌、管理员、MySQL/MariaDB 与 Redis 连接信息，再重启服务。配置会写入 `data/nekoauth-setup.yml` 与 `data/.setup-complete`，重启后启用真实数据库并令安装入口返回 404。
 
 未配置 `auth.setup.token` 时，一次性令牌会打印在启动日志中；安装完成后令牌立即失效。生产环境推荐使用前面的 Compose 直连模式，并保持安装向导关闭。
 
@@ -259,7 +258,7 @@ user:email profile openid offline_access
 {
   "sub": "1000000",
   "preferred_username": "neko",
-  "name": "猫屋管理员小梦",
+  "name": "neko",
   "updated_at": 1793370000,
   "email": "user@example.com",
   "email_verified": true,
@@ -392,7 +391,7 @@ docker compose down
 | --- | --- | --- |
 | `server.port` | `65534` | HTTP 端口 |
 | `server.compression.enabled` | `false` | 源站 HTTP 压缩；CDN 已启用压缩时保持关闭 |
-| `spring.datasource.url` | H2 文件数据库 | Compose 示例为 MySQL 8 JDBC 地址 |
+| `spring.datasource.url` | H2 内存数据库 | Compose 示例为 MySQL 8 JDBC 地址；内存库仅用于安装向导和临时调试，不生成文件 |
 | `spring.datasource.username` | `sa` | Compose 示例为 `nekoauth` |
 | `spring.datasource.password` | 空 | Compose 示例读取 `${db_password}` |
 | `spring.data.redis.host` | 未设置 | 设置后启用 Redis 共享登录限流 |
@@ -413,7 +412,6 @@ docker compose down
 | `auth.rate-limit.window` | `5m` | 登录限流窗口 |
 | `auth.bootstrap-admin.username` | 空 | 首次启动创建管理员的用户名；需与邮箱、密码同时设置 |
 | `auth.bootstrap-admin.email` | 空 | 首次启动创建管理员的邮箱 |
-| `auth.bootstrap-admin.display-name` | `Neko Admin` | 初始管理员昵称 |
 | `auth.bootstrap-admin.password` | 空 | 初始管理员密码；长度 6-30 个字符 |
 | `oauth.issuer` | `http://localhost:65534` | OAuth/OIDC issuer 与元数据根地址；公网部署必须是 HTTPS |
 | `oauth.key-file` | `./data/oauth-signing-key.pem` | RS256 签名私钥路径；Compose 下位于数据卷 |
@@ -477,6 +475,7 @@ docker compose down
 - `email` 长度不超过 100、统一转小写且必须唯一；域名必须命中当前注册白名单，否则返回 `400 EMAIL_DOMAIN_NOT_ALLOWED`；关闭注册时返回 `403 REGISTRATION_DISABLED`。密码长度 6-30，不强制字母与数字组合。
 - 注册页只显示邮箱和密码。昵称取邮箱 `@` 前的部分（最多 20 个 Unicode 字符），允许重复；创建后不能通过用户 API 或网页修改。
 - 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。
+- 管理员不设置昵称：安装向导不要求昵称，`bootstrap-admin` 不再接受 `display-name`；管理员 API、后台与 OIDC 资料统一使用用户名，`nickname` 不返回。
 
 ### 用户 ID 与密码格式
 
@@ -511,7 +510,7 @@ docker compose down
 cd frontend && npm run build
 ```
 
-后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、邮箱派生且不可修改的昵称、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发；设置测试覆盖默认域名白名单、非白名单拒绝、注册开关、管理员更新与 SMTP 密码不回显。
+后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、管理员无昵称、邮箱派生且不可修改的用户昵称、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发；设置测试覆盖默认域名白名单、非白名单拒绝、注册开关、管理员更新与 SMTP 密码不回显。
 
 ## 目录
 

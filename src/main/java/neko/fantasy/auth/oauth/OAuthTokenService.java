@@ -62,7 +62,7 @@ public class OAuthTokenService {
         }
         if (scopes.contains(OAuthScopes.PROFILE)) {
             claims.put("preferred_username", user.getUsername());
-            claims.put("name", user.getDisplayName());
+            claims.put("name", user.publicName());
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {
             claims.put("email", user.getEmail());

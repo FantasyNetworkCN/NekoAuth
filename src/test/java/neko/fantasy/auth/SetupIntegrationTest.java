@@ -76,7 +76,6 @@ class SetupIntegrationTest {
                 {
                   "adminUsername":"admin",
                   "adminEmail":"admin@example.com",
-                  "adminDisplayName":"Neko Admin",
                   "adminPassword":"AdminPass123",
                   "mysqlHost":"127.0.0.1",
                   "mysqlPort":3306,

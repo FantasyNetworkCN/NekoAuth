@@ -24,7 +24,7 @@ public record AuthProperties(
     public record Cors(List<String> allowedOrigins) {
     }
 
-    public record BootstrapAdmin(String username, String email, String displayName, String password) {
+    public record BootstrapAdmin(String username, String email, String password) {
     }
 
     public record RateLimit(int attempts, Duration window) {

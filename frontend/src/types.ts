@@ -3,7 +3,7 @@ export type Role = 'USER' | 'ADMIN'
 export interface User {
   id: number
   username: string
-  nickname: string
+  nickname: string | null
   email: string
   displayName: string
   role: Role
@@ -44,7 +44,6 @@ export interface SetupStatus {
 export interface SetupInstallRequest {
   adminUsername: string
   adminEmail: string
-  adminDisplayName: string
   adminPassword: string
   mysqlHost: string
   mysqlPort: number

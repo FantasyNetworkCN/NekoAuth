@@ -12,7 +12,6 @@ auth:
   bootstrap-admin:
     username: admin
     email: admin@example.com
-    display-name: Test Admin
     password: AdminPass123
   rate-limit:
     attempts: 100

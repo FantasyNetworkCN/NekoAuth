@@ -106,6 +106,10 @@ public class User {
         return displayName;
     }
 
+    public String publicName() {
+        return role == Role.ADMIN ? username : displayName;
+    }
+
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
     }

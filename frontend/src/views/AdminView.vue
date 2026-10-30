@@ -24,6 +24,10 @@ const currentUserId = computed(() => auth.state.user?.id)
 const hasPrevious = computed(() => result.value.page > 0)
 const hasNext = computed(() => result.value.page + 1 < result.value.totalPages)
 
+function accountName(user: User) {
+  return user.role === 'ADMIN' ? user.username : user.displayName
+}
+
 async function load(page = 0) {
   loading.value = true
   error.value = ''
@@ -47,7 +51,7 @@ async function updateUser(user: User, patch: { enabled?: boolean; role?: Role })
     const updated = await api.updateUser(user.id, patch)
     const index = result.value.content.findIndex((item) => item.id === updated.id)
     if (index >= 0) result.value.content[index] = updated
-    showToast(`已更新 ${updated.displayName} 的账户设置`, 'success')
+    showToast(`已更新 ${accountName(updated)} 的账户设置`, 'success')
   } catch (caught) {
     showToast(caught instanceof ApiError ? caught.message : '更新用户失败', 'error')
   } finally {
@@ -117,10 +121,10 @@ onMounted(() => void load(0))
     <section v-else class="user-grid" aria-label="用户列表">
       <article v-for="user in result.content" :key="user.id" class="user-card" :class="{ 'is-self': user.id === currentUserId }">
         <div class="user-card-head">
-          <span class="user-card-avatar" :class="{ 'is-admin': user.role === 'ADMIN' }">{{ initials(user.displayName) }}</span>
+          <span class="user-card-avatar" :class="{ 'is-admin': user.role === 'ADMIN' }">{{ initials(accountName(user)) }}</span>
           <div class="user-card-name">
             <div>
-              <h2>{{ user.displayName }}</h2>
+              <h2>{{ accountName(user) }}</h2>
               <span v-if="user.id === currentUserId" class="self-tag">你</span>
             </div>
             <p>@{{ user.username }} · #{{ user.id }}</p>

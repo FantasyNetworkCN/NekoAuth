@@ -129,13 +129,10 @@ public class SetupService {
     private AdminConfig validateAdmin(SetupRequests.Install request) {
         String username = request.adminUsername().trim().toLowerCase(Locale.ROOT);
         String email = request.adminEmail().trim().toLowerCase(Locale.ROOT);
-        String displayName = StringUtils.hasText(request.adminDisplayName())
-                ? request.adminDisplayName().trim() : username;
         passwordPolicy.validate(request.adminPassword());
         return new AdminConfig(
                 username,
                 email,
-                displayName,
                 request.adminPassword()
         );
     }
@@ -290,7 +287,6 @@ public class SetupService {
                 .append("  bootstrap-admin:\n")
                 .append("    username: ").append(quote(admin.username())).append('\n')
                 .append("    email: ").append(quote(admin.email())).append('\n')
-                .append("    display-name: ").append(quote(admin.displayName())).append('\n')
                 .append("    password: ").append(quote(admin.password())).append('\n');
         return yaml.toString();
     }
@@ -373,7 +369,7 @@ public class SetupService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    record AdminConfig(String username, String email, String displayName, String password) {
+    record AdminConfig(String username, String email, String password) {
     }
 
     record DatabaseConfig(DatabaseKind kind, String jdbcUrl, String username, String password,

@@ -25,7 +25,6 @@ auth:
   bootstrap-admin:
     username: admin
     email: admin@fantasy.network
-    display-name: 猫屋管理员小梦
     password: ${admin_password}
   setup:
     enabled: false

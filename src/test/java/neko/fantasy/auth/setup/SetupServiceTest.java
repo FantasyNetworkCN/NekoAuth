@@ -27,7 +27,7 @@ class SetupServiceTest {
         SetupService service = new SetupService(properties, new PasswordPolicy());
 
         String yaml = service.setupYaml(
-                new SetupService.AdminConfig("admin", "admin@example.com", "Neko Admin", "AdminPass123"),
+                new SetupService.AdminConfig("admin", "admin@example.com", "AdminPass123"),
                 new SetupService.DatabaseConfig(
                         DatabaseKind.MARIADB,
                         "jdbc:mariadb://mysql:3306/nekoauth", "nekoauth", "db-secret", "mysql", 3306, "nekoauth"),
