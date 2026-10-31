@@ -3,9 +3,11 @@ package neko.fantasy.auth.config;
 import neko.fantasy.auth.security.JwtAuthenticationFilter;
 import neko.fantasy.auth.security.RestAccessDeniedHandler;
 import neko.fantasy.auth.security.RestAuthenticationEntryPoint;
+import neko.fantasy.auth.oauth.OAuthClientCorsOrigins;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,8 +18,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -75,23 +77,34 @@ public class SecurityConfig {
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource(AuthProperties properties) {
-        CorsConfiguration configuration = new CorsConfiguration();
-        List<String> origins = properties.cors().allowedOrigins().stream()
+    CorsConfigurationSource corsConfigurationSource(AuthProperties properties,
+                                                    OAuthClientCorsOrigins clientCorsOrigins) {
+        List<String> configuredOrigins = properties.cors().allowedOrigins().stream()
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toList();
-        configuration.setAllowedOrigins(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        configuration.setExposedHeaders(List.of("Content-Disposition", "X-Request-Id"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        return request -> {
+            String path = request.getRequestURI();
+            if (!(path.startsWith("/api/") || path.startsWith("/oauth2/")
+                    || path.startsWith("/.well-known/"))) {
+                return null;
+            }
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
-        source.registerCorsConfiguration("/oauth2/**", configuration);
-        source.registerCorsConfiguration("/.well-known/**", configuration);
-        return source;
+            CorsConfiguration configuration = new CorsConfiguration();
+            List<String> allowedOrigins = new ArrayList<>(configuredOrigins);
+            String origin = request.getHeader(HttpHeaders.ORIGIN);
+            boolean publicOAuthEndpoint = path.startsWith("/oauth2/") || path.startsWith("/.well-known/");
+            if (publicOAuthEndpoint && origin != null && !origin.isBlank()
+                    && clientCorsOrigins.contains(origin)) {
+                allowedOrigins.add(origin);
+            }
+            configuration.setAllowedOrigins(allowedOrigins);
+            configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+            configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+            configuration.setExposedHeaders(List.of("Content-Disposition", "X-Request-Id"));
+            configuration.setAllowCredentials(true);
+            configuration.setMaxAge(3600L);
+            return configuration;
+        };
     }
 }

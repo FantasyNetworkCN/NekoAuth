@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -308,6 +309,41 @@ class OAuthFlowIntegrationTest {
                 .containsEntry("state", "post-state")
                 .containsEntry("code_challenge", challenge)
                 .containsEntry("code_challenge_method", "S256");
+    }
+
+    @Test
+    void discoveryCorsAllowsRegisteredClientRedirectOrigin() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        String appOrigin = "https://ai.nekocore.cn";
+        mockMvc.perform(post("/api/admin/oauth-clients")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"NekoAI CORS 测试应用",
+                                  "redirectUris":["https://ai.nekocore.cn/oauth/nekoai"],
+                                  "postLogoutRedirectUris":["https://ai.nekocore.cn"],
+                                  "scopes":["openid","profile","email"],
+                                  "publicClient":true
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(options("/.well-known/openid-configuration")
+                        .header(HttpHeaders.ORIGIN, appOrigin)
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, appOrigin))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        org.hamcrest.Matchers.containsString("GET")));
+
+        mockMvc.perform(get("/oauth2/jwks").header(HttpHeaders.ORIGIN, appOrigin))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, appOrigin));
+
+        mockMvc.perform(get("/.well-known/openid-configuration")
+                        .header(HttpHeaders.ORIGIN, "https://evil.example"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

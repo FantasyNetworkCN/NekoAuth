@@ -427,7 +427,7 @@ docker compose up -d --build auth
 docker compose down
 ```
 
-生产环境应把认证服务放在 HTTPS 反向代理之后，设置 `auth.cookie.secure: true`，并确保 `oauth.issuer` 与外部访问根地址完全一致。反向代理需保留 `Host` 并传递 `X-Forwarded-Proto`；`auth.cors.allowed-origins` 必须包含浏览器实际访问的完整 Origin（例如 `https://auth.nekocore.cn`），否则登录 POST 会被 Spring 以 `Invalid CORS request` 拒绝。源站默认关闭 HTTP 压缩，由 CDN 或反向代理统一启用 gzip/brotli；不要在源站与 CDN 同时压缩，否则部分 CDN 会保留未压缩的 `Content-Length`，导致浏览器报 `ERR_HTTP2_PROTOCOL_ERROR` 并白屏。
+生产环境应把认证服务放在 HTTPS 反向代理之后，设置 `auth.cookie.secure: true`，并确保 `oauth.issuer` 与外部访问根地址完全一致。反向代理需保留 `Host` 并传递 `X-Forwarded-Proto`；`auth.cors.allowed-origins` 必须包含认证站点自身的完整 Origin（例如 `https://auth.nekocore.cn`），否则登录 POST 会被 Spring 以 `Invalid CORS request` 拒绝。已启用 OAuth 客户端登记的 `https://` / `http://` 回调地址与登出回调地址会自动把其 Origin 加入 OIDC/OAuth 端点（`/.well-known/**` 与 `/oauth2/**`）的允许列表，无需重复配置。源站默认关闭 HTTP 压缩，由 CDN 或反向代理统一启用 gzip/brotli；不要在源站与 CDN 同时压缩，否则部分 CDN 会保留未压缩的 `Content-Length`，导致浏览器报 `ERR_HTTP2_PROTOCOL_ERROR` 并白屏。
 
 当前 Compose 不使用命名数据卷，`docker compose down -v` 不会删除宿主机 MySQL/Redis 或 `data/`；但仍不要手工删除 `data/oauth-signing-key.pem`，否则已有令牌与 JWKS 将无法继续验证。
 
@@ -457,7 +457,7 @@ docker compose down
 | `auth.jwt.refresh-ttl` | `14d` | 刷新令牌有效期 |
 | `auth.cookie.secure` | `false` | HTTPS 部署时设为 `true` |
 | `auth.cookie.same-site` | `Strict` | 刷新 Cookie 的 SameSite |
-| `auth.cors.allowed-origins` | `http://localhost:5173`, `https://auth.nekocore.cn` | 允许的浏览器 Origin；生产必须包含实际访问域名，可用 YAML 列表配置多个 |
+| `auth.cors.allowed-origins` | `http://localhost:5173`, `https://auth.nekocore.cn` | 认证站点的浏览器 Origin；OIDC/OAuth 端点还会自动允许已启用客户端回调地址的 Origin |
 | `auth.rate-limit.attempts` | `20` | 单 IP 限流窗口内失败次数 |
 | `auth.rate-limit.window` | `5m` | 登录限流窗口 |
 | `auth.registration.require-email-verification` | `true` | 注册是否必须通过邮箱验证码；生产保持开启 |
