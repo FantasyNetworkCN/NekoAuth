@@ -18,6 +18,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "refresh_tokens", indexes = {
         @Index(name = "idx_refresh_tokens_user_active", columnList = "user_id, revoked_at, expires_at"),
+        @Index(name = "idx_refresh_tokens_family", columnList = "family_id, revoked_at"),
         @Index(name = "idx_refresh_tokens_expires", columnList = "expires_at")
 })
 public class RefreshToken {
@@ -58,6 +59,9 @@ public class RefreshToken {
     @Column(name = "device_info", length = 2000)
     private String deviceInfo;
 
+    @Column(name = "family_id", length = 64)
+    private String familyId;
+
     protected RefreshToken() {
     }
 
@@ -72,6 +76,11 @@ public class RefreshToken {
 
     public RefreshToken(User user, String tokenHash, Instant authTime, Instant expiresAt,
                         String ipAddress, String userAgent, String deviceInfo) {
+        this(user, tokenHash, authTime, expiresAt, ipAddress, userAgent, deviceInfo, null);
+    }
+
+    public RefreshToken(User user, String tokenHash, Instant authTime, Instant expiresAt,
+                        String ipAddress, String userAgent, String deviceInfo, String familyId) {
         this.user = user;
         this.tokenHash = tokenHash;
         this.authTime = authTime;
@@ -81,6 +90,7 @@ public class RefreshToken {
         this.ipAddress = ipAddress;
         this.userAgent = userAgent;
         this.deviceInfo = deviceInfo;
+        this.familyId = familyId;
     }
 
     public Long getId() {
@@ -133,6 +143,10 @@ public class RefreshToken {
 
     public String getDeviceInfo() {
         return deviceInfo;
+    }
+
+    public String getFamilyId() {
+        return familyId;
     }
 
     public boolean isActive(Instant now) {

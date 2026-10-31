@@ -100,6 +100,54 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void replayingOneBrowserRefreshTokenDoesNotRevokeOtherDevices() throws Exception {
+        String username = "multi_" + UUID.randomUUID().toString().substring(0, 8);
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","email":"%s@gmail.com","password":"Password123"}
+                                """.formatted(username, username)))
+                .andExpect(status().isCreated());
+
+        MvcResult firstLogin = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"%s","password":"Password123"}
+                                """.formatted(username)))
+                .andExpect(status().isOk())
+                .andReturn();
+        MvcResult secondLogin = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"%s","password":"Password123"}
+                                """.formatted(username)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Cookie firstCookie = firstLogin.getResponse().getCookie("refresh_token");
+        Cookie secondCookie = secondLogin.getResponse().getCookie("refresh_token");
+        assertThat(firstCookie).isNotNull();
+        assertThat(secondCookie).isNotNull();
+
+        mockMvc.perform(post("/api/auth/refresh").cookie(firstCookie))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/refresh").cookie(firstCookie))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("REFRESH_REUSED"));
+
+        MvcResult secondRefresh = mockMvc.perform(post("/api/auth/refresh").cookie(secondCookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        String secondAccessToken = JsonPath.read(
+                secondRefresh.getResponse().getContentAsString(), "$.accessToken");
+        mockMvc.perform(get("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + secondAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value(username));
+    }
+
+    @Test
     void registerLoginRefreshAndReuseDetectionWork() throws Exception {
         String username = "user_" + UUID.randomUUID().toString().substring(0, 8);
         String email = username + "@gmail.com";

@@ -80,6 +80,50 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     @Test
+    void refreshTokenReuseOnlyRevokesItsOwnDeviceFamily() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        Client client = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
+                List.of("openid", "offline_access"));
+        String username = uniqueUsername("device_family");
+        BrowserSession firstSession = registerSession(username);
+        BrowserSession secondSession = loginSession(username);
+
+        Tokens firstTokens = authorizeAndExchange(
+                firstSession.accessToken(), client, WEB_REDIRECT, username);
+        Tokens secondTokens = authorizeAndExchange(
+                secondSession.accessToken(), client, WEB_REDIRECT, username);
+
+        MvcResult rotated = mockMvc.perform(post("/oauth2/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("grant_type", "refresh_token")
+                        .param("client_id", client.clientId())
+                        .param("refresh_token", firstTokens.refreshToken()))
+                .andExpect(status().isOk())
+                .andReturn();
+        String rotatedFirstToken = JsonPath.read(
+                rotated.getResponse().getContentAsString(), "$.refresh_token");
+
+        mockMvc.perform(post("/oauth2/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("grant_type", "refresh_token")
+                        .param("client_id", client.clientId())
+                        .param("refresh_token", firstTokens.refreshToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"));
+
+        assertIntrospection(client.clientId(), rotatedFirstToken, false);
+        assertIntrospection(client.clientId(), secondTokens.refreshToken(), true);
+
+        mockMvc.perform(post("/oauth2/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("grant_type", "refresh_token")
+                        .param("client_id", client.clientId())
+                        .param("refresh_token", secondTokens.refreshToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.refresh_token").isNotEmpty());
+    }
+
+    @Test
     void rpInitiatedLogoutOnlyRevokesTheRequestingPlatform() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         Client web = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
@@ -593,6 +637,19 @@ class OAuthMultiPlatformIntegrationTest {
                                 {"username":"%s","email":"%s@gmail.com","password":"Password123"}
                                 """.formatted(username, username)))
                 .andExpect(status().isCreated())
+                .andReturn();
+        return new BrowserSession(
+                JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken"),
+                result.getResponse().getCookie("refresh_token"));
+    }
+
+    private BrowserSession loginSession(String identifier) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"%s","password":"Password123"}
+                                """.formatted(identifier)))
+                .andExpect(status().isOk())
                 .andReturn();
         return new BrowserSession(
                 JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken"),

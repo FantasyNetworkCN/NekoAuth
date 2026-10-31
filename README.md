@@ -7,7 +7,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 邮箱验证码注册、用户名/邮箱登录、安全退出
 - 15 分钟 JWT 访问令牌，浏览器内存存储，不写入 localStorage
 - 14 天刷新令牌，`HttpOnly + SameSite` Cookie 保存
-- 刷新令牌轮换、SHA-256 哈希落库、重放检测与授权链撤销
+- 刷新令牌轮换、SHA-256 哈希落库、重放检测与按设备撤销令牌链；一个设备或旧标签页异常刷新不会注销其他设备
 - 修改密码后立即失效所有旧访问令牌与刷新会话
 - 通过邮箱验证码找回密码，成功后同样立即失效旧访问令牌与刷新会话
 - 用户登录后可通过 `/account` 查看只读账户资料、修改密码、管理登录设备与退出全部会话
@@ -571,7 +571,8 @@ docker compose down
 - 新用户 ID 从 `1000000` 开始；OAuth 客户端密钥使用 BCrypt cost 12。
 - JWT 仅存 JS 内存。刷新令牌不暴露给 JavaScript，数据库只保存其 SHA-256 哈希。
 - 登录设备画像是客户端“尽力提供”的信息，用于展示和风险判断，不是不可伪造的身份凭证；需要强设备认证时应叠加 WebAuthn/Passkey 或原生应用设备密钥。
-- 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，撤销该用户在同一 OAuth 客户端下的全部活动刷新令牌。
+- 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，只撤销该设备对应的刷新令牌链，不影响同一用户的其他设备或 OAuth 客户端。
+- Web 端刷新通过 Web Locks 串行化同一浏览器的多个标签页，避免并发轮换被误判为令牌重放。
 - 用户 `tokenVersion` 使密码修改、密码重置、角色变化或停用立即让旧 JWT 失效；修改或重置密码还会撤销全部 Auth refresh token 与 OAuth refresh token。
 - API 使用无状态安全上下文；刷新 Cookie 使用全站路径、`SameSite=Strict` 和受限 CORS，以便 OIDC 登出核对当前浏览器会话。登录、注册、刷新及登出响应会清理旧版本 `/api/auth` 路径下的同名 Cookie。
 - CSP 禁止内联脚本，并禁用 iframe 嵌入；HSTS 在 HTTPS 下由 Spring Security 输出。

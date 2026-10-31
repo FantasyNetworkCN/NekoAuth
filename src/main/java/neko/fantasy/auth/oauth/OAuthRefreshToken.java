@@ -58,6 +58,9 @@ public class OAuthRefreshToken {
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
+    @Column(name = "family_id", length = 64)
+    private String familyId;
+
     protected OAuthRefreshToken() {
     }
 
@@ -68,6 +71,11 @@ public class OAuthRefreshToken {
 
     public OAuthRefreshToken(String tokenHash, OAuthClient client, User user, String scopes,
                              Instant authTime, Instant expiresAt) {
+        this(tokenHash, client, user, scopes, authTime, expiresAt, null);
+    }
+
+    public OAuthRefreshToken(String tokenHash, OAuthClient client, User user, String scopes,
+                             Instant authTime, Instant expiresAt, String familyId) {
         this.tokenHash = tokenHash;
         this.client = client;
         this.user = user;
@@ -76,10 +84,15 @@ public class OAuthRefreshToken {
         this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
         this.lastUsedAt = this.createdAt;
+        this.familyId = familyId;
     }
 
     public OAuthClient getClient() {
         return client;
+    }
+
+    public String getTokenHash() {
+        return tokenHash;
     }
 
     public User getUser() {
@@ -92,6 +105,10 @@ public class OAuthRefreshToken {
 
     public Instant getAuthTime() {
         return authTime;
+    }
+
+    public String getFamilyId() {
+        return familyId;
     }
 
     public boolean isActive(Instant now) {

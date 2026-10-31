@@ -26,6 +26,14 @@ let refreshInFlight: Promise<AuthPayload | null> | null = null
 let sessionLostHandler: (() => void) | null = null
 let sessionRefreshedHandler: ((payload: AuthPayload) => void) | null = null
 
+async function withRefreshLock<T>(callback: () => Promise<T>): Promise<T> {
+  const locks = (navigator as unknown as {
+    locks?: { request<R>(name: string, callback: () => Promise<R>): Promise<R> }
+  }).locks
+  if (!locks) return callback()
+  return locks.request('nekoauth-refresh-token', callback)
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
@@ -120,7 +128,8 @@ export async function request<T>(
 export async function refreshAccessToken(): Promise<AuthPayload | null> {
   if (refreshInFlight) return refreshInFlight
 
-  refreshInFlight = requestOnce<AuthPayload>('/auth/refresh', { method: 'POST' }, false)
+  refreshInFlight = withRefreshLock(() =>
+    requestOnce<AuthPayload>('/auth/refresh', { method: 'POST' }, false))
     .then((payload) => {
       accessToken = payload.accessToken
       sessionRefreshedHandler?.(payload)

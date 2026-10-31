@@ -30,6 +30,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class AuthService {
@@ -188,7 +189,8 @@ public class AuthService {
                 .orElseThrow(() -> ApiException.unauthorized("INVALID_REFRESH", "登录状态已失效，请重新登录"));
 
         if (stored.getRevokedAt() != null) {
-            refreshTokenRepository.revokeAllForUser(stored.getUser().getId(), now);
+            String familyId = stored.getFamilyId() == null ? stored.getTokenHash() : stored.getFamilyId();
+            refreshTokenRepository.revokeFamily(familyId, now);
             throw ApiException.unauthorized("REFRESH_REUSED", "检测到异常登录会话，请重新登录");
         }
         if (!stored.getExpiresAt().isAfter(now) || !stored.getUser().isEnabled()) {
@@ -211,7 +213,8 @@ public class AuthService {
                 now.plus(properties.jwt().refreshTtl()),
                 clientIp(servletRequest),
                 truncate(servletRequest.getHeader("User-Agent"), 512),
-                stored.getDeviceInfo()
+                stored.getDeviceInfo(),
+                stored.getFamilyId() == null ? stored.getTokenHash() : stored.getFamilyId()
         ));
 
         return authResult(user, newRawToken, authenticatedAt);
@@ -365,7 +368,8 @@ public class AuthService {
                 Instant.now().plus(properties.jwt().refreshTtl()),
                 clientIp(request),
                 truncate(request.getHeader("User-Agent"), 512),
-                writeDeviceInfo(device)
+                writeDeviceInfo(device),
+                UUID.randomUUID().toString()
         );
         refreshTokenRepository.save(refreshToken);
         return authResult(user, rawToken, authenticatedAt);

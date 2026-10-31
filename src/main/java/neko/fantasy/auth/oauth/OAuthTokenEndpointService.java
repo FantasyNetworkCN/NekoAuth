@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class OAuthTokenEndpointService {
@@ -205,7 +206,9 @@ public class OAuthTokenEndpointService {
         }
         if (!observed.isActive(Instant.now())) {
             if (observed.wasRotated()) {
-                reuseService.revokeFamily(observed.getUser().getId(), observed.getClient().getId());
+                String familyId = observed.getFamilyId() == null
+                        ? observed.getTokenHash() : observed.getFamilyId();
+                reuseService.revokeFamily(familyId);
             }
             throw OAuthException.invalidGrant("刷新令牌已过期或已被撤销");
         }
@@ -226,12 +229,20 @@ public class OAuthTokenEndpointService {
         refreshToken.markUsed();
         refreshToken.revoke();
         return issueTokens(client, refreshToken.getUser(), scopes, null,
-                refreshToken.getAuthTime(), true);
+                refreshToken.getAuthTime(), true,
+                refreshToken.getFamilyId() == null
+                        ? refreshToken.getTokenHash() : refreshToken.getFamilyId());
     }
 
     private Map<String, Object> issueTokens(OAuthClient client, User user, Set<String> scopes,
                                             String nonce, Instant authenticatedAt,
                                             boolean rotateRefreshToken) {
+        return issueTokens(client, user, scopes, nonce, authenticatedAt, rotateRefreshToken, null);
+    }
+
+    private Map<String, Object> issueTokens(OAuthClient client, User user, Set<String> scopes,
+                                            String nonce, Instant authenticatedAt,
+                                            boolean rotateRefreshToken, String refreshFamilyId) {
         if (!user.isEnabled()) {
             throw OAuthException.invalidGrant("用户账户已停用");
         }
@@ -254,7 +265,8 @@ public class OAuthTokenEndpointService {
             String rawRefreshToken = randomToken(32);
             OAuthRefreshToken refreshToken = new OAuthRefreshToken(
                     sha256(rawRefreshToken), client, user, OAuthScopes.encode(scopes), authTime,
-                    Instant.now().plus(properties.refreshTokenTtl()));
+                    Instant.now().plus(properties.refreshTokenTtl()),
+                    refreshFamilyId == null ? UUID.randomUUID().toString() : refreshFamilyId);
             refreshTokenRepository.save(refreshToken);
             response.put("refresh_token", rawRefreshToken);
         }

@@ -17,7 +17,7 @@ public class OAuthRefreshTokenReuseService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
-    public void revokeFamily(Long userId, Long clientId) {
-        refreshTokenRepository.revokeActiveForFamily(userId, clientId, Instant.now());
+    public void revokeFamily(String familyId) {
+        refreshTokenRepository.revokeFamily(familyId, Instant.now());
     }
 }
