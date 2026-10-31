@@ -26,3 +26,4 @@ auth:
 oauth:
   issuer: https://auth.fantasy.example
   key-file: target/test-oauth-signing-key.pem
+  bridge-token-ttl: 365d

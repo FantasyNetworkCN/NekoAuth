@@ -3,6 +3,7 @@ import { auth } from '@/stores/auth'
 import AppShell from '@/components/AppShell.vue'
 import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
+import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
 import AdminView from '@/views/AdminView.vue'
 import OAuthClientsView from '@/views/OAuthClientsView.vue'
 import AdminSettingsView from '@/views/AdminSettingsView.vue'
@@ -31,6 +32,11 @@ const router = createRouter({
       name: 'register',
       component: RegisterView,
       meta: { guestOnly: true },
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: ForgotPasswordView,
     },
     {
       path: '/authorize',

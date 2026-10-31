@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import neko.fantasy.auth.dto.InternalAccountRequests;
 import neko.fantasy.auth.dto.InternalAccountResponses;
 import neko.fantasy.auth.internal.InternalClientAuthenticator;
+import neko.fantasy.auth.internal.InternalTokenService;
+import neko.fantasy.auth.oauth.OAuthClient;
 import neko.fantasy.auth.service.InternalAccountService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -38,8 +40,8 @@ public class InternalAccountController {
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
             @Valid @RequestBody InternalAccountRequests.Login request
     ) {
-        clientAuthenticator.requireClient(authorization);
-        return accountService.login(request);
+        OAuthClient client = clientAuthenticator.requireClient(authorization);
+        return accountService.login(request, client);
     }
 
     @PostMapping("/register/code")
@@ -58,8 +60,8 @@ public class InternalAccountController {
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
             @Valid @RequestBody InternalAccountRequests.Register request
     ) {
-        clientAuthenticator.requireClient(authorization);
-        return accountService.register(request);
+        OAuthClient client = clientAuthenticator.requireClient(authorization);
+        return accountService.register(request, client);
     }
 
     /** 由已校验管理员权限的后台调用，创建普通用户并跳过邮箱验证码。 */
@@ -71,6 +73,19 @@ public class InternalAccountController {
     ) {
         clientAuthenticator.requireClient(authorization);
         return accountService.adminCreate(request);
+    }
+
+    /**
+     * 把同一机密客户端签发的短期 OAuth access token 换成 NekoAuth 所有的长期第一方 token。
+     * 仅供 NekoMusic 在同一次浏览器 SSO 回调中服务端调用。
+     */
+    @PostMapping("/token/exchange")
+    public InternalTokenService.IssuedToken exchangeToken(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody InternalAccountRequests.ExchangeToken request
+    ) {
+        OAuthClient client = clientAuthenticator.requireClient(authorization);
+        return accountService.exchangeToken(client, request.accessToken());
     }
 
     @PostMapping("/password/reset-code")

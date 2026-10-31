@@ -4,39 +4,44 @@ import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.dto.AuthRequests;
 import neko.fantasy.auth.dto.InternalAccountRequests;
 import neko.fantasy.auth.dto.InternalAccountResponses;
+import neko.fantasy.auth.internal.InternalTokenService;
+import neko.fantasy.auth.oauth.OAuthClient;
 import org.springframework.stereotype.Service;
 
 /**
  * 第一方服务端账号桥接。
  *
- * <p>不创建 NekoAuth 浏览器会话，只返回账号身份；NekoMusic 继续使用自己的 Redis 用户令牌。
- * 密码、邮箱验证码、注册策略和会话撤销仍以 NekoAuth 为唯一权威源。</p>
+ * <p>密码、邮箱验证码、注册策略、用户令牌签发和会话撤销均以 NekoAuth 为唯一权威源。
+ * 第一方服务只保存 NekoAuth 返回的账号映射，不自行生成用户令牌。</p>
  */
 @Service
 public class InternalAccountService {
 
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
+    private final InternalTokenService tokenService;
 
     public InternalAccountService(AuthService authService,
-                                  EmailVerificationService emailVerificationService) {
+                                  EmailVerificationService emailVerificationService,
+                                  InternalTokenService tokenService) {
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
+        this.tokenService = tokenService;
     }
 
-    public InternalAccountResponses.Account login(InternalAccountRequests.Login request) {
+    public InternalAccountResponses.Account login(InternalAccountRequests.Login request, OAuthClient client) {
         User user = authService.authenticateAccount(request.email(), request.password());
-        return InternalAccountResponses.Account.from(user);
+        return InternalAccountResponses.Account.from(user, tokenService.issue(user, client));
     }
 
     public void sendRegistrationCode(String email) {
         emailVerificationService.sendRegistrationCode(email);
     }
 
-    public InternalAccountResponses.Account register(InternalAccountRequests.Register request) {
+    public InternalAccountResponses.Account register(InternalAccountRequests.Register request, OAuthClient client) {
         User user = authService.registerAccount(new AuthRequests.Register(
                 null, request.email(), request.password(), request.verificationCode()));
-        return InternalAccountResponses.Account.from(user);
+        return InternalAccountResponses.Account.from(user, tokenService.issue(user, client));
     }
 
     public InternalAccountResponses.Account adminCreate(InternalAccountRequests.AdminCreate request) {
@@ -60,5 +65,9 @@ public class InternalAccountService {
 
     public void setPassword(InternalAccountRequests.SetPassword request) {
         authService.setPasswordByEmail(request.email(), request.newPassword());
+    }
+
+    public InternalTokenService.IssuedToken exchangeToken(OAuthClient client, String accessToken) {
+        return tokenService.exchange(client, accessToken);
     }
 }

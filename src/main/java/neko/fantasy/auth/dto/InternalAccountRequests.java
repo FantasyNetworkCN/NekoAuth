@@ -105,4 +105,11 @@ public final class InternalAccountRequests {
             String newPassword
     ) {
     }
+
+    public record ExchangeToken(
+            @NotBlank(message = "缺少 NekoAuth 访问令牌")
+            @Size(max = 8192, message = "访问令牌过长")
+            String accessToken
+    ) {
+    }
 }

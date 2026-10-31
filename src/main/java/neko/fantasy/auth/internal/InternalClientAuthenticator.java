@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -49,8 +48,9 @@ public class InternalClientAuthenticator {
             if (separator < 0) {
                 throw new IllegalArgumentException("missing colon");
             }
-            clientId = URLDecoder.decode(decoded.substring(0, separator), StandardCharsets.UTF_8);
-            secret = URLDecoder.decode(decoded.substring(separator + 1), StandardCharsets.UTF_8);
+            // RFC 7617 的凭据是原样拼接后 Base64；这里不能再做 URL 解码。
+            clientId = decoded.substring(0, separator);
+            secret = decoded.substring(separator + 1);
         } catch (IllegalArgumentException exception) {
             throw ApiException.unauthorized("INVALID_CLIENT", "HTTP Basic 客户端认证格式不正确");
         }

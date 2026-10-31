@@ -33,6 +33,7 @@ const notice = computed(() => {
   if (route.query.reason === 'forbidden') return '这间管理员猫屋需要 ADMIN 身份，请换一个管理员账户。'
   if (route.query.reason === 'registered') return '账户已经织入梦幻网络，可以登录啦。'
   if (route.query.reason === 'password-changed') return '密码已更新，所有旧会话都被猫爪拍散了，请重新登录。'
+  if (route.query.reason === 'password-reset') return '密码已重置，所有旧会话都已失效，请使用新密码登录。'
   return ''
 })
 
@@ -143,7 +144,10 @@ async function logout() {
 
       <div class="form-meta">
         <span><span class="mini-dot"></span> 小梦会记住你最多 14 天</span>
-        <RouterLink class="text-link" :to="registerLink">第一次来？</RouterLink>
+        <span class="form-links">
+          <RouterLink class="text-link" to="/forgot-password">忘记密码？</RouterLink>
+          <RouterLink class="text-link" :to="registerLink">第一次来？</RouterLink>
+        </span>
       </div>
 
       <button class="btn btn-primary btn-block" type="submit" :disabled="loading || !identifier || !password">
@@ -173,6 +177,12 @@ async function logout() {
 .notice-action {
   margin-left: auto;
   flex: none;
+}
+
+.form-links {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
 }
 
 </style>

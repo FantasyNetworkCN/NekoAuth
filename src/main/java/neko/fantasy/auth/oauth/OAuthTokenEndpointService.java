@@ -3,11 +3,12 @@ package neko.fantasy.auth.oauth;
 import io.jsonwebtoken.JwtException;
 import neko.fantasy.auth.config.OAuthProperties;
 import neko.fantasy.auth.domain.User;
+import neko.fantasy.auth.repository.UserRepository;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -30,6 +31,8 @@ public class OAuthTokenEndpointService {
     private final OAuthClientRepository clientRepository;
     private final OAuthAuthorizationCodeRepository codeRepository;
     private final OAuthRefreshTokenRepository refreshTokenRepository;
+    private final OAuthRevokedAccessTokenRepository revokedAccessTokenRepository;
+    private final UserRepository userRepository;
     private final OAuthTokenService tokenService;
     private final PasswordEncoder passwordEncoder;
     private final OAuthProperties properties;
@@ -38,6 +41,8 @@ public class OAuthTokenEndpointService {
     public OAuthTokenEndpointService(OAuthClientRepository clientRepository,
                                      OAuthAuthorizationCodeRepository codeRepository,
                                      OAuthRefreshTokenRepository refreshTokenRepository,
+                                     OAuthRevokedAccessTokenRepository revokedAccessTokenRepository,
+                                     UserRepository userRepository,
                                      OAuthTokenService tokenService,
                                      PasswordEncoder passwordEncoder,
                                      OAuthProperties properties,
@@ -45,6 +50,8 @@ public class OAuthTokenEndpointService {
         this.clientRepository = clientRepository;
         this.codeRepository = codeRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.revokedAccessTokenRepository = revokedAccessTokenRepository;
+        this.userRepository = userRepository;
         this.tokenService = tokenService;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
@@ -74,10 +81,24 @@ public class OAuthTokenEndpointService {
         if (token == null || token.isBlank()) {
             throw OAuthException.invalidRequest("缺少 token");
         }
-        refreshTokenRepository.findByTokenHash(sha256(token))
-                .filter(refreshToken -> refreshToken.getClient().getId().equals(client.getId()))
-                .filter(refreshToken -> refreshToken.isActive(Instant.now()))
-                .ifPresent(OAuthRefreshToken::revoke);
+        OAuthRefreshToken refreshToken = refreshTokenRepository.findByTokenHash(sha256(token))
+                .filter(stored -> stored.getClient().getId().equals(client.getId()))
+                .filter(stored -> stored.isActive(Instant.now()))
+                .orElse(null);
+        if (refreshToken != null) {
+            refreshToken.revoke();
+            return;
+        }
+
+        try {
+            OAuthTokenService.AccessTokenClaims claims = tokenService.parseAccessToken(token);
+            if (client.getClientId().equals(claims.clientId())) {
+                revokedAccessTokenRepository.save(new OAuthRevokedAccessToken(
+                        claims.jti(), claims.expiresAt()));
+            }
+        } catch (JwtException | IllegalArgumentException ignored) {
+            // RFC 7009：无效或已过期的令牌同样返回成功，避免泄露令牌状态。
+        }
     }
 
     @Transactional(readOnly = true)
@@ -91,7 +112,8 @@ public class OAuthTokenEndpointService {
         OAuthRefreshToken refreshToken = refreshTokenRepository.findByTokenHash(sha256(token)).orElse(null);
         if (refreshToken != null) {
             if (!refreshToken.getClient().getId().equals(client.getId())
-                    || !refreshToken.isActive(Instant.now())) {
+                    || !refreshToken.isActive(Instant.now())
+                    || !refreshToken.getUser().isEnabled()) {
                 return Map.of("active", false);
             }
             Map<String, Object> response = new LinkedHashMap<>();
@@ -101,6 +123,7 @@ public class OAuthTokenEndpointService {
             response.put("scope", refreshToken.getScopes());
             response.put("sub", refreshToken.getUser().getId().toString());
             response.put("username", refreshToken.getUser().getUsername());
+            response.put("email", refreshToken.getUser().getEmail());
             response.put("iss", tokenService.issuer());
             return response;
         }
@@ -108,6 +131,16 @@ public class OAuthTokenEndpointService {
         try {
             OAuthTokenService.AccessTokenClaims claims = tokenService.parseAccessToken(token);
             if (!client.getClientId().equals(claims.clientId())) {
+                return Map.of("active", false);
+            }
+            if (revokedAccessTokenRepository.existsById(claims.jti())) {
+                return Map.of("active", false);
+            }
+            User user = userRepository.findById(claims.userId())
+                    .filter(User::isEnabled)
+                    .filter(candidate -> candidate.getTokenVersion() == claims.tokenVersion())
+                    .orElse(null);
+            if (user == null) {
                 return Map.of("active", false);
             }
             Map<String, Object> response = new LinkedHashMap<>();
@@ -119,6 +152,11 @@ public class OAuthTokenEndpointService {
             if (claims.username() != null) {
                 response.put("username", claims.username());
             }
+            response.put("email", user.getEmail());
+            response.put("email_verified", true);
+            if (claims.role() != null) {
+                response.put("role", claims.role());
+            }
             response.put("exp", claims.expiresAt().getEpochSecond());
             response.put("iat", claims.issuedAt().getEpochSecond());
             response.put("iss", tokenService.issuer());
@@ -127,6 +165,12 @@ public class OAuthTokenEndpointService {
         } catch (JwtException | IllegalArgumentException exception) {
             return Map.of("active", false);
         }
+    }
+
+    @Scheduled(cron = "0 37 4 * * *")
+    @Transactional
+    public void purgeExpiredAccessTokenRevocations() {
+        revokedAccessTokenRepository.deleteExpired(Instant.now());
     }
 
     private Map<String, Object> authorizationCodeGrant(OAuthClient client, Map<String, String> form) {
@@ -256,8 +300,11 @@ public class OAuthTokenEndpointService {
                 if (separator < 0) {
                     throw new IllegalArgumentException("missing colon");
                 }
-                clientId = URLDecoder.decode(decoded.substring(0, separator), StandardCharsets.UTF_8);
-                secret = URLDecoder.decode(decoded.substring(separator + 1), StandardCharsets.UTF_8);
+                // RFC 7617：Basic 的 user-id / password 按原样拼接后再 Base64。客户端 ID
+                // 与密钥可能包含 URL 保留字符，不能再做一次 application/x-www-form-urlencoded
+                // 解码，否则 `+` 等字符会被改写，导致合法客户端随机认证失败。
+                clientId = decoded.substring(0, separator);
+                secret = decoded.substring(separator + 1);
             } catch (IllegalArgumentException exception) {
                 throw OAuthException.invalidClient("HTTP Basic 客户端认证格式不正确");
             }

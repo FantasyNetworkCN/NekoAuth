@@ -9,6 +9,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 14 天刷新令牌，`HttpOnly + SameSite` Cookie 保存
 - 刷新令牌轮换、SHA-256 哈希落库、重放检测与授权链撤销
 - 修改密码后立即失效所有旧访问令牌与刷新会话
+- 通过邮箱验证码找回密码，成功后同样立即失效旧访问令牌与刷新会话
 - 用户登录后可通过 `/account` 查看只读账户资料、修改密码、管理登录设备与退出全部会话
 - 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态、OAuth 应用与运行设置
 - 注册邮箱默认只允许 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`，可在 `/admin/settings` 修改
@@ -138,7 +139,7 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 | `GET` | `/oauth2/jwks` | RS256 公钥集合 |
 | `GET/POST` | `/oauth2/userinfo` | 使用访问令牌读取用户声明 |
 | `POST` | `/oauth2/introspect` | 令牌自省 |
-| `POST` | `/oauth2/revoke` | 撤销刷新令牌 |
+| `POST` | `/oauth2/revoke` | 撤销刷新令牌或访问令牌 |
 | `GET/POST` | `/oauth2/logout` | OIDC RP-Initiated Logout，清理浏览器会话并撤销对应应用的 OAuth 刷新令牌 |
 
 公共客户端必须使用 PKCE `S256`，且不能持有客户端密钥；机密客户端可通过 HTTP Basic 或表单参数提交密钥。回调地址必须与登记值完全一致；非本机回调地址只允许 `https://`，明文 `http://` 仅可用于 `localhost`、`127.0.0.1` 或 `[::1]` 本机开发。原生公共客户端可以使用已登记的私有协议回调（例如 `com.example.app:/oauth/callback`），机密客户端不允许私有协议回调。
@@ -149,7 +150,7 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 
 ### 第一方服务端账号桥接
 
-NekoMusic 等第一方应用不再保存用户密码。它们的旧登录、注册、验证码、改密与找回密码 API 保持原路径和请求格式，由应用后端通过下面的内部接口转发到 NekoAuth；浏览器不会获得客户端密钥，也不会被签发 NekoAuth 会话。NekoMusic 继续使用自己的 Redis 用户令牌。
+NekoMusic 等第一方应用不再保存用户密码，也不再自行签发或保存用户 Token。它们的旧登录、注册、验证码、改密与找回密码 API 保持原路径和请求格式，由应用后端通过下面的内部接口转发到 NekoAuth；浏览器不会获得客户端密钥，也不会被签发 NekoAuth 浏览器会话。NekoMusic 浏览器登录使用标准 OAuth 授权码流程，服务端在回调中用短期 OAuth access token 换取 NekoAuth 所有的长期第一方 access token，再通过一次性交接交给浏览器。该长期令牌只能由 NekoAuth 吊销或随密码变更、账户停用失效，NekoMusic 不再维护用户 token 键值。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -161,10 +162,25 @@ NekoMusic 等第一方应用不再保存用户密码。它们的旧登录、注�
 | `POST` | `/api/internal/accounts/password/reset` | 验证验证码并重置密码 |
 | `POST` | `/api/internal/accounts/password/change` | 校验当前密码后修改密码 |
 | `POST` | `/api/internal/accounts/password/admin-reset` | 由已校验权限的第一方后台重置密码 |
+| `POST` | `/api/internal/accounts/token/exchange` | 把同一机密客户端签发的短期 access token 换成长期第一方 access token |
+
+长期令牌兑换请求体与响应：
+
+```json
+{ "accessToken": "<同一客户端签发的短期 OAuth access token>" }
+```
+
+```json
+{
+  "accessToken": "<NekoAuth 长期第一方 access token>",
+  "tokenType": "Bearer",
+  "expiresIn": 31536000
+}
+```
 
 这些接口不接受用户 JWT，只接受 HTTP Basic 客户端认证。客户端必须同时满足：已启用、`publicClient=false`，并且 scope 明确包含 `account:bridge`。`account:bridge` 不会出现在公开发现文档中，也不能用于浏览器授权请求；它只表示“允许这个可信后端调用账号桥接接口”。管理员创建、管理员重置等接口的可信边界是调用方 NekoMusic 后端——NekoMusic 必须先校验自己的管理员权限，NekoAuth 不会猜测其后台角色。
 
-客户端 ID 和密钥都不写死在代码中。部署时在 `/admin/clients` 创建或编辑客户端，在“申请权限”中勾选“账号桥接”（`account:bridge`）；选择该 scope 后界面会强制使用机密客户端。该 scope 只通过管理员接口 `GET /api/admin/oauth-clients/scopes` 返回，不出现在公开发现文档或用户授权页。然后把同一客户端的 ID 与密钥填入 NekoMusic 的 `oauth.client_id`、`oauth.client_secret`，并将 `oauth.issuer` 指向本服务公网根地址。若同一客户端还要完成浏览器 OAuth 登录，按其需要加入 `openid email roles` 等公开 scope；只做账号桥接时，`account:bridge` 即可。示例：
+客户端 ID 和密钥都不写死在代码中。部署时在 `/admin/clients` 创建或编辑客户端，在“申请权限”中勾选“账号桥接”（`account:bridge`）；选择该 scope 后界面会强制使用机密客户端。该 scope 只通过管理员接口 `GET /api/admin/oauth-clients/scopes` 返回，不出现在公开发现文档或用户授权页。然后把同一客户端的 ID 与密钥填入 NekoMusic 的 `oauth.client_id`、`oauth.client_secret`，并将 `oauth.issuer` 指向本服务公网根地址。同一客户端若还要完成 NekoMusic 浏览器 OAuth 登录，再按需加入 `openid profile email roles` 等公开 scope；只做旧 API 桥接时，`account:bridge` 即可。示例：
 
 ```bash
 curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
@@ -173,8 +189,8 @@ curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
   -d '{
     "name": "NekoMusic 服务端",
     "description": "NekoMusic 账号桥接",
-    "redirectUris": ["https://music.nekocore.cn/oauth/callback"],
-    "scopes": ["openid", "email", "roles", "account:bridge"],
+    "redirectUris": ["https://music.nekocore.cn/oauth/nekocore/callback"],
+    "scopes": ["openid", "profile", "email", "roles", "account:bridge"],
     "publicClient": false
   }'
 ```
@@ -183,7 +199,11 @@ curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
 
 若仍返回 `401 INVALID_CLIENT`，先查看 NekoAuth 日志中的 `reason`：`not_found_or_disabled` 表示 NekoMusic 保存的 client_id 与实际客户端不一致或客户端被停用；`secret_mismatch` 表示两端密钥不同；`public_client` 表示误建成了公共客户端；`missing_account_bridge_scope` 表示忘了勾选“账号桥接”。修改 scope 不会自动轮换密钥；需要时在客户端卡片上执行“轮换密钥”，再一次性同步到 NekoMusic。日志不会输出客户端密钥。
 
-桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录成功后返回 NekoAuth 的稳定数字用户 ID 与邮箱，NekoMusic 用该 ID 绑定本地昵称、VIP、头像等业务资料。密码、验证码和账号状态始终以 NekoAuth 为唯一权威源。
+桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录与注册成功时，桥接响应除稳定数字用户 ID、邮箱、用户名、角色和启用状态外，还返回 `accessToken`、`tokenType` 与 `expiresIn`。该 access token 由 NekoAuth 签发并受 NekoAuth 管理，默认有效期为 365 天；NekoMusic 用其中的用户 ID 绑定本地昵称、VIP、头像等业务资料。
+
+NekoMusic 浏览器登录时，服务端先用授权码和客户端密钥调用 `/oauth2/token`，再把拿到的短期 access token 提交给 `/api/internal/accounts/token/exchange` 换取长期第一方 access token。交换只接受同一客户端签发、未过期、未被吊销且用户会话版本仍有效的令牌；不同客户端的令牌会被拒绝。浏览器只收到 NekoMusic 的一次性登录交接，再由完成页领取 token，URL 中不会出现 access token。
+
+NekoMusic 后续每次用户鉴权通过 `/oauth2/introspect` 获取权威身份，登出通过 `/oauth2/revoke` 吊销 access token。`/oauth2/introspect` 对已吊销、已过期、用户停用或密码变更后的旧令牌返回 `active=false`；`/oauth2/revoke` 按 RFC 7009 对无效令牌同样返回成功。密码、验证码和账号状态始终以 NekoAuth 为唯一权威源。
 
 `oauth.enabled` 只控制浏览器 OAuth 登录是否开放，不替代桥接所需的客户端配置。桥接请求失败时，内部接口返回统一业务错误与必要的 `Retry-After`；调用方应原样映射冷却时间，不要自行重试发送验证码。
 
@@ -453,6 +473,7 @@ docker compose down
 | `oauth.key-file` | `./data/oauth-signing-key.pem` | RS256 签名私钥路径；Compose 下挂载为 `/app/data` |
 | `oauth.authorization-code-ttl` | `5m` | 授权码有效期 |
 | `oauth.access-token-ttl` | `1h` | OAuth 访问令牌有效期 |
+| `oauth.bridge-token-ttl` | `365d` | 第一方账号桥接登录、注册与 token 交换签发的长期 access token 有效期 |
 | `oauth.id-token-ttl` | `10m` | OIDC ID Token 有效期 |
 | `oauth.refresh-token-ttl` | `30d` | OAuth 刷新令牌有效期 |
 
@@ -478,6 +499,7 @@ docker compose down
 | `POST` | `/api/auth/password` | 登录后修改密码，撤销 Auth 登录会话与已签发的 OAuth refresh token |
 | `POST` | `/api/auth/password/reset-code` | 获取人机验证码后向邮箱发送找回密码验证码；提交 `email/captchaId/captchaAnswer` |
 | `POST` | `/api/auth/password/reset` | 使用 `email/code/newPassword` 重置密码，并撤销全部 Auth 登录会话与 OAuth refresh token |
+| `GET` | `/forgot-password` | 找回密码页面，支持图形人机验证码、邮箱验证码与新密码设置 |
 | `GET` | `/api/auth/sessions` | 活跃设备会话 |
 | `DELETE` | `/api/auth/sessions/{id}` | 撤销指定会话 |
 | `DELETE` | `/api/auth/sessions` | 撤销全部会话 |
@@ -490,7 +512,7 @@ docker compose down
 | `GET` | `/api/admin/settings` | 管理员读取注册策略与 SMTP 设置，密码仅返回是否已配置 |
 | `PUT` | `/api/admin/settings` | 管理员更新注册开关、邮箱域名白名单与 SMTP/发件人配置 |
 | `POST` | `/api/admin/settings/mail/test` | 使用已保存的 SMTP 配置发送测试邮件 |
-| `POST` | `/api/internal/accounts/**` | 第一方服务端账号桥接；仅接受带 `account:bridge` 的机密客户端 Basic 认证，不适用于浏览器 |
+| `POST` | `/api/internal/accounts/**` | 第一方服务端账号与 token 桥接；仅接受带 `account:bridge` 的机密客户端 Basic 认证，不适用于浏览器 |
 
 错误响应统一为：
 

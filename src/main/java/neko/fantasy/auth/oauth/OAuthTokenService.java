@@ -28,7 +28,12 @@ public class OAuthTokenService {
     }
 
     public IssuedAccessToken issueAccessToken(User user, String clientId, Set<String> scopes) {
-        Instant expiresAt = Instant.now().plus(properties.accessTokenTtl());
+        return issueAccessToken(user, clientId, scopes, properties.accessTokenTtl());
+    }
+
+    public IssuedAccessToken issueAccessToken(User user, String clientId, Set<String> scopes,
+                                              Duration ttl) {
+        Instant expiresAt = Instant.now().plus(ttl);
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("typ", "oauth_access");
         claims.put("client_id", clientId);
@@ -37,10 +42,14 @@ public class OAuthTokenService {
         if (scopes.contains(OAuthScopes.PROFILE)) {
             claims.put("username", user.getUsername());
         }
+        if (scopes.contains(OAuthScopes.EMAIL)) {
+            claims.put("email", user.getEmail());
+            claims.put("email_verified", true);
+        }
         if (scopes.contains(OAuthScopes.ROLES)) {
             claims.put("role", user.getRole().name());
         }
-        String value = keyService.issue(claims, user.getId().toString(), properties.accessTokenTtl());
+        String value = keyService.issue(claims, user.getId().toString(), ttl);
         return new IssuedAccessToken(value, expiresAt);
     }
 
@@ -115,6 +124,9 @@ public class OAuthTokenService {
                     claims.get("client_id", String.class),
                     claims.get("scope", String.class),
                     claims.get("username", String.class),
+                    claims.get("email", String.class),
+                    Boolean.TRUE.equals(claims.get("email_verified", Boolean.class)),
+                    claims.get("role", String.class),
                     claims.get("ver", Integer.class),
                     claims.getExpiration().toInstant(),
                     claims.getIssuedAt().toInstant(),
@@ -149,6 +161,7 @@ public class OAuthTokenService {
     }
 
     public record AccessTokenClaims(Long userId, String clientId, String scope, String username,
+                                    String email, boolean emailVerified, String role,
                                     int tokenVersion, Instant expiresAt, Instant issuedAt, String jti) {
     }
 

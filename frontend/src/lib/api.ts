@@ -185,6 +185,22 @@ export const api = {
     )
   },
 
+  requestPasswordResetCode(email: string, captchaId: string, captchaAnswer: string) {
+    return request<VerificationCodeSent>(
+      '/auth/password/reset-code',
+      { method: 'POST', body: JSON.stringify({ email, captchaId, captchaAnswer }) },
+      { auth: false, retry: false },
+    )
+  },
+
+  resetPassword(email: string, code: string, newPassword: string) {
+    return request<void>(
+      '/auth/password/reset',
+      { method: 'POST', body: JSON.stringify({ email, code, newPassword }) },
+      { auth: false, retry: false },
+    )
+  },
+
   logout() {
     return request<void>('/auth/logout', { method: 'POST' }, { auth: false, retry: false })
   },

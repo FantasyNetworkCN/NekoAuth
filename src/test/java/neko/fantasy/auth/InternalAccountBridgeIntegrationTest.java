@@ -205,6 +205,98 @@ class InternalAccountBridgeIntegrationTest {
                 .andExpect(jsonPath("$.code").value("INVALID_CLIENT"));
     }
 
+    @Test
+    void issuedTokensCanBeIntrospectedExchangedAndRevoked() throws Exception {
+        when(settingsService.getSmtpConfig()).thenReturn(smtpConfig());
+        Client client = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE, OAuthScopes.EMAIL));
+        String email = uniqueEmail();
+
+        mockMvc.perform(post("/api/internal/accounts/register/code")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\"}"))
+                .andExpect(status().isNoContent());
+
+        ArgumentCaptor<String> registrationCode = ArgumentCaptor.forClass(String.class);
+        verify(mailService).sendRegistrationCode(eq(email), eq(smtpConfig()),
+                registrationCode.capture(), eq(Duration.ofMinutes(10)));
+
+        MvcResult registration = mockMvc.perform(post("/api/internal/accounts/register")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","password":"Password123","verificationCode":"%s"}
+                                """.formatted(email, registrationCode.getValue())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").isNumber())
+                .andReturn();
+        String accessToken = JsonPath.read(
+                registration.getResponse().getContentAsString(), "$.accessToken");
+
+        mockMvc.perform(post("/oauth2/introspect")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("token", accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.token_type").value("Bearer"));
+
+        MvcResult exchanged = mockMvc.perform(post("/api/internal/accounts/token/exchange")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accessToken\":\"" + accessToken + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.expiresIn").isNumber())
+                .andReturn();
+        String longLivedToken = JsonPath.read(
+                exchanged.getResponse().getContentAsString(), "$.accessToken");
+
+        Client otherClient = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE));
+        mockMvc.perform(post("/api/internal/accounts/token/exchange")
+                        .header(HttpHeaders.AUTHORIZATION, basic(otherClient))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accessToken\":\"" + accessToken + "\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+
+        mockMvc.perform(post("/oauth2/revoke")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("token", accessToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/oauth2/introspect")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("token", accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+
+        mockMvc.perform(post("/api/internal/accounts/token/exchange")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accessToken\":\"" + accessToken + "\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+
+        mockMvc.perform(post("/api/internal/accounts/password/change")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","currentPassword":"Password123","newPassword":"Password456"}
+                                """.formatted(email)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/oauth2/introspect")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("token", longLivedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+    }
+
     private Client createClient(boolean publicClient, List<String> scopes) {
         String clientId = "bridge_" + UUID.randomUUID().toString().replace("-", "").substring(0, 18);
         String secret = publicClient ? null : "secret-" + UUID.randomUUID();
