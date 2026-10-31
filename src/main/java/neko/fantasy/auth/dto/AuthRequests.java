@@ -24,7 +24,9 @@ public final class AuthRequests {
             String password,
 
             @Pattern(regexp = "^$|^\\d{6}$", message = "邮箱验证码需为 6 位数字")
-            String verificationCode
+            String verificationCode,
+
+            DeviceProfile device
     ) {
     }
 
@@ -83,7 +85,25 @@ public final class AuthRequests {
 
             @NotBlank(message = "请输入密码")
             @Size(max = 128, message = "密码过长")
-            String password
+            String password,
+
+            DeviceProfile device
+    ) {
+    }
+
+    /** 浏览器尽力提供的设备画像；仅用于展示与风险提示，不作为身份认证凭证。 */
+    public record DeviceProfile(
+            String type,
+            String platform,
+            String platformVersion,
+            String architecture,
+            String model,
+            String browser,
+            String browserVersion,
+            String screen,
+            String timezone,
+            Boolean touch,
+            String source
     ) {
     }
 

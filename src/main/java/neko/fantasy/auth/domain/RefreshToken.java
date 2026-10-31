@@ -55,6 +55,9 @@ public class RefreshToken {
     @Column(name = "user_agent", length = 512)
     private String userAgent;
 
+    @Column(name = "device_info", length = 2000)
+    private String deviceInfo;
+
     protected RefreshToken() {
     }
 
@@ -64,6 +67,11 @@ public class RefreshToken {
 
     public RefreshToken(User user, String tokenHash, Instant authTime, Instant expiresAt,
                         String ipAddress, String userAgent) {
+        this(user, tokenHash, authTime, expiresAt, ipAddress, userAgent, null);
+    }
+
+    public RefreshToken(User user, String tokenHash, Instant authTime, Instant expiresAt,
+                        String ipAddress, String userAgent, String deviceInfo) {
         this.user = user;
         this.tokenHash = tokenHash;
         this.authTime = authTime;
@@ -72,6 +80,7 @@ public class RefreshToken {
         this.lastUsedAt = this.createdAt;
         this.ipAddress = ipAddress;
         this.userAgent = userAgent;
+        this.deviceInfo = deviceInfo;
     }
 
     public Long getId() {
@@ -120,6 +129,10 @@ public class RefreshToken {
 
     public String getUserAgent() {
         return userAgent;
+    }
+
+    public String getDeviceInfo() {
+        return deviceInfo;
     }
 
     public boolean isActive(Instant now) {

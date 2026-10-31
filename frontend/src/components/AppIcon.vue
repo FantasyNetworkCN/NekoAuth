@@ -23,6 +23,8 @@ const paths: Record<string, string> = {
   key: 'M14 7a4 4 0 1 1-3.5 5.9L4 19.4V22H2v-3l8.1-8.1A4 4 0 0 1 14 7Z',
   clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2',
   monitor: 'M3 4h18v12H3zM8 20h8M12 16v4',
+  smartphone: 'M7 2h10v20H7zM11 18h2',
+  tablet: 'M5 2h14v20H5zM11 18h2',
   'chevron-left': 'm15 18-6-6 6-6',
   'chevron-right': 'm9 18 6-6-6-6',
   users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',

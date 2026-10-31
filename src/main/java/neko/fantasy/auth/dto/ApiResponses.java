@@ -26,8 +26,14 @@ public final class ApiResponses {
     public record Auth(String accessToken, String tokenType, long expiresIn, User user) {
     }
 
-    public record Session(Long id, String ipAddress, String userAgent, Instant createdAt,
-                          Instant lastUsedAt, Instant expiresAt, boolean current) {
+    public record Session(Long id, String ipAddress, String userAgent, DeviceInfo device,
+                          Instant createdAt, Instant lastUsedAt, Instant expiresAt, boolean current) {
+    }
+
+    public record DeviceInfo(String type, String platform, String platformVersion,
+                             String architecture, String model, String browser,
+                             String browserVersion, String screen, String timezone,
+                             Boolean touch, String source) {
     }
 
     public record Page<T>(List<T> content, int page, int size, long totalElements, int totalPages) {

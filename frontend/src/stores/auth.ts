@@ -1,5 +1,6 @@
 import { computed, reactive } from 'vue'
 import { api, refreshAccessToken, setAccessToken, setSessionLostHandler, setSessionRefreshedHandler } from '@/lib/api'
+import { collectDeviceProfile } from '@/lib/device'
 import type { AuthPayload, User } from '@/types'
 
 interface AuthState {
@@ -72,12 +73,12 @@ export const auth = {
   },
 
   async login(identifier: string, password: string) {
-    const payload = await api.login(identifier, password)
+    const payload = await api.login(identifier, password, await collectDeviceProfile())
     apply(payload)
   },
 
   async register(input: { email: string; password: string; verificationCode: string }) {
-    const payload = await api.register(input)
+    const payload = await api.register({ ...input, device: await collectDeviceProfile() })
     apply(payload)
   },
 

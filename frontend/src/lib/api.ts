@@ -2,6 +2,7 @@ import type {
   ApiErrorBody,
   AdminSettings,
   AuthPayload,
+  DeviceProfile,
   CreatedOAuthClient,
   OAuthAuthorizeView,
   OAuthClient,
@@ -153,15 +154,15 @@ export const api = {
     )
   },
 
-  login(identifier: string, password: string) {
+  login(identifier: string, password: string, device?: DeviceProfile | null) {
     return request<AuthPayload>(
       '/auth/login',
-      { method: 'POST', body: JSON.stringify({ identifier, password }) },
+      { method: 'POST', body: JSON.stringify({ identifier, password, device: device || undefined }) },
       { auth: false, retry: false },
     )
   },
 
-  register(input: { email: string; password: string; verificationCode: string }) {
+  register(input: { email: string; password: string; verificationCode: string; device?: DeviceProfile }) {
     return request<AuthPayload>(
       '/auth/register',
       { method: 'POST', body: JSON.stringify(input) },

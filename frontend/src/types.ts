@@ -31,10 +31,27 @@ export interface Session {
   id: number
   ipAddress: string | null
   userAgent: string | null
+  device: DeviceProfile | null
   createdAt: string
   lastUsedAt: string | null
   expiresAt: string
   current: boolean
+}
+
+export type DeviceType = 'desktop' | 'mobile' | 'tablet' | 'unknown'
+
+export interface DeviceProfile {
+  type: DeviceType
+  platform: string | null
+  platformVersion: string | null
+  architecture: string | null
+  model: string | null
+  browser: string | null
+  browserVersion: string | null
+  screen: string | null
+  timezone: string | null
+  touch: boolean | null
+  source: string | null
 }
 
 export interface RegistrationCaptcha {

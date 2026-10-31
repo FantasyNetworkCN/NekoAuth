@@ -4,7 +4,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AppLogo from '@/components/AppLogo.vue'
 import { ApiError, api } from '@/lib/api'
-import { browserName, formatDate, initials } from '@/lib/format'
+import { deviceDetails, deviceLabel, formatDate, initials } from '@/lib/format'
 import { showToast } from '@/lib/toast'
 import { auth } from '@/stores/auth'
 import type { Session } from '@/types'
@@ -29,6 +29,12 @@ const passwordForm = reactive({
 const passwordLoading = ref(false)
 const passwordError = ref('')
 const passwordFieldErrors = ref<Record<string, string>>({})
+
+function deviceIcon(session: Session): string {
+  if (session.device?.type === 'mobile') return 'smartphone'
+  if (session.device?.type === 'tablet') return 'tablet'
+  return 'monitor'
+}
 
 function validatePasswordForm() {
   const errors: Record<string, string> = {}
@@ -82,7 +88,7 @@ async function revokeSession(session: Session) {
   if (revokingId.value !== null || revokingAll.value) return
   const prompt = session.current
     ? '撤销当前会话会立即退出登录，确定继续吗？'
-    : `确定撤销「${browserName(session.userAgent)}」这次登录吗？`
+    : `确定撤销「${deviceLabel(session)}」这次登录吗？`
   if (!window.confirm(prompt)) return
 
   revokingId.value = session.id
@@ -322,13 +328,14 @@ onMounted(() => {
 
         <div v-else class="session-list">
           <article v-for="session in sessions" :key="session.id" class="session-row">
-            <span class="session-icon"><AppIcon name="monitor" :size="19" /></span>
+            <span class="session-icon"><AppIcon :name="deviceIcon(session)" :size="19" /></span>
             <div class="session-copy">
               <div class="session-title">
-                <strong>{{ browserName(session.userAgent) }}</strong>
+                <strong>{{ deviceLabel(session) }}</strong>
                 <span v-if="session.current" class="current-badge">当前设备</span>
               </div>
               <p>{{ session.ipAddress || '未知 IP' }} · 最近活动 {{ formatDate(session.lastUsedAt || session.createdAt) }}</p>
+              <small v-if="deviceDetails(session)">{{ deviceDetails(session) }}</small>
               <small>登录于 {{ formatDate(session.createdAt) }} · 有效至 {{ formatDate(session.expiresAt) }}</small>
             </div>
             <button

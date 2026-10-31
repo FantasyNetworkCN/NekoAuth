@@ -1,3 +1,5 @@
+import type { Session } from '@/types'
+
 const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
   month: 'short',
@@ -44,4 +46,29 @@ export function browserName(userAgent: string | null): string {
   if (/Safari\//i.test(userAgent)) return 'Safari'
   if (/curl|httpie/i.test(userAgent)) return '命令行客户端'
   return '浏览器会话'
+}
+
+export function deviceLabel(session: Session): string {
+  const device = session.device
+  if (!device) return browserName(session.userAgent)
+  const type = {
+    desktop: '电脑',
+    mobile: '手机',
+    tablet: '平板',
+    unknown: '设备',
+  }[device.type] || '设备'
+  const platform = [device.platform, device.platformVersion].filter(Boolean).join(' ')
+  const browser = [device.browser, device.browserVersion].filter(Boolean).join(' ')
+  return [type, platform, browser].filter(Boolean).join(' · ')
+}
+
+export function deviceDetails(session: Session): string {
+  const device = session.device
+  if (!device) return ''
+  return [
+    device.model,
+    device.architecture ? `${device.architecture} 架构` : null,
+    device.screen,
+    device.timezone,
+  ].filter(Boolean).join(' · ')
 }

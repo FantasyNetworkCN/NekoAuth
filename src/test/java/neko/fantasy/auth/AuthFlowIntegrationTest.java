@@ -52,6 +52,54 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void structuredDeviceProfileIsStoredAndReturnedWithSessions() throws Exception {
+        String username = "device_" + UUID.randomUUID().toString().substring(0, 8);
+        MvcResult registration = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username":"%s",
+                                  "email":"%s@gmail.com",
+                                  "password":"Password123",
+                                  "device":{
+                                    "type":"mobile",
+                                    "platform":"Android",
+                                    "platformVersion":"15",
+                                    "architecture":"arm64",
+                                    "model":"Pixel 9",
+                                    "browser":"Chrome",
+                                    "browserVersion":"141.0",
+                                    "screen":"1080×2400 @2.63x",
+                                    "timezone":"Asia/Shanghai",
+                                    "touch":true,
+                                    "source":"client_hints"
+                                  }
+                                }
+                                """.formatted(username, username)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String accessToken = JsonPath.read(
+                registration.getResponse().getContentAsString(), "$.accessToken");
+        Cookie refreshCookie = registration.getResponse().getCookie("refresh_token");
+        assertThat(refreshCookie).isNotNull();
+
+        mockMvc.perform(get("/api/auth/sessions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .cookie(refreshCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].current").value(true))
+                .andExpect(jsonPath("$[0].device.type").value("mobile"))
+                .andExpect(jsonPath("$[0].device.platform").value("Android"))
+                .andExpect(jsonPath("$[0].device.platformVersion").value("15"))
+                .andExpect(jsonPath("$[0].device.architecture").value("arm64"))
+                .andExpect(jsonPath("$[0].device.model").value("Pixel 9"))
+                .andExpect(jsonPath("$[0].device.browser").value("Chrome"))
+                .andExpect(jsonPath("$[0].device.timezone").value("Asia/Shanghai"))
+                .andExpect(jsonPath("$[0].device.touch").value(true));
+    }
+
+    @Test
     void registerLoginRefreshAndReuseDetectionWork() throws Exception {
         String username = "user_" + UUID.randomUUID().toString().substring(0, 8);
         String email = username + "@gmail.com";

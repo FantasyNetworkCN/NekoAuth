@@ -16,6 +16,8 @@ import neko.fantasy.auth.settings.SettingsService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -45,6 +47,7 @@ public class AuthService {
     private final LoginRateLimiter rateLimiter;
     private final SettingsService settingsService;
     private final EmailVerificationService emailVerificationService;
+    private final ObjectMapper objectMapper;
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
@@ -52,7 +55,8 @@ public class AuthService {
                        UserPasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy,
                        JwtService jwtService, AuthProperties properties,
                        LoginRateLimiter rateLimiter, SettingsService settingsService,
-                       EmailVerificationService emailVerificationService) {
+                       EmailVerificationService emailVerificationService,
+                       ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.oauthRefreshTokenRepository = oauthRefreshTokenRepository;
@@ -63,13 +67,14 @@ public class AuthService {
         this.rateLimiter = rateLimiter;
         this.settingsService = settingsService;
         this.emailVerificationService = emailVerificationService;
+        this.objectMapper = objectMapper;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-42");
     }
 
     @Transactional
     public AuthResult register(AuthRequests.Register request, HttpServletRequest servletRequest) {
         User user = registerAccount(request);
-        return createSession(user, servletRequest, user.getLastLoginAt());
+        return createSession(user, servletRequest, user.getLastLoginAt(), request.device());
     }
 
     /**
@@ -142,7 +147,7 @@ public class AuthService {
         }
 
         rateLimiter.recordSuccess(clientKey);
-        return createSession(user, servletRequest, user.getLastLoginAt());
+        return createSession(user, servletRequest, user.getLastLoginAt(), request.device());
     }
 
     /**
@@ -205,7 +210,8 @@ public class AuthService {
                 authenticatedAt,
                 now.plus(properties.jwt().refreshTtl()),
                 clientIp(servletRequest),
-                truncate(servletRequest.getHeader("User-Agent"), 512)
+                truncate(servletRequest.getHeader("User-Agent"), 512),
+                stored.getDeviceInfo()
         ));
 
         return authResult(user, newRawToken, authenticatedAt);
@@ -296,7 +302,8 @@ public class AuthService {
                 .findAllByUserIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(userId, Instant.now())
                 .stream()
                 .map(token -> new ApiResponses.Session(
-                        token.getId(), token.getIpAddress(), token.getUserAgent(), token.getCreatedAt(),
+                        token.getId(), token.getIpAddress(), token.getUserAgent(),
+                        readDeviceInfo(token.getDeviceInfo()), token.getCreatedAt(),
                         token.getLastUsedAt(), token.getExpiresAt(), token.getTokenHash().equals(currentHash)))
                 .toList();
     }
@@ -348,7 +355,8 @@ public class AuthService {
         refreshTokenRepository.deleteStale(Instant.now().minus(STALE_SESSION_RETENTION));
     }
 
-    private AuthResult createSession(User user, HttpServletRequest request, Instant authenticatedAt) {
+    private AuthResult createSession(User user, HttpServletRequest request, Instant authenticatedAt,
+                                     AuthRequests.DeviceProfile device) {
         String rawToken = randomToken();
         RefreshToken refreshToken = new RefreshToken(
                 user,
@@ -356,7 +364,8 @@ public class AuthService {
                 authenticatedAt,
                 Instant.now().plus(properties.jwt().refreshTtl()),
                 clientIp(request),
-                truncate(request.getHeader("User-Agent"), 512)
+                truncate(request.getHeader("User-Agent"), 512),
+                writeDeviceInfo(device)
         );
         refreshTokenRepository.save(refreshToken);
         return authResult(user, rawToken, authenticatedAt);
@@ -373,6 +382,67 @@ public class AuthService {
     private User requireUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.unauthorized("USER_NOT_FOUND", "用户不存在"));
+    }
+
+    private String writeDeviceInfo(AuthRequests.DeviceProfile device) {
+        if (device == null) {
+            return null;
+        }
+        ApiResponses.DeviceInfo sanitized = new ApiResponses.DeviceInfo(
+                deviceType(device.type()),
+                clean(device.platform(), 40),
+                clean(device.platformVersion(), 40),
+                clean(device.architecture(), 24),
+                clean(device.model(), 80),
+                clean(device.browser(), 40),
+                clean(device.browserVersion(), 40),
+                clean(device.screen(), 32),
+                clean(device.timezone(), 64),
+                device.touch(),
+                clean(device.source(), 24)
+        );
+        if (sanitized.type() == null && sanitized.platform() == null
+                && sanitized.browser() == null && sanitized.model() == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(sanitized);
+        } catch (JacksonException exception) {
+            return null;
+        }
+    }
+
+    private ApiResponses.DeviceInfo readDeviceInfo(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(value, ApiResponses.DeviceInfo.class);
+        } catch (JacksonException exception) {
+            return null;
+        }
+    }
+
+    private static String deviceType(String value) {
+        String type = clean(value, 16);
+        if (type == null) {
+            return null;
+        }
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "desktop", "mobile", "tablet" -> type.toLowerCase(Locale.ROOT);
+            default -> "unknown";
+        };
+    }
+
+    private static String clean(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replaceAll("\\p{Cntrl}", "").trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
     }
 
     private static String normalizeEmail(String email) {
