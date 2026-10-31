@@ -22,6 +22,14 @@ export default defineConfig({
         target: 'https://auth.nekocore.cn',
         changeOrigin: true,
       },
+      '/oauth2': {
+        target: 'https://auth.nekocore.cn',
+        changeOrigin: true,
+      },
+      '/.well-known': {
+        target: 'https://auth.nekocore.cn',
+        changeOrigin: true,
+      },
     },
   },
 })

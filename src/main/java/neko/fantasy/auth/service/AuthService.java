@@ -27,6 +27,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class AuthService {
@@ -110,9 +111,11 @@ public class AuthService {
             throw ApiException.conflict("EMAIL_TAKEN", "该邮箱已被注册");
         }
 
+        boolean emailVerified = false;
         if (requireVerificationCode && emailVerificationService.isRequired()) {
             emailVerificationService.verifyAndConsume(
                     email, verificationCode, EmailVerificationPurpose.REGISTRATION);
+            emailVerified = true;
         }
 
         User user = new User();
@@ -120,6 +123,7 @@ public class AuthService {
         user.setEmail(email);
         user.setDisplayName(defaultDisplayName(email));
         user.setPasswordHash(passwordEncoder.encode(password));
+        user.setEmailVerified(emailVerified);
         user.setLastLoginAt(Instant.now());
         return userRepository.saveAndFlush(user);
     }
@@ -297,6 +301,23 @@ public class AuthService {
                 .toList();
     }
 
+    /**
+     * 读取浏览器当前有效的登录会话。供 OIDC 登出关联 {@code id_token_hint} 与
+     * 当前浏览器用户使用；不刷新会话，也不延长有效期。
+     */
+    @Transactional(readOnly = true)
+    public Optional<ActiveSession> findActiveSession(String rawRefreshToken) {
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            return Optional.empty();
+        }
+        Instant now = Instant.now();
+        return refreshTokenRepository.findByTokenHash(hashToken(rawRefreshToken))
+                .filter(token -> token.isActive(now))
+                .filter(token -> token.getUser().isEnabled())
+                .map(token -> new ActiveSession(
+                        token.getUser().getId(), token.getAuthTime(), token.getId()));
+    }
+
     @Transactional
     public boolean revokeSession(Long userId, Long sessionId, String currentRefreshToken) {
         RefreshToken token = refreshTokenRepository.findByIdAndUserId(sessionId, userId)
@@ -421,5 +442,8 @@ public class AuthService {
     }
 
     public record AuthResult(ApiResponses.Auth auth, String refreshToken) {
+    }
+
+    public record ActiveSession(Long userId, Instant authenticatedAt, Long sessionId) {
     }
 }

@@ -134,19 +134,19 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 | --- | --- | --- |
 | `GET` | `/.well-known/openid-configuration` | OIDC 发现文档 |
 | `GET` | `/.well-known/oauth-authorization-server` | OAuth 授权服务器元数据 |
-| `GET` | `/oauth2/authorize` | 浏览器授权入口，跳转到同意页 |
+| `GET/POST` | `/oauth2/authorize` | 浏览器授权入口，接受查询参数或表单提交并跳转到同意页 |
 | `POST` | `/oauth2/token` | 授权码交换与刷新令牌轮换 |
 | `GET` | `/oauth2/jwks` | RS256 公钥集合 |
 | `GET/POST` | `/oauth2/userinfo` | 使用访问令牌读取用户声明 |
 | `POST` | `/oauth2/introspect` | 令牌自省 |
 | `POST` | `/oauth2/revoke` | 撤销刷新令牌或访问令牌 |
-| `GET/POST` | `/oauth2/logout` | OIDC RP-Initiated Logout，清理浏览器会话并撤销对应应用的 OAuth 刷新令牌 |
+| `GET/POST` | `/oauth2/logout` | OIDC RP-Initiated Logout；会话匹配时直接登出，无 hint 或会话不匹配时转到确认页 |
 
 公共客户端必须使用 PKCE `S256`，且不能持有客户端密钥；机密客户端可通过 HTTP Basic 或表单参数提交密钥。回调地址必须与登记值完全一致；非本机回调地址只允许 `https://`，明文 `http://` 仅可用于 `localhost`、`127.0.0.1` 或 `[::1]` 本机开发。原生公共客户端可以使用已登记的私有协议回调（例如 `com.example.app:/oauth/callback`），机密客户端不允许私有协议回调。
 
 授权请求支持 OIDC 的 `prompt=none|login|consent|select_account`、`login_hint` 与 `max_age`。`prompt=none` 在无法静默完成授权时返回 `login_required` 或 `consent_required`；`max_age=0`、`prompt=login` 或 `prompt=select_account` 会要求重新认证。ID Token 的 `auth_time` 来自实际登录时间，并在刷新令牌轮换时保持不变。
 
-登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。登出只会撤销发起应用对应的 OAuth 刷新令牌，不影响其他平台。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。
+登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。服务会将 hint 中的用户与当前浏览器刷新会话关联：只有二者匹配时才直接清理会话；没有 hint、没有当前会话或 hint 属于其他用户时，会跳转到 `/logout/confirm`，由用户明确确认后才执行登出。会话匹配时只会撤销发起应用对应的 OAuth 刷新令牌，不影响其他平台。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。
 
 ### 第一方服务端账号桥接
 
@@ -273,7 +273,7 @@ NekoAuth 按 scope 最小化返回声明。UserInfo 无论如何都会返回 `su
 | --- | --- | --- | --- |
 | `openid` | `sub`、`client_id` | `sub`、`iss`、`aud`、`azp`、`exp`、`iat`、`auth_time`、`at_hash` | 签发 ID Token；访问令牌仍会正常签发 |
 | `profile` | `preferred_username`、`name`、`updated_at` | `preferred_username`、`name` | 用户名、昵称与更新时间 |
-| `email` | `email`、`email_verified` | `email`、`email_verified` | 邮箱与验证状态 |
+| `email` | `email`、`email_verified` | `email`、`email_verified` | 邮箱与真实的验证状态；未经过验证码验证的账户返回 `false` |
 | `roles` | `role` | `role` | 用户角色；访问令牌中也包含 `role` |
 | `offline_access` | 不增加 UserInfo 字段 | 不增加字段 | 授权码交换时额外签发 refresh token |
 
@@ -572,7 +572,7 @@ docker compose down
 - JWT 仅存 JS 内存。刷新令牌不暴露给 JavaScript，数据库只保存其 SHA-256 哈希。
 - 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，撤销该用户在同一 OAuth 客户端下的全部活动刷新令牌。
 - 用户 `tokenVersion` 使密码修改、密码重置、角色变化或停用立即让旧 JWT 失效；修改或重置密码还会撤销全部 Auth refresh token 与 OAuth refresh token。
-- API 使用无状态安全上下文；Cookie 刷新端点配合 `SameSite=Strict` 和受限 CORS。
+- API 使用无状态安全上下文；刷新 Cookie 使用全站路径、`SameSite=Strict` 和受限 CORS，以便 OIDC 登出核对当前浏览器会话。登录、注册、刷新及登出响应会清理旧版本 `/api/auth` 路径下的同名 Cookie。
 - CSP 禁止内联脚本，并禁用 iframe 嵌入；HSTS 在 HTTPS 下由 Spring Security 输出。
 - 公共客户端强制 PKCE S256；授权码短期有效、只保存哈希且只能交换一次。
 - 回调地址精确匹配，非回环地址禁止明文 HTTP；OAuth 协议错误与业务 API 错误分别保持标准响应格式。

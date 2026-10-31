@@ -18,12 +18,15 @@ public class OAuthUserInfoService {
     private final OAuthTokenService tokenService;
     private final OAuthClientRepository clientRepository;
     private final UserRepository userRepository;
+    private final OAuthRevokedAccessTokenRepository revokedAccessTokenRepository;
 
     public OAuthUserInfoService(OAuthTokenService tokenService, OAuthClientRepository clientRepository,
-                                UserRepository userRepository) {
+                                UserRepository userRepository,
+                                OAuthRevokedAccessTokenRepository revokedAccessTokenRepository) {
         this.tokenService = tokenService;
         this.clientRepository = clientRepository;
         this.userRepository = userRepository;
+        this.revokedAccessTokenRepository = revokedAccessTokenRepository;
     }
 
     @Transactional(readOnly = true)
@@ -38,6 +41,9 @@ public class OAuthUserInfoService {
             claims = tokenService.parseAccessToken(token);
         } catch (JwtException | IllegalArgumentException exception) {
             throw new OAuthException("invalid_token", "访问令牌无效或已过期", HttpStatus.UNAUTHORIZED);
+        }
+        if (revokedAccessTokenRepository.existsById(claims.jti())) {
+            throw new OAuthException("invalid_token", "访问令牌已撤销", HttpStatus.UNAUTHORIZED);
         }
         OAuthClient client = clientRepository.findByClientId(claims.clientId())
                 .filter(OAuthClient::isEnabled)
@@ -59,7 +65,7 @@ public class OAuthUserInfoService {
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {
             response.put("email", user.getEmail());
-            response.put("email_verified", true);
+            response.put("email_verified", user.isEmailVerified());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {
             response.put("role", user.getRole().name());

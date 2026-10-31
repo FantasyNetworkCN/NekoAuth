@@ -8,6 +8,7 @@ import AdminView from '@/views/AdminView.vue'
 import OAuthClientsView from '@/views/OAuthClientsView.vue'
 import AdminSettingsView from '@/views/AdminSettingsView.vue'
 import OAuthConsentView from '@/views/OAuthConsentView.vue'
+import LogoutConfirmView from '@/views/LogoutConfirmView.vue'
 import NotFoundView from '@/views/NotFoundView.vue'
 import SetupView from '@/views/SetupView.vue'
 import AccountView from '@/views/AccountView.vue'
@@ -44,6 +45,11 @@ const router = createRouter({
       name: 'oauth-consent',
       component: OAuthConsentView,
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/logout/confirm',
+      name: 'logout-confirm',
+      component: LogoutConfirmView,
     },
     {
       path: '/account',

@@ -36,7 +36,8 @@ class SpaRoutingIntegrationTest {
 
     @Test
     void oauthEntryPagesStillServeTheVueApplication() throws Exception {
-        for (String path : new String[]{"/login", "/register", "/forgot-password", "/account", "/authorize", "/oauth/consent"}) {
+        for (String path : new String[]{"/login", "/register", "/forgot-password", "/account",
+                "/authorize", "/oauth/consent", "/logout/confirm"}) {
             mockMvc.perform(get(path))
                     .andExpect(status().isOk())
                     .andExpect(forwardedUrl("/index.html"));

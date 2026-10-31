@@ -44,7 +44,7 @@ public class OAuthTokenService {
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {
             claims.put("email", user.getEmail());
-            claims.put("email_verified", true);
+            claims.put("email_verified", user.isEmailVerified());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {
             claims.put("role", user.getRole().name());
@@ -75,7 +75,7 @@ public class OAuthTokenService {
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {
             claims.put("email", user.getEmail());
-            claims.put("email_verified", true);
+            claims.put("email_verified", user.isEmailVerified());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {
             claims.put("role", user.getRole().name());

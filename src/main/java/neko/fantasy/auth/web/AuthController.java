@@ -86,7 +86,8 @@ public class AuthController {
                     cookieService.read(request).orElse(null), request);
             return authResponse(HttpStatus.OK, result);
         } catch (ApiException exception) {
-            response.addHeader(HttpHeaders.SET_COOKIE, cookieService.clear().toString());
+            cookieService.clearHeaders().forEach(value ->
+                    response.addHeader(HttpHeaders.SET_COOKIE, value));
             throw exception;
         }
     }
@@ -95,7 +96,7 @@ public class AuthController {
     public ResponseEntity<Void> logout(HttpServletRequest request) {
         authService.logout(cookieService.read(request).orElse(null));
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookieService.clear().toString())
+                .header(HttpHeaders.SET_COOKIE, cookieService.clearHeaders().toArray(String[]::new))
                 .build();
     }
 
@@ -116,7 +117,7 @@ public class AuthController {
     ) {
         authService.changePassword(principal.id(), request);
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookieService.clear().toString())
+                .header(HttpHeaders.SET_COOKIE, cookieService.clearHeaders().toArray(String[]::new))
                 .build();
     }
 
@@ -137,7 +138,7 @@ public class AuthController {
     ) {
         authService.resetPassword(request);
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookieService.clear().toString())
+                .header(HttpHeaders.SET_COOKIE, cookieService.clearHeaders().toArray(String[]::new))
                 .build();
     }
 
@@ -157,7 +158,7 @@ public class AuthController {
                 principal.id(), id, cookieService.read(request).orElse(null));
         if (current) {
             return ResponseEntity.noContent()
-                    .header(HttpHeaders.SET_COOKIE, cookieService.clear().toString())
+                    .header(HttpHeaders.SET_COOKIE, cookieService.clearHeaders().toArray(String[]::new))
                     .build();
         }
         return ResponseEntity.noContent().build();
@@ -169,14 +170,15 @@ public class AuthController {
     ) {
         authService.revokeAllSessions(principal.id());
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookieService.clear().toString())
+                .header(HttpHeaders.SET_COOKIE, cookieService.clearHeaders().toArray(String[]::new))
                 .build();
     }
 
     private ResponseEntity<ApiResponses.Auth> authResponse(
             HttpStatus status, AuthService.AuthResult result) {
         return ResponseEntity.status(status)
-                .header(HttpHeaders.SET_COOKIE, cookieService.create(result.refreshToken()).toString())
+                .header(HttpHeaders.SET_COOKIE,
+                        cookieService.createHeaders(result.refreshToken()).toArray(String[]::new))
                 .body(result.auth());
     }
 }

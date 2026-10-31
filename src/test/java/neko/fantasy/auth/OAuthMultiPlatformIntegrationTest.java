@@ -3,6 +3,7 @@ package neko.fantasy.auth;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import jakarta.servlet.http.Cookie;
 import neko.fantasy.auth.oauth.OAuthKeyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,13 +87,15 @@ class OAuthMultiPlatformIntegrationTest {
         Client desktop = createClient(adminToken, true, List.of(DESKTOP_REDIRECT), List.of(DESKTOP_LOGOUT),
                 List.of("openid", "offline_access"));
         String username = uniqueUsername("logout");
-        String userToken = register(username);
+        BrowserSession session = registerSession(username);
 
-        Tokens webTokens = authorizeAndExchange(userToken, web, WEB_REDIRECT, username);
-        Tokens desktopTokens = authorizeAndExchange(userToken, desktop, DESKTOP_REDIRECT, username);
+        Tokens webTokens = authorizeAndExchange(session.accessToken(), web, WEB_REDIRECT, username);
+        Tokens desktopTokens = authorizeAndExchange(
+                session.accessToken(), desktop, DESKTOP_REDIRECT, username);
         String state = "logout-state-" + UUID.randomUUID();
 
         MvcResult logout = mockMvc.perform(get("/oauth2/logout")
+                        .cookie(session.cookie())
                         .param("id_token_hint", webTokens.idToken())
                         .param("post_logout_redirect_uri", WEB_LOGOUT)
                         .param("state", state))
@@ -115,6 +118,47 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     @Test
+    void logoutWithDifferentBrowserSessionRequiresConfirmationAndDoesNotRevokeHintUser() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        Client web = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
+                List.of("openid", "offline_access"));
+        String hintUsername = uniqueUsername("logout_hint");
+        String currentUsername = uniqueUsername("logout_current");
+        BrowserSession hintSession = registerSession(hintUsername);
+        BrowserSession currentSession = registerSession(currentUsername);
+        Tokens hintTokens = authorizeAndExchange(
+                hintSession.accessToken(), web, WEB_REDIRECT, hintUsername);
+
+        MvcResult pending = mockMvc.perform(get("/oauth2/logout")
+                        .cookie(currentSession.cookie())
+                        .param("id_token_hint", hintTokens.idToken())
+                        .param("post_logout_redirect_uri", WEB_LOGOUT))
+                .andExpect(status().isFound())
+                .andReturn();
+        assertThat(pending.getResponse().getHeader(HttpHeaders.LOCATION))
+                .startsWith("/logout/confirm?");
+        assertThat(queryParameters("https://auth.example"
+                + pending.getResponse().getHeader(HttpHeaders.LOCATION)))
+                .containsEntry("reason", "session_mismatch");
+        assertThat(pending.getResponse().getHeader(HttpHeaders.SET_COOKIE)).isNull();
+        assertIntrospection(web.clientId(), hintTokens.refreshToken(), true);
+
+        MvcResult confirmed = mockMvc.perform(post("/oauth2/logout/confirm")
+                        .cookie(currentSession.cookie())
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("id_token_hint", hintTokens.idToken())
+                        .param("post_logout_redirect_uri", WEB_LOGOUT))
+                .andExpect(status().isFound())
+                .andReturn();
+        assertThat(confirmed.getResponse().getHeader(HttpHeaders.LOCATION))
+                .startsWith(WEB_LOGOUT);
+        assertIntrospection(web.clientId(), hintTokens.refreshToken(), true);
+
+        mockMvc.perform(post("/api/auth/refresh").cookie(currentSession.cookie()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void expiredIdTokenHintCanStillCompleteRpInitiatedLogout() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         Client web = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
@@ -122,9 +166,11 @@ class OAuthMultiPlatformIntegrationTest {
         Client desktop = createClient(adminToken, true, List.of(DESKTOP_REDIRECT), List.of(DESKTOP_LOGOUT),
                 List.of("openid", "offline_access"));
         String username = uniqueUsername("expired_hint");
-        String userToken = register(username);
-        Tokens webTokens = authorizeAndExchange(userToken, web, WEB_REDIRECT, username);
-        Tokens desktopTokens = authorizeAndExchange(userToken, desktop, DESKTOP_REDIRECT, username);
+        BrowserSession session = registerSession(username);
+        Tokens webTokens = authorizeAndExchange(
+                session.accessToken(), web, WEB_REDIRECT, username);
+        Tokens desktopTokens = authorizeAndExchange(
+                session.accessToken(), desktop, DESKTOP_REDIRECT, username);
         Map<String, Object> claims = jwtClaims(webTokens.idToken());
 
         String expiredHint = oauthKeyService.issue(
@@ -136,6 +182,7 @@ class OAuthMultiPlatformIntegrationTest {
                 Duration.ofMinutes(-5));
 
         mockMvc.perform(get("/oauth2/logout")
+                        .cookie(session.cookie())
                         .param("id_token_hint", expiredHint)
                         .param("post_logout_redirect_uri", WEB_LOGOUT))
                 .andExpect(status().isFound())
@@ -147,7 +194,7 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     @Test
-    void clientIdOnlyLogoutUsesRegisteredRedirectAndRejectsUnknownTargets() throws Exception {
+    void clientIdOnlyLogoutRequiresConfirmationAndRejectsUnknownTargets() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         Client client = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
                 List.of("openid"));
@@ -160,8 +207,23 @@ class OAuthMultiPlatformIntegrationTest {
                 .andExpect(status().isFound())
                 .andReturn();
         String location = result.getResponse().getHeader(HttpHeaders.LOCATION);
-        assertThat(location).startsWith(WEB_LOGOUT);
-        assertThat(queryParameters(location)).containsEntry("state", state);
+        assertThat(location).startsWith("/logout/confirm?");
+        assertThat(queryParameters("https://auth.example" + location))
+                .containsEntry("reason", "missing_hint")
+                .containsEntry("client_id", client.clientId())
+                .containsEntry("post_logout_redirect_uri", WEB_LOGOUT)
+                .containsEntry("state", state);
+
+        MvcResult confirmed = mockMvc.perform(post("/oauth2/logout/confirm")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", client.clientId())
+                        .param("post_logout_redirect_uri", WEB_LOGOUT)
+                        .param("state", state))
+                .andExpect(status().isFound())
+                .andReturn();
+        String confirmedLocation = confirmed.getResponse().getHeader(HttpHeaders.LOCATION);
+        assertThat(confirmedLocation).startsWith(WEB_LOGOUT);
+        assertThat(queryParameters(confirmedLocation)).containsEntry("state", state);
 
         mockMvc.perform(get("/oauth2/logout")
                         .param("client_id", client.clientId())
@@ -186,7 +248,16 @@ class OAuthMultiPlatformIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postLogoutRedirectUris[0]").value(updatedLogout));
 
-        mockMvc.perform(get("/oauth2/logout")
+        MvcResult pending = mockMvc.perform(get("/oauth2/logout")
+                        .param("client_id", client.clientId())
+                        .param("post_logout_redirect_uri", updatedLogout))
+                .andExpect(status().isFound())
+                .andReturn();
+        assertThat(pending.getResponse().getHeader(HttpHeaders.LOCATION))
+                .startsWith("/logout/confirm?");
+
+        mockMvc.perform(post("/oauth2/logout/confirm")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("client_id", client.clientId())
                         .param("post_logout_redirect_uri", updatedLogout))
                 .andExpect(status().isFound())
@@ -206,7 +277,8 @@ class OAuthMultiPlatformIntegrationTest {
         Client client = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
                 List.of("openid"));
         String username = uniqueUsername("prompt");
-        String userToken = register(username);
+        BrowserSession session = registerSession(username);
+        String userToken = session.accessToken();
         String verifier = randomUrlToken(48);
         String challenge = base64UrlSha256(verifier);
 
@@ -353,7 +425,8 @@ class OAuthMultiPlatformIntegrationTest {
         Client nativeClient = createClient(adminToken, true, List.of(NATIVE_REDIRECT),
                 List.of(NATIVE_LOGOUT), List.of("openid", "offline_access"));
         String username = uniqueUsername("native");
-        String userToken = register(username);
+        BrowserSession session = registerSession(username);
+        String userToken = session.accessToken();
         String verifier = randomUrlToken(48);
         String challenge = base64UrlSha256(verifier);
 
@@ -405,6 +478,7 @@ class OAuthMultiPlatformIntegrationTest {
         String idToken = JsonPath.read(tokenResult.getResponse().getContentAsString(), "$.id_token");
 
         MvcResult logout = mockMvc.perform(get("/oauth2/logout")
+                        .cookie(session.cookie())
                         .param("id_token_hint", idToken)
                         .param("post_logout_redirect_uri", NATIVE_LOGOUT)
                         .param("state", "native-logout"))
@@ -509,6 +583,10 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     private String register(String username) throws Exception {
+        return registerSession(username).accessToken();
+    }
+
+    private BrowserSession registerSession(String username) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -516,7 +594,9 @@ class OAuthMultiPlatformIntegrationTest {
                                 """.formatted(username, username)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");
+        return new BrowserSession(
+                JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken"),
+                result.getResponse().getCookie("refresh_token"));
     }
 
     private String login(String identifier, String password) throws Exception {
@@ -571,5 +651,8 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     private record Tokens(String idToken, String refreshToken) {
+    }
+
+    private record BrowserSession(String accessToken, Cookie cookie) {
     }
 }
