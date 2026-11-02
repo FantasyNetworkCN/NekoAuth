@@ -94,8 +94,8 @@ public class AuthService {
      * 管理员权限已在调用方后台校验。
      */
     @Transactional
-    public User createAccountForAdmin(String rawEmail, String password) {
-        return createAccount(null, null, rawEmail, password, null, false, false);
+    public User createAccountForAdmin(String rawEmail, String password, String nickname) {
+        return createAccount(null, nickname, rawEmail, password, null, false, false);
     }
 
     private User createAccount(String rawUsername, String rawNickname, String rawEmail, String password,
@@ -242,6 +242,13 @@ public class AuthService {
         }
         user.setDisplayName(request.nickname().trim());
         return ApiResponses.User.from(userRepository.saveAndFlush(user));
+    }
+
+    @Transactional
+    public void updateNicknameByEmail(String rawEmail, AuthRequests.UpdateProfile request) {
+        User user = userRepository.findByEmail(normalizeEmail(rawEmail))
+                .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "用户不存在"));
+        updateProfile(user.getId(), request);
     }
 
     @Transactional

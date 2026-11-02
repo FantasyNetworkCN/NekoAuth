@@ -55,6 +55,10 @@ public final class InternalAccountRequests {
     }
 
     public record AdminCreate(
+            @Size(max = 32, message = "昵称不能超过 32 个字符")
+            @Pattern(regexp = "^$|^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
+            String nickname,
+
             @NotBlank(message = "邮箱不能为空")
             @Email(message = "邮箱格式不正确")
             @Size(max = 254, message = "邮箱过长")
@@ -63,6 +67,19 @@ public final class InternalAccountRequests {
             @NotBlank(message = "密码不能为空")
             @Size(min = 6, max = 30, message = "密码长度需为 6-30 个字符")
             String password
+    ) {
+    }
+
+    public record UpdateNickname(
+            @NotBlank(message = "邮箱不能为空")
+            @Email(message = "邮箱格式不正确")
+            @Size(max = 254, message = "邮箱过长")
+            String email,
+
+            @NotBlank(message = "请输入昵称")
+            @Size(max = 32, message = "昵称不能超过 32 个字符")
+            @Pattern(regexp = "^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
+            String nickname
     ) {
     }
 

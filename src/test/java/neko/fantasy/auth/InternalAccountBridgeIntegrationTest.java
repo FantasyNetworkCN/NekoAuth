@@ -103,6 +103,26 @@ class InternalAccountBridgeIntegrationTest {
     }
 
     @Test
+    void adminCreateStoresAndReturnsNicknameWithoutIssuingAccessToken() throws Exception {
+        Client client = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE));
+        String email = uniqueEmail();
+
+        mockMvc.perform(post("/api/internal/accounts/admin-create")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"后台建号猫娘","email":"%s","password":"Password123"}
+                                """.formatted(email)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.nickname").value("后台建号猫娘"))
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
+
+        assertThat(userRepository.findByEmail(email).orElseThrow().getDisplayName())
+                .isEqualTo("后台建号猫娘");
+    }
+
+    @Test
     void registrationPasswordChangeAndResetStayAuthoritativeInAuth() throws Exception {
         when(settingsService.getSmtpConfig()).thenReturn(smtpConfig());
         Client client = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE));
@@ -126,6 +146,7 @@ class InternalAccountBridgeIntegrationTest {
                                 """.formatted(email, registrationCode.getValue())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.nickname").value("桥接猫娘"))
                 .andExpect(jsonPath("$.id").isNumber())
                 .andReturn();
         long authUserId = ((Number) JsonPath.read(
@@ -134,12 +155,39 @@ class InternalAccountBridgeIntegrationTest {
         assertThat(userRepository.findByEmail(email).orElseThrow().getDisplayName())
                 .isEqualTo("桥接猫娘");
 
+        MvcResult login = mockMvc.perform(post("/api/internal/accounts/login")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginRequest(email, "Password123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(authUserId))
+                .andExpect(jsonPath("$.nickname").value("桥接猫娘"))
+                .andReturn();
+        String accessToken = JsonPath.read(
+                login.getResponse().getContentAsString(), "$.accessToken");
+
+        mockMvc.perform(post("/api/internal/accounts/nickname")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","nickname":"更新后的桥接昵称"}
+                                """.formatted(email)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/oauth2/introspect")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("token", accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.name").value("更新后的桥接昵称"));
+
         mockMvc.perform(post("/api/internal/accounts/login")
                         .header(HttpHeaders.AUTHORIZATION, basic(client))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginRequest(email, "Password123")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(authUserId));
+                .andExpect(jsonPath("$.nickname").value("更新后的桥接昵称"));
 
         mockMvc.perform(post("/api/internal/accounts/password/change")
                         .header(HttpHeaders.AUTHORIZATION, basic(client))

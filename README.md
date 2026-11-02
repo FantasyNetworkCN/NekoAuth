@@ -157,7 +157,8 @@ NekoMusic 等第一方应用不再保存用户密码，也不再自行签发或�
 | `POST` | `/api/internal/accounts/login` | 校验邮箱密码并返回账号身份 |
 | `POST` | `/api/internal/accounts/register/code` | 发送注册邮箱验证码 |
 | `POST` | `/api/internal/accounts/register` | 校验验证码并创建账号，可传可选 `nickname` |
-| `POST` | `/api/internal/accounts/admin-create` | 由已校验权限的第一方后台创建普通用户，跳过验证码 |
+| `POST` | `/api/internal/accounts/admin-create` | 由已校验权限的第一方后台创建普通用户，可传可选 `nickname`，跳过验证码 |
+| `POST` | `/api/internal/accounts/nickname` | 修改指定邮箱账号的昵称；NekoMusic 修改昵称时调用 |
 | `POST` | `/api/internal/accounts/password/reset-code` | 发送找回密码验证码，保持账号不可枚举 |
 | `POST` | `/api/internal/accounts/password/reset` | 验证验证码并重置密码 |
 | `POST` | `/api/internal/accounts/password/change` | 校验当前密码后修改密码 |
@@ -199,11 +200,11 @@ curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
 
 若仍返回 `401 INVALID_CLIENT`，先查看 NekoAuth 日志中的 `reason`：`not_found_or_disabled` 表示 NekoMusic 保存的 client_id 与实际客户端不一致或客户端被停用；`secret_mismatch` 表示两端密钥不同；`public_client` 表示误建成了公共客户端；`missing_account_bridge_scope` 表示忘了勾选“账号桥接”。修改 scope 不会自动轮换密钥；需要时在客户端卡片上执行“轮换密钥”，再一次性同步到 NekoMusic。日志不会输出客户端密钥。
 
-桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；注册请求可附加可选 `nickname`，未提供时沿用邮箱前缀，只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录与注册成功时，桥接响应除稳定数字用户 ID、邮箱、用户名、角色和启用状态外，还返回 `accessToken`、`tokenType` 与 `expiresIn`。该 access token 由 NekoAuth 签发并受 NekoAuth 管理，默认有效期为 365 天；NekoMusic 用其中的用户 ID 绑定本地昵称、VIP、头像等业务资料。
+桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；注册请求可附加可选 `nickname`，未提供时沿用邮箱前缀，只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录与注册成功时，桥接响应除稳定数字用户 ID、邮箱、用户名、昵称、角色和启用状态外，还返回 `accessToken`、`tokenType` 与 `expiresIn`。该 access token 由 NekoAuth 签发并受 NekoAuth 管理，默认有效期为 365 天。NekoAuth 是昵称唯一权威源；NekoMusic 用其中的用户 ID 绑定本地用户资料，并只缓存同步后的昵称用于展示与站内查询。
 
 NekoMusic 浏览器登录时，服务端先用授权码和客户端密钥调用 `/oauth2/token`，再把拿到的短期 access token 提交给 `/api/internal/accounts/token/exchange` 换取长期第一方 access token。交换只接受同一客户端签发、未过期、未被吊销且用户会话版本仍有效的令牌；不同客户端的令牌会被拒绝。浏览器只收到 NekoMusic 的一次性登录交接，再由完成页领取 token，URL 中不会出现 access token。
 
-NekoMusic 后续每次用户鉴权通过 `/oauth2/introspect` 获取权威身份，登出通过 `/oauth2/revoke` 吊销 access token。`/oauth2/introspect` 对已吊销、已过期、用户停用或密码变更后的旧令牌返回 `active=false`；`/oauth2/revoke` 按 RFC 7009 对无效令牌同样返回成功。密码、验证码和账号状态始终以 NekoAuth 为唯一权威源。
+NekoMusic 后续每次用户鉴权通过 `/oauth2/introspect` 获取权威身份，响应中的 `name` 为当前昵称；登出通过 `/oauth2/revoke` 吊销 access token。`/oauth2/introspect` 对已吊销、已过期、用户停用或密码变更后的旧令牌返回 `active=false`；`/oauth2/revoke` 按 RFC 7009 对无效令牌同样返回成功。密码、验证码、昵称和账号状态始终以 NekoAuth 为唯一权威源。
 
 `oauth.enabled` 只控制浏览器 OAuth 登录是否开放，不替代桥接所需的客户端配置。桥接请求失败时，内部接口返回统一业务错误与必要的 `Retry-After`；调用方应原样映射冷却时间，不要自行重试发送验证码。
 

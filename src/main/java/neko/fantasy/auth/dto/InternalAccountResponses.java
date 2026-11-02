@@ -9,16 +9,16 @@ public final class InternalAccountResponses {
     private InternalAccountResponses() {
     }
 
-    public record Account(long id, String email, String username, Role role, boolean enabled,
+    public record Account(long id, String email, String username, String nickname, Role role, boolean enabled,
                           String accessToken, String tokenType, Long expiresIn) {
 
         public static Account from(User user) {
-            return new Account(user.getId(), user.getEmail(), user.getUsername(),
+            return new Account(user.getId(), user.getEmail(), user.getUsername(), user.publicName(),
                     user.getRole(), user.isEnabled(), null, null, null);
         }
 
         public static Account from(User user, neko.fantasy.auth.internal.InternalTokenService.IssuedToken token) {
-            return new Account(user.getId(), user.getEmail(), user.getUsername(),
+            return new Account(user.getId(), user.getEmail(), user.getUsername(), user.publicName(),
                     user.getRole(), user.isEnabled(), token.accessToken(), token.tokenType(),
                     token.expiresIn());
         }

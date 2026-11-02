@@ -75,6 +75,16 @@ public class InternalAccountController {
         return accountService.adminCreate(request);
     }
 
+    @PostMapping("/nickname")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateNickname(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody InternalAccountRequests.UpdateNickname request
+    ) {
+        clientAuthenticator.requireClient(authorization);
+        accountService.updateNickname(request);
+    }
+
     /**
      * 把同一机密客户端签发的短期 OAuth access token 换成 NekoAuth 所有的长期第一方 token。
      * 仅供 NekoMusic 在同一次浏览器 SSO 回调中服务端调用。

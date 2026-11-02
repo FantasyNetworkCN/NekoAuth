@@ -46,8 +46,12 @@ public class InternalAccountService {
     }
 
     public InternalAccountResponses.Account adminCreate(InternalAccountRequests.AdminCreate request) {
-        User user = authService.createAccountForAdmin(request.email(), request.password());
+        User user = authService.createAccountForAdmin(request.email(), request.password(), request.nickname());
         return InternalAccountResponses.Account.from(user);
+    }
+
+    public void updateNickname(InternalAccountRequests.UpdateNickname request) {
+        authService.updateNicknameByEmail(request.email(), new AuthRequests.UpdateProfile(request.nickname()));
     }
 
     public void sendPasswordResetCode(String email) {

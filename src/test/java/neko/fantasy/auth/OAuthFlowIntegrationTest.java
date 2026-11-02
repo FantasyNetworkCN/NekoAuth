@@ -147,6 +147,7 @@ class OAuthFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sub").isNotEmpty())
                 .andExpect(jsonPath("$.preferred_username").value(username))
+                .andExpect(jsonPath("$.name").value(username))
                 .andExpect(jsonPath("$.email").value(username + "@gmail.com"));
 
         mockMvc.perform(post("/oauth2/token")
@@ -177,7 +178,8 @@ class OAuthFlowIntegrationTest {
                         .param("token", rotatedRefresh))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(true))
-                .andExpect(jsonPath("$.token_type").value("refresh_token"));
+                .andExpect(jsonPath("$.token_type").value("refresh_token"))
+                .andExpect(jsonPath("$.name").value(username));
 
         mockMvc.perform(post("/oauth2/token")
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)

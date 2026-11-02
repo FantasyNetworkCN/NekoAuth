@@ -124,6 +124,7 @@ public class OAuthTokenEndpointService {
             response.put("scope", refreshToken.getScopes());
             response.put("sub", refreshToken.getUser().getId().toString());
             response.put("username", refreshToken.getUser().getUsername());
+            response.put("name", refreshToken.getUser().publicName());
             response.put("email", refreshToken.getUser().getEmail());
             response.put("iss", tokenService.issuer());
             return response;
@@ -153,6 +154,7 @@ public class OAuthTokenEndpointService {
             if (claims.username() != null) {
                 response.put("username", claims.username());
             }
+            response.put("name", user.publicName());
             response.put("email", user.getEmail());
             if (claims.role() != null) {
                 response.put("role", claims.role());
