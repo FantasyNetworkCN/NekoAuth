@@ -44,7 +44,6 @@ public class OAuthTokenService {
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {
             claims.put("email", user.getEmail());
-            claims.put("email_verified", user.isEmailVerified());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {
             claims.put("role", user.getRole().name());
@@ -75,7 +74,6 @@ public class OAuthTokenService {
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {
             claims.put("email", user.getEmail());
-            claims.put("email_verified", user.isEmailVerified());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {
             claims.put("role", user.getRole().name());
@@ -125,7 +123,6 @@ public class OAuthTokenService {
                     claims.get("scope", String.class),
                     claims.get("username", String.class),
                     claims.get("email", String.class),
-                    Boolean.TRUE.equals(claims.get("email_verified", Boolean.class)),
                     claims.get("role", String.class),
                     claims.get("ver", Integer.class),
                     claims.getExpiration().toInstant(),
@@ -161,7 +158,7 @@ public class OAuthTokenService {
     }
 
     public record AccessTokenClaims(Long userId, String clientId, String scope, String username,
-                                    String email, boolean emailVerified, String role,
+                                    String email, String role,
                                     int tokenVersion, Instant expiresAt, Instant issuedAt, String jti) {
     }
 

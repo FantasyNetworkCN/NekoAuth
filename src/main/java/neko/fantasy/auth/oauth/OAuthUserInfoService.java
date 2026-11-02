@@ -65,7 +65,6 @@ public class OAuthUserInfoService {
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {
             response.put("email", user.getEmail());
-            response.put("email_verified", user.isEmailVerified());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {
             response.put("role", user.getRole().name());

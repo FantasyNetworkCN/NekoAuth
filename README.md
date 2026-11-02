@@ -273,7 +273,7 @@ NekoAuth 按 scope 最小化返回声明。UserInfo 无论如何都会返回 `su
 | --- | --- | --- | --- |
 | `openid` | `sub`、`client_id` | `sub`、`iss`、`aud`、`azp`、`exp`、`iat`、`auth_time`、`at_hash` | 签发 ID Token；访问令牌仍会正常签发 |
 | `profile` | `preferred_username`、`name`、`updated_at` | `preferred_username`、`name` | 用户名、昵称与更新时间 |
-| `email` | `email`、`email_verified` | `email`、`email_verified` | 邮箱与真实的验证状态；未经过验证码验证的账户返回 `false` |
+| `email` | `email` | `email` | 邮箱地址；注册时的验证码校验仍按当前注册策略执行 |
 | `roles` | `role` | `role` | 用户角色；访问令牌中也包含 `role` |
 | `offline_access` | 不增加 UserInfo 字段 | 不增加字段 | 授权码交换时额外签发 refresh token |
 
@@ -283,7 +283,6 @@ NekoAuth 按 scope 最小化返回声明。UserInfo 无论如何都会返回 `su
 {
   "sub": "1000000",
   "email": "user@example.com",
-  "email_verified": true,
   "client_id": "fn_your_client_id"
 }
 ```
@@ -309,7 +308,6 @@ user:email profile openid offline_access
   "name": "neko",
   "updated_at": 1793370000,
   "email": "user@example.com",
-  "email_verified": true,
   "client_id": "fn_your_client_id"
 }
 ```

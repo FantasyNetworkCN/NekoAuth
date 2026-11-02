@@ -119,11 +119,9 @@ public class AuthService {
             throw ApiException.conflict("EMAIL_TAKEN", "该邮箱已被注册");
         }
 
-        boolean emailVerified = false;
         if (requireVerificationCode && emailVerificationService.isRequired()) {
             emailVerificationService.verifyAndConsume(
                     email, verificationCode, EmailVerificationPurpose.REGISTRATION);
-            emailVerified = true;
         }
 
         User user = new User();
@@ -131,7 +129,6 @@ public class AuthService {
         user.setEmail(email);
         user.setDisplayName(nickname == null ? defaultDisplayName(email) : nickname);
         user.setPasswordHash(passwordEncoder.encode(password));
-        user.setEmailVerified(emailVerified);
         user.setLastLoginAt(Instant.now());
         return userRepository.saveAndFlush(user);
     }

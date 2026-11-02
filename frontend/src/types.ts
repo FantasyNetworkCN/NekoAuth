@@ -8,7 +8,6 @@ export interface User {
   displayName: string
   role: Role
   enabled: boolean
-  emailVerified: boolean
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null

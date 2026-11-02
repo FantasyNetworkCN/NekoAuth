@@ -3,8 +3,6 @@ package neko.fantasy.auth;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
-import neko.fantasy.auth.domain.User;
-import neko.fantasy.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,9 +41,6 @@ class OAuthFlowIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private UserRepository userRepository;
 
     @Test
     void acceptsGithubEmailScopeAlias() throws Exception {
@@ -152,8 +147,7 @@ class OAuthFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sub").isNotEmpty())
                 .andExpect(jsonPath("$.preferred_username").value(username))
-                .andExpect(jsonPath("$.email").value(username + "@gmail.com"))
-                .andExpect(jsonPath("$.email_verified").value(false));
+                .andExpect(jsonPath("$.email").value(username + "@gmail.com"));
 
         mockMvc.perform(post("/oauth2/token")
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
@@ -215,14 +209,11 @@ class OAuthFlowIntegrationTest {
     }
 
     @Test
-    void emailVerificationAndAccessTokenRevocationAreReflectedAcrossOidcEndpoints() throws Exception {
+    void accessTokenRevocationIsReflectedAcrossOidcEndpoints() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         String clientId = createPublicClient(adminToken);
         String username = "verify_" + UUID.randomUUID().toString().substring(0, 8);
         String userToken = register(username);
-
-        User user = userRepository.findByUsername(username).orElseThrow();
-        assertThat(user.isEmailVerified()).isFalse();
 
         String verifier = randomUrlToken(48);
         String challenge = base64UrlSha256(verifier);
@@ -231,53 +222,29 @@ class OAuthFlowIntegrationTest {
         String firstAccess = JsonPath.read(firstTokens.getResponse().getContentAsString(), "$.access_token");
         String firstIdToken = JsonPath.read(firstTokens.getResponse().getContentAsString(), "$.id_token");
 
-        assertThat(jwtClaims(firstIdToken)).containsEntry("email_verified", false);
-        assertThat(jwtClaims(firstAccess)).containsEntry("email_verified", false);
+        assertThat(jwtClaims(firstIdToken)).doesNotContainKey("email_verified");
+        assertThat(jwtClaims(firstAccess)).doesNotContainKey("email_verified");
         mockMvc.perform(get("/oauth2/userinfo")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + firstAccess))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email_verified").value(false));
+                .andExpect(jsonPath("$.email").value(username + "@gmail.com"))
+                .andExpect(jsonPath("$.email_verified").doesNotExist());
         mockMvc.perform(post("/oauth2/introspect")
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("client_id", clientId)
                         .param("token", firstAccess))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email_verified").value(false));
-
-        user.setEmailVerified(true);
-        userRepository.saveAndFlush(user);
-
-        String verifiedVerifier = randomUrlToken(48);
-        String verifiedChallenge = base64UrlSha256(verifiedVerifier);
-        String verifiedCode = codeFor(
-                userToken, clientId, "openid profile email offline_access", verifiedChallenge);
-        MvcResult verifiedTokens = exchangeCode(clientId, verifiedCode, verifiedVerifier);
-        String verifiedAccess = JsonPath.read(
-                verifiedTokens.getResponse().getContentAsString(), "$.access_token");
-        String verifiedIdToken = JsonPath.read(
-                verifiedTokens.getResponse().getContentAsString(), "$.id_token");
-
-        assertThat(jwtClaims(verifiedIdToken)).containsEntry("email_verified", true);
-        assertThat(jwtClaims(verifiedAccess)).containsEntry("email_verified", true);
-        mockMvc.perform(get("/oauth2/userinfo")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + verifiedAccess))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email_verified").value(true));
-        mockMvc.perform(post("/oauth2/introspect")
-                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                        .param("client_id", clientId)
-                        .param("token", verifiedAccess))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email_verified").value(true));
+                .andExpect(jsonPath("$.email").value(username + "@gmail.com"))
+                .andExpect(jsonPath("$.email_verified").doesNotExist());
 
         mockMvc.perform(post("/oauth2/revoke")
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("client_id", clientId)
-                        .param("token", verifiedAccess))
+                        .param("token", firstAccess))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/oauth2/userinfo")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + verifiedAccess))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + firstAccess))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("invalid_token"))
                 .andExpect(jsonPath("$.error_description").value("访问令牌已撤销"));

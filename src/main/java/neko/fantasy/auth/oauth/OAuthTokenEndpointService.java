@@ -154,7 +154,6 @@ public class OAuthTokenEndpointService {
                 response.put("username", claims.username());
             }
             response.put("email", user.getEmail());
-            response.put("email_verified", user.isEmailVerified());
             if (claims.role() != null) {
                 response.put("role", claims.role());
             }

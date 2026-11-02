@@ -11,7 +11,6 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.TableGenerator;
-import org.hibernate.annotations.ColumnDefault;
 
 import java.time.Instant;
 
@@ -50,10 +49,6 @@ public class User {
 
     @Column(nullable = false)
     private boolean enabled = true;
-
-    @Column(name = "email_verified", nullable = false)
-    @ColumnDefault("false")
-    private boolean emailVerified;
 
     @Column(name = "token_version", nullable = false)
     private int tokenVersion;
@@ -133,14 +128,6 @@ public class User {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public boolean isEmailVerified() {
-        return emailVerified;
-    }
-
-    public void setEmailVerified(boolean emailVerified) {
-        this.emailVerified = emailVerified;
     }
 
     public int getTokenVersion() {
