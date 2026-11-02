@@ -40,7 +40,8 @@ public class InternalAccountService {
 
     public InternalAccountResponses.Account register(InternalAccountRequests.Register request, OAuthClient client) {
         User user = authService.registerAccount(new AuthRequests.Register(
-                null, request.email(), request.password(), request.verificationCode(), null));
+                null, request.nickname(), request.email(), request.password(),
+                request.verificationCode(), null));
         return InternalAccountResponses.Account.from(user, tokenService.issue(user, client));
     }
 

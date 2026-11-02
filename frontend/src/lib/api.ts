@@ -171,7 +171,13 @@ export const api = {
     )
   },
 
-  register(input: { email: string; password: string; verificationCode: string; device?: DeviceProfile }) {
+  register(input: {
+    nickname?: string
+    email: string
+    password: string
+    verificationCode: string
+    device?: DeviceProfile
+  }) {
     return request<AuthPayload>(
       '/auth/register',
       { method: 'POST', body: JSON.stringify(input) },
@@ -217,6 +223,13 @@ export const api = {
 
   me() {
     return request<User>('/auth/me')
+  },
+
+  updateProfile(nickname: string) {
+    return request<User>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ nickname }),
+    })
   },
 
   changePassword(currentPassword: string, newPassword: string) {

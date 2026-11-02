@@ -6,6 +6,7 @@ import neko.fantasy.auth.oauth.OAuthClientRepository;
 import neko.fantasy.auth.oauth.OAuthException;
 import neko.fantasy.auth.oauth.OAuthScopes;
 import neko.fantasy.auth.repository.EmailVerificationSendLimitRepository;
+import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.settings.MailSecurity;
 import neko.fantasy.auth.settings.MailService;
 import neko.fantasy.auth.settings.SettingsService;
@@ -59,6 +60,9 @@ class InternalAccountBridgeIntegrationTest {
 
     @Autowired
     private EmailVerificationSendLimitRepository sendLimitRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @MockitoBean
     private SettingsService settingsService;
@@ -118,7 +122,7 @@ class InternalAccountBridgeIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, basic(client))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"Password123","verificationCode":"%s"}
+                                {"nickname":"桥接猫娘","email":"%s","password":"Password123","verificationCode":"%s"}
                                 """.formatted(email, registrationCode.getValue())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value(email))
@@ -127,6 +131,8 @@ class InternalAccountBridgeIntegrationTest {
         long authUserId = ((Number) JsonPath.read(
                 registration.getResponse().getContentAsString(), "$.id")).longValue();
         assertThat(authUserId).isGreaterThanOrEqualTo(1_000_000L);
+        assertThat(userRepository.findByEmail(email).orElseThrow().getDisplayName())
+                .isEqualTo("桥接猫娘");
 
         mockMvc.perform(post("/api/internal/accounts/login")
                         .header(HttpHeaders.AUTHORIZATION, basic(client))

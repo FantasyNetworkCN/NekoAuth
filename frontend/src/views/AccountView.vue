@@ -30,6 +30,11 @@ const passwordLoading = ref(false)
 const passwordError = ref('')
 const passwordFieldErrors = ref<Record<string, string>>({})
 
+const profileForm = reactive({ nickname: user.value?.nickname || user.value?.displayName || '' })
+const profileLoading = ref(false)
+const profileError = ref('')
+const profileFieldErrors = ref<Record<string, string>>({})
+
 function deviceIcon(session: Session): string {
   if (session.device?.type === 'mobile') return 'smartphone'
   if (session.device?.type === 'tablet') return 'tablet'
@@ -49,6 +54,43 @@ function validatePasswordForm() {
   }
   passwordFieldErrors.value = errors
   return Object.keys(errors).length === 0
+}
+
+function validateNickname() {
+  const nickname = profileForm.nickname.trim()
+  if (!nickname) {
+    profileFieldErrors.value = { nickname: '请输入昵称' }
+    return false
+  }
+  if (nickname.length > 32) {
+    profileFieldErrors.value = { nickname: '昵称不能超过 32 个字符' }
+    return false
+  }
+  if (/[\u0000-\u001f\u007f-\u009f]/.test(nickname)) {
+    profileFieldErrors.value = { nickname: '昵称不能包含控制字符' }
+    return false
+  }
+  profileFieldErrors.value = {}
+  return true
+}
+
+async function saveNickname() {
+  if (profileLoading.value || user.value?.role === 'ADMIN' || !validateNickname()) return
+  profileLoading.value = true
+  profileError.value = ''
+  try {
+    const updated = await auth.updateProfile(profileForm.nickname.trim())
+    profileForm.nickname = updated.nickname || updated.displayName
+    showToast('昵称已经更新喵', 'success')
+  } catch (caught) {
+    if (caught instanceof ApiError && caught.fields.nickname) {
+      profileFieldErrors.value = { nickname: caught.fields.nickname }
+    } else {
+      profileError.value = caught instanceof ApiError ? caught.message : '昵称更新失败，请稍后重试'
+    }
+  } finally {
+    profileLoading.value = false
+  }
 }
 
 async function changePassword() {
@@ -166,7 +208,7 @@ onMounted(() => {
         <div>
           <p class="account-eyebrow"><span></span> YOUR NEKO IDENTITY</p>
           <h1>欢迎回来，<em>{{ displayName }}</em></h1>
-          <p>这里是你的最小化账户管理中心。身份资料保持只读，只保留密码与登录设备管理。</p>
+          <p>这里是你的最小化账户管理中心。昵称可随时调整，密码与登录设备也由你统一管理。</p>
         </div>
         <span class="intro-paw" aria-hidden="true">ฅ</span>
       </section>
@@ -192,6 +234,39 @@ onMounted(() => {
             </span>
           </div>
 
+          <form v-if="user.role !== 'ADMIN'" class="profile-form" novalidate @submit.prevent="saveNickname">
+            <div v-if="profileError" class="alert alert-error" role="alert">
+              <AppIcon name="alert" :size="17" />
+              <span>{{ profileError }}</span>
+            </div>
+            <label class="field">
+              <span class="field-row">
+                <span class="field-label">昵称</span>
+                <span class="field-hint">1-32 个字符</span>
+              </span>
+              <span class="input-shell" :class="{ 'has-error': profileFieldErrors.nickname }">
+                <AppIcon name="user" :size="17" />
+                <input
+                  v-model="profileForm.nickname"
+                  name="nickname"
+                  type="text"
+                  autocomplete="nickname"
+                  placeholder="给自己起一个昵称"
+                  maxlength="32"
+                  required
+                />
+              </span>
+              <span v-if="profileFieldErrors.nickname" class="field-error">{{ profileFieldErrors.nickname }}</span>
+            </label>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="profileLoading">
+              <span v-if="profileLoading" class="spinner"></span>
+              <template v-else>
+                <AppIcon name="heart" :size="16" />
+                保存昵称
+              </template>
+            </button>
+          </form>
+
           <dl class="identity-list">
             <div>
               <dt>邮箱</dt>
@@ -211,7 +286,10 @@ onMounted(() => {
             </div>
           </dl>
 
-          <p class="readonly-note"><AppIcon name="lock" :size="14" /> 邮箱与显示名称暂不支持自助修改。</p>
+          <p class="readonly-note">
+            <AppIcon name="lock" :size="14" />
+            {{ user.role === 'ADMIN' ? '管理员显示名称固定为用户名。' : '邮箱与用户名暂不支持自助修改。' }}
+          </p>
         </section>
 
         <section class="panel password-panel">
@@ -583,6 +661,11 @@ onMounted(() => {
 .password-form { margin-top: 1rem; gap: 0.82rem; }
 .password-form .field-label { font-size: 0.63rem; }
 .password-form .input-shell { min-height: 42px; }
+.profile-form { display: grid; gap: 0.72rem; margin-top: 1rem; }
+.profile-form .field-label { font-size: 0.63rem; }
+.profile-form .field-hint { font-size: 0.53rem; }
+.profile-form .input-shell { min-height: 42px; }
+.profile-form .btn { min-height: 42px; }
 
 .sessions-panel {
   margin-top: 1rem;

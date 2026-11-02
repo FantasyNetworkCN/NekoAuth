@@ -10,7 +10,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 刷新令牌轮换、SHA-256 哈希落库、重放检测与按设备撤销令牌链；一个设备或旧标签页异常刷新不会注销其他设备
 - 修改密码后立即失效所有旧访问令牌与刷新会话
 - 通过邮箱验证码找回密码，成功后同样立即失效旧访问令牌与刷新会话
-- 用户登录后可通过 `/account` 查看只读账户资料、修改密码、管理登录设备与退出全部会话
+- 用户登录后可通过 `/account` 修改昵称、查看账户资料、修改密码、管理登录设备与退出全部会话
 - 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态、OAuth 应用与运行设置
 - 注册邮箱默认只允许 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`，可在 `/admin/settings` 修改
 - `/admin/settings` 可维护注册开关、邮箱域名白名单、SMTP 服务器、认证信息、发件地址与发件人名称；SMTP 同时承担注册验证码与测试邮件发送
@@ -50,7 +50,7 @@ sudo docker compose logs -f --tail=200 auth
 
 现有的 `data/nekoauth-setup.yml` 会提供数据库、Redis、JWT 密钥与管理员配置；Compose 环境额外启用 HTTPS Cookie、生产 issuer 与 CORS。停止服务使用 `docker compose down`，不会删除宿主机 MySQL/Redis 或 `data/`。
 
-首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员只能通过直接访问 `/admin` 进入管理后台，登录页和其他公共页面均不显示管理员入口；也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置。普通用户登录后进入 `/account`，只能查看只读资料、修改密码和管理自己的登录会话。
+首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员只能通过直接访问 `/admin` 进入管理后台，登录页和其他公共页面均不显示管理员入口；也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置。普通用户登录后进入 `/account`，可修改昵称、修改密码和管理自己的登录会话，其余身份资料保持只读。
 
 ## 管理入口
 
@@ -68,7 +68,7 @@ sudo docker compose logs -f --tail=200 auth
 
 普通用户登录或注册完成后进入 `/account`。该页面只提供最小化的自助能力：
 
-- 查看显示名称、用户名、邮箱、用户 ID、加入时间与最近登录时间；邮箱和显示名称均为只读。
+- 修改昵称（1-32 个字符，允许重复）；用户名、邮箱、用户 ID、加入时间与最近登录时间保持只读。
 - 修改密码；成功后服务端会让所有旧访问令牌与刷新会话立即失效，并要求重新登录。
 - 查看当前账户的活跃登录设备，可按会话撤销其他设备，或退出全部设备。登录与注册时会尽力采集 Client Hints、平台版本、设备型号、架构、屏幕、时区与触控特征，以便区分手机、平板和电脑；不支持 Client Hints 的浏览器会退回能力探测与 UA 提示。
 - 默认不显示任何管理员入口；ADMIN 仍需手动访问 `/admin`。
@@ -156,7 +156,7 @@ NekoMusic 等第一方应用不再保存用户密码，也不再自行签发或�
 | --- | --- | --- |
 | `POST` | `/api/internal/accounts/login` | 校验邮箱密码并返回账号身份 |
 | `POST` | `/api/internal/accounts/register/code` | 发送注册邮箱验证码 |
-| `POST` | `/api/internal/accounts/register` | 校验验证码并创建账号 |
+| `POST` | `/api/internal/accounts/register` | 校验验证码并创建账号，可传可选 `nickname` |
 | `POST` | `/api/internal/accounts/admin-create` | 由已校验权限的第一方后台创建普通用户，跳过验证码 |
 | `POST` | `/api/internal/accounts/password/reset-code` | 发送找回密码验证码，保持账号不可枚举 |
 | `POST` | `/api/internal/accounts/password/reset` | 验证验证码并重置密码 |
@@ -199,7 +199,7 @@ curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
 
 若仍返回 `401 INVALID_CLIENT`，先查看 NekoAuth 日志中的 `reason`：`not_found_or_disabled` 表示 NekoMusic 保存的 client_id 与实际客户端不一致或客户端被停用；`secret_mismatch` 表示两端密钥不同；`public_client` 表示误建成了公共客户端；`missing_account_bridge_scope` 表示忘了勾选“账号桥接”。修改 scope 不会自动轮换密钥；需要时在客户端卡片上执行“轮换密钥”，再一次性同步到 NekoMusic。日志不会输出客户端密钥。
 
-桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录与注册成功时，桥接响应除稳定数字用户 ID、邮箱、用户名、角色和启用状态外，还返回 `accessToken`、`tokenType` 与 `expiresIn`。该 access token 由 NekoAuth 签发并受 NekoAuth 管理，默认有效期为 365 天；NekoMusic 用其中的用户 ID 绑定本地昵称、VIP、头像等业务资料。
+桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；注册请求可附加可选 `nickname`，未提供时沿用邮箱前缀，只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录与注册成功时，桥接响应除稳定数字用户 ID、邮箱、用户名、角色和启用状态外，还返回 `accessToken`、`tokenType` 与 `expiresIn`。该 access token 由 NekoAuth 签发并受 NekoAuth 管理，默认有效期为 365 天；NekoMusic 用其中的用户 ID 绑定本地昵称、VIP、头像等业务资料。
 
 NekoMusic 浏览器登录时，服务端先用授权码和客户端密钥调用 `/oauth2/token`，再把拿到的短期 access token 提交给 `/api/internal/accounts/token/exchange` 换取长期第一方 access token。交换只接受同一客户端签发、未过期、未被吊销且用户会话版本仍有效的令牌；不同客户端的令牌会被拒绝。浏览器只收到 NekoMusic 的一次性登录交接，再由完成页领取 token，URL 中不会出现 access token。
 
@@ -489,13 +489,13 @@ docker compose down
 | `POST` | `/api/setup/install` | 校验并保存安装配置；需要 `X-Setup-Token` |
 | `GET` | `/api/auth/register/captcha` | 获取一次性注册图形人机验证码、挑战 ID 与有效期 |
 | `POST` | `/api/auth/register/code` | 完成人机验证后向白名单邮箱发送 6 位注册验证码；提交 `email/captchaId/captchaAnswer`，需要先配置 SMTP |
-| `POST` | `/api/auth/register` | 使用 `email/password/verificationCode` 注册并登录；昵称由服务端生成且不可修改 |
+| `POST` | `/api/auth/register` | 使用可选的 `nickname` 与 `email/password/verificationCode` 注册并登录；昵称留空时使用邮箱前缀 |
 | `GET` | `/api/auth/registration-policy` | 公开查询注册是否开放、是否需要邮箱验证码、邮箱域名白名单，以及验证码有效期、发送冷却、每日上限与计数窗口 |
 | `POST` | `/api/auth/login` | 用户名或邮箱登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
 | `POST` | `/api/auth/logout` | 退出当前会话 |
 | `GET` | `/api/auth/me` | 当前用户 |
-| `PATCH` | `/api/auth/me` | 昵称不可修改，固定返回 `409 PROFILE_IMMUTABLE` |
+| `PATCH` | `/api/auth/me` | 修改当前用户昵称；提交 `nickname` 并返回更新后的用户资料 |
 | `POST` | `/api/auth/password` | 登录后修改密码，撤销 Auth 登录会话与已签发的 OAuth refresh token |
 | `POST` | `/api/auth/password/reset-code` | 获取人机验证码后向邮箱发送找回密码验证码；提交 `email/captchaId/captchaAnswer` |
 | `POST` | `/api/auth/password/reset` | 使用 `email/code/newPassword` 重置密码，并撤销全部 Auth 登录会话与 OAuth refresh token |
@@ -530,13 +530,14 @@ docker compose down
 
 ```json
 {
+  "nickname": "小梦",
   "email": "neko@qq.com",
   "password": "secret123"
 }
 ```
 
 - `email` 长度不超过 100、统一转小写且必须唯一；域名必须命中当前注册白名单，否则返回 `400 EMAIL_DOMAIN_NOT_ALLOWED`；关闭注册时返回 `403 REGISTRATION_DISABLED`。密码长度 6-30，不强制字母与数字组合。
-- 注册页只显示邮箱和密码。昵称取邮箱 `@` 前的部分（最多 20 个 Unicode 字符），允许重复；创建后不能通过用户 API 或网页修改。
+- `nickname` 可选，最多 32 个字符且不能包含控制字符，允许重复；留空时取邮箱 `@` 前的部分（最多 20 个 Unicode 字符）。创建后可在 `/account` 或 `PATCH /api/auth/me` 修改。
 - 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。
 - 管理员不设置昵称：安装向导不要求昵称，`bootstrap-admin` 不再接受 `display-name`；管理员 API、后台与 OIDC 资料统一使用用户名，`nickname` 不返回。
 
@@ -604,7 +605,7 @@ docker compose down
 cd frontend && npm run build
 ```
 
-后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、管理员无昵称、邮箱派生且不可修改的用户昵称、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发；设置测试覆盖默认域名白名单、非白名单拒绝、注册开关、管理员更新与 SMTP 密码不回显。
+后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、管理员无昵称、自定义及邮箱派生昵称、昵称修改与校验、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发；设置测试覆盖默认域名白名单、非白名单拒绝、注册开关、管理员更新与 SMTP 密码不回显。
 
 ## 目录
 

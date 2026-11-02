@@ -14,6 +14,10 @@ public final class AuthRequests {
             @Pattern(regexp = "^$|^[A-Za-z0-9_]{3,32}$", message = "用户名需为 3-32 位字母、数字或下划线")
             String username,
 
+            @Size(max = 32, message = "昵称不能超过 32 个字符")
+            @Pattern(regexp = "^$|^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
+            String nickname,
+
             @NotBlank(message = "邮箱不能为空")
             @Email(message = "邮箱格式不正确")
             @Size(max = 100, message = "邮箱不能超过 100 个字符")
@@ -115,6 +119,14 @@ public final class AuthRequests {
             @NotBlank(message = "请输入新密码")
             @Size(min = 6, max = 30, message = "新密码长度需为 6-30 个字符")
             String newPassword
+    ) {
+    }
+
+    public record UpdateProfile(
+            @NotBlank(message = "请输入昵称")
+            @Size(max = 32, message = "昵称不能超过 32 个字符")
+            @Pattern(regexp = "^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
+            String nickname
     ) {
     }
 

@@ -11,6 +11,7 @@ import type { RegistrationPolicy } from '@/types'
 const route = useRoute()
 const router = useRouter()
 const form = reactive({
+  nickname: '',
   email: '',
   captchaAnswer: '',
   verificationCode: '',
@@ -49,6 +50,10 @@ const loginLink = computed(() => ({
   name: 'login',
   query: redirectTarget.value ? { redirect: redirectTarget.value } : {},
 }))
+const nicknamePlaceholder = computed(() => {
+  const localPart = form.email.split('@')[0]?.trim()
+  return localPart ? `留空则使用「${[...localPart].slice(0, 20).join('')}」` : '可选，留空则使用邮箱前缀'
+})
 const passwordStrength = computed(() => {
   let score = 0
   if (form.password.length >= 6) score++
@@ -67,6 +72,9 @@ function emailValidationError() {
 
 function validate() {
   const errors: Record<string, string> = {}
+  const nickname = form.nickname.trim()
+  if (nickname.length > 32) errors.nickname = '昵称不能超过 32 个字符'
+  else if (/[\u0000-\u001f\u007f-\u009f]/.test(nickname)) errors.nickname = '昵称不能包含控制字符'
   const emailError = emailValidationError()
   if (emailError) errors.email = emailError
   else if (registrationPolicy.value.emailVerificationRequired && !/^\d{6}$/.test(form.verificationCode)) {
@@ -152,6 +160,7 @@ async function submit() {
   loading.value = true
   try {
     await auth.register({
+      nickname: form.nickname.trim() || undefined,
       email: form.email.trim(),
       password: form.password,
       verificationCode: registrationPolicy.value.emailVerificationRequired ? form.verificationCode.trim() : '',
@@ -208,6 +217,25 @@ onUnmounted(() => {
     </div>
 
     <form class="auth-form" novalidate @submit.prevent="submit">
+      <label class="field">
+        <span class="field-row">
+          <span class="field-label">昵称</span>
+          <span class="field-hint">1-32 个字符，之后仍可修改</span>
+        </span>
+        <span class="input-shell" :class="{ 'has-error': fieldErrors.nickname }">
+          <AppIcon name="user" :size="18" />
+          <input
+            v-model="form.nickname"
+            name="nickname"
+            type="text"
+            autocomplete="nickname"
+            :placeholder="nicknamePlaceholder"
+            maxlength="32"
+          />
+        </span>
+        <span v-if="fieldErrors.nickname" class="field-error">{{ fieldErrors.nickname }}</span>
+      </label>
+
       <label class="field">
         <span class="field-label">邮箱地址</span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.email }">

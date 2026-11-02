@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import neko.fantasy.auth.config.AuthProperties;
 import neko.fantasy.auth.domain.EmailVerificationPurpose;
 import neko.fantasy.auth.domain.RefreshToken;
+import neko.fantasy.auth.domain.Role;
 import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.dto.ApiResponses;
 import neko.fantasy.auth.dto.AuthRequests;
@@ -84,7 +85,7 @@ public class AuthService {
      */
     @Transactional
     public User registerAccount(AuthRequests.Register request) {
-        return createAccount(request.username(), request.email(), request.password(),
+        return createAccount(request.username(), request.nickname(), request.email(), request.password(),
                 request.verificationCode(), true, true);
     }
 
@@ -94,10 +95,10 @@ public class AuthService {
      */
     @Transactional
     public User createAccountForAdmin(String rawEmail, String password) {
-        return createAccount(null, rawEmail, password, null, false, false);
+        return createAccount(null, null, rawEmail, password, null, false, false);
     }
 
-    private User createAccount(String rawUsername, String rawEmail, String password,
+    private User createAccount(String rawUsername, String rawNickname, String rawEmail, String password,
                                String verificationCode, boolean requireVerificationCode,
                                boolean enforceRegistrationPolicy) {
         passwordPolicy.validate(password);
@@ -105,6 +106,7 @@ public class AuthService {
         String username = requestedUsername == null
                 ? generateUsername()
                 : requestedUsername.toLowerCase(Locale.ROOT);
+        String nickname = trimToNull(rawNickname);
         String email = normalizeEmail(rawEmail);
         if (enforceRegistrationPolicy) {
             settingsService.requireRegistrationAllowed(email);
@@ -127,7 +129,7 @@ public class AuthService {
         User user = new User();
         user.setUsername(username);
         user.setEmail(email);
-        user.setDisplayName(defaultDisplayName(email));
+        user.setDisplayName(nickname == null ? defaultDisplayName(email) : nickname);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setEmailVerified(emailVerified);
         user.setLastLoginAt(Instant.now());
@@ -233,6 +235,16 @@ public class AuthService {
     @Transactional(readOnly = true)
     public ApiResponses.User me(Long userId) {
         return ApiResponses.User.from(requireUser(userId));
+    }
+
+    @Transactional
+    public ApiResponses.User updateProfile(Long userId, AuthRequests.UpdateProfile request) {
+        User user = requireUser(userId);
+        if (user.getRole() == Role.ADMIN) {
+            throw ApiException.badRequest("ADMIN_NICKNAME_IMMUTABLE", "管理员昵称固定为用户名");
+        }
+        user.setDisplayName(request.nickname().trim());
+        return ApiResponses.User.from(userRepository.saveAndFlush(user));
     }
 
     @Transactional

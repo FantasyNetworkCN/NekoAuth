@@ -77,9 +77,15 @@ export const auth = {
     apply(payload)
   },
 
-  async register(input: { email: string; password: string; verificationCode: string }) {
+  async register(input: { nickname?: string; email: string; password: string; verificationCode: string }) {
     const payload = await api.register({ ...input, device: await collectDeviceProfile() })
     apply(payload)
+  },
+
+  async updateProfile(nickname: string): Promise<User> {
+    const updated = await api.updateProfile(nickname)
+    state.user = updated
+    return updated
   },
 
   async logout() {

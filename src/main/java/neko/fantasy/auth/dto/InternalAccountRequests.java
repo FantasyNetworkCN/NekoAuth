@@ -36,6 +36,10 @@ public final class InternalAccountRequests {
     }
 
     public record Register(
+            @Size(max = 32, message = "昵称不能超过 32 个字符")
+            @Pattern(regexp = "^$|^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
+            String nickname,
+
             @NotBlank(message = "邮箱不能为空")
             @Email(message = "邮箱格式不正确")
             @Size(max = 254, message = "邮箱过长")

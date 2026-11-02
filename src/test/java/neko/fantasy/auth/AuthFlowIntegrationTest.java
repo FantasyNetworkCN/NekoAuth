@@ -206,7 +206,7 @@ class AuthFlowIntegrationTest {
 
     @Test
     void adminUsesUsernameAndHasNoNickname() throws Exception {
-        mockMvc.perform(post("/api/auth/login")
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"identifier":"admin","password":"AdminPass123"}
@@ -214,20 +214,29 @@ class AuthFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user.username").value("admin"))
                 .andExpect(jsonPath("$.user.displayName").value("admin"))
-                .andExpect(jsonPath("$.user.nickname").doesNotExist());
+                .andExpect(jsonPath("$.user.nickname").doesNotExist())
+                .andReturn();
+
+        String accessToken = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
+        mockMvc.perform(patch("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nickname\":\"AdminNick\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ADMIN_NICKNAME_IMMUTABLE"));
     }
 
     @Test
-    void usersStartAtOneMillionAndRegistrationFillsImmutableNickname() throws Exception {
+    void usersCanRegisterWithCustomNicknameAndChangeItLater() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
-        String nickname = "nekomusic_" + suffix;
-        String email = nickname + "@gmail.com";
+        String nickname = "猫娘_" + suffix;
+        String email = "nekomusic_" + suffix + "@gmail.com";
 
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"abcdef"}
-                                """.formatted(email)))
+                                {"nickname":"%s","email":"%s","password":"abcdef"}
+                                """.formatted(nickname, email)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.user.nickname").value(nickname))
                 .andExpect(jsonPath("$.user.displayName").value(nickname))
@@ -240,13 +249,27 @@ class AuthFlowIntegrationTest {
         User stored = userRepository.findByEmail(email).orElseThrow();
         assertThat(stored.getPasswordHash()).startsWith("$argon2i$v=19$m=65536,t=10,p=1$");
 
-        mockMvc.perform(post("/api/auth/login")
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"identifier":"%s","password":"abcdef"}
                                 """.formatted(email)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.user.nickname").value(nickname));
+                .andExpect(jsonPath("$.user.nickname").value(nickname))
+                .andReturn();
+
+        String accessToken = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
+        String updatedNickname = "改名_" + suffix;
+        mockMvc.perform(patch("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nickname\":\"%s\"}".formatted(updatedNickname)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nickname").value(updatedNickname))
+                .andExpect(jsonPath("$.displayName").value(updatedNickname));
+
+        assertThat(userRepository.findByEmail(email).orElseThrow().getDisplayName())
+                .isEqualTo(updatedNickname);
     }
 
     @Test
@@ -312,6 +335,15 @@ class AuthFlowIntegrationTest {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
+                                {"username":"%s","nickname":"123456789012345678901234567890123","email":"%s","password":"Password123"}
+                                """.formatted(username, email)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.nickname").exists());
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
                                 {"username":"%s","email":"%s","password":"Password123"}
                                 """.formatted(username, email)))
                 .andExpect(status().isCreated());
@@ -339,12 +371,20 @@ class AuthFlowIntegrationTest {
         mockMvc.perform(patch("/api/auth/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"displayName\":\"Updated User\"}"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("PROFILE_IMMUTABLE"));
+                        .content("{\"nickname\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.nickname").exists());
+
+        mockMvc.perform(patch("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nickname\":\"Updated User\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("Updated User"));
 
         assertThat(userRepository.findByEmail(email).orElseThrow().getDisplayName())
-                .isEqualTo(username);
+                .isEqualTo("Updated User");
 
         mockMvc.perform(post("/api/auth/logout").cookie(refreshCookie))
                 .andExpect(status().isNoContent())
