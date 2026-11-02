@@ -205,7 +205,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void adminUsesUsernameAndHasNoNickname() throws Exception {
+    void adminCanChangeNicknameAndPublicNameUsesIt() throws Exception {
         MvcResult login = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -214,16 +214,32 @@ class AuthFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user.username").value("admin"))
                 .andExpect(jsonPath("$.user.displayName").value("admin"))
-                .andExpect(jsonPath("$.user.nickname").doesNotExist())
+                .andExpect(jsonPath("$.user.nickname").value("admin"))
                 .andReturn();
 
         String accessToken = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
-        mockMvc.perform(patch("/api/auth/me")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"nickname\":\"AdminNick\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("ADMIN_NICKNAME_IMMUTABLE"));
+        try {
+            mockMvc.perform(patch("/api/auth/me")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"nickname\":\"AdminNick\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.username").value("admin"))
+                    .andExpect(jsonPath("$.nickname").value("AdminNick"))
+                    .andExpect(jsonPath("$.displayName").value("AdminNick"));
+
+            mockMvc.perform(get("/api/auth/me")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.nickname").value("AdminNick"))
+                    .andExpect(jsonPath("$.displayName").value("AdminNick"));
+        } finally {
+            mockMvc.perform(patch("/api/auth/me")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"nickname\":\"admin\"}"))
+                    .andExpect(status().isOk());
+        }
     }
 
     @Test

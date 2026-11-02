@@ -25,7 +25,7 @@ const hasPrevious = computed(() => result.value.page > 0)
 const hasNext = computed(() => result.value.page + 1 < result.value.totalPages)
 
 function accountName(user: User) {
-  return user.role === 'ADMIN' ? user.username : user.displayName
+  return user.displayName || user.username
 }
 
 async function load(page = 0) {

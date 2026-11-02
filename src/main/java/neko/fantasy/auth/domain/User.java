@@ -107,7 +107,7 @@ public class User {
     }
 
     public String publicName() {
-        return role == Role.ADMIN ? username : displayName;
+        return displayName;
     }
 
     public void setDisplayName(String displayName) {

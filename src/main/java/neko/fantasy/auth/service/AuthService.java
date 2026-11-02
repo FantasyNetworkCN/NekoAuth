@@ -237,9 +237,6 @@ public class AuthService {
     @Transactional
     public ApiResponses.User updateProfile(Long userId, AuthRequests.UpdateProfile request) {
         User user = requireUser(userId);
-        if (user.getRole() == Role.ADMIN) {
-            throw ApiException.badRequest("ADMIN_NICKNAME_IMMUTABLE", "管理员昵称固定为用户名");
-        }
         user.setDisplayName(request.nickname().trim());
         return ApiResponses.User.from(userRepository.saveAndFlush(user));
     }

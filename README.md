@@ -50,7 +50,7 @@ sudo docker compose logs -f --tail=200 auth
 
 现有的 `data/nekoauth-setup.yml` 会提供数据库、Redis、JWT 密钥与管理员配置；Compose 环境额外启用 HTTPS Cookie、生产 issuer 与 CORS。停止服务使用 `docker compose down`，不会删除宿主机 MySQL/Redis 或 `data/`。
 
-首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员只能通过直接访问 `/admin` 进入管理后台，登录页和其他公共页面均不显示管理员入口；也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置。普通用户登录后进入 `/account`，可修改昵称、修改密码和管理自己的登录会话，其余身份资料保持只读。
+首次启动时 Hibernate 会按 JPA 实体自动建表或补齐缺失的列，并在用户名和邮箱都不存在时创建 `auth.bootstrap-admin` 指定的 ADMIN；之后修改配置不会覆盖已有账户。通过安装向导完成安装时会额外写入一次性标记 `data/.admin-bootstrap-pending`，下一次启动会以安装页填写的用户名、邮箱和密码同步该 ADMIN（即使数据库中已有同名残留在测试环境的账户），成功后标记自动删除，之后再重启不会覆盖后台修改过的密码。管理员只能通过直接访问 `/admin` 进入管理后台，登录页和其他公共页面均不显示管理员入口；也可直接调用 `/api/admin/**` 管理用户、OAuth 客户端与运行设置。用户登录后进入 `/account`，可修改昵称、修改密码和管理自己的登录会话，其余身份资料保持只读。
 
 ## 管理入口
 
@@ -556,7 +556,7 @@ docker compose down
 - `email` 长度不超过 100、统一转小写且必须唯一；域名必须命中当前注册白名单，否则返回 `400 EMAIL_DOMAIN_NOT_ALLOWED`；关闭注册时返回 `403 REGISTRATION_DISABLED`。密码长度 6-30，不强制字母与数字组合。
 - `nickname` 可选，最多 32 个字符且不能包含控制字符，允许重复；留空时取邮箱 `@` 前的部分（最多 20 个 Unicode 字符）。创建后可在 `/account` 或 `PATCH /api/auth/me` 修改。
 - 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。
-- 管理员不设置昵称：安装向导不要求昵称，`bootstrap-admin` 不再接受 `display-name`；管理员 API、后台与 OIDC 资料统一使用用户名，`nickname` 不返回。
+- 管理员设置昵称：安装向导不设置昵称时由用户名生成初始昵称，`bootstrap-admin` 仍不接受 `display-name`；管理员与普通用户一样通过 `nickname` 修改昵称。管理员的唯一登录名仍是 `username`，`nickname`、`displayName` 与 OIDC `name` 均取自可修改的 `display_name`。
 
 ### 找回密码
 
@@ -622,7 +622,7 @@ docker compose down
 cd frontend && npm run build
 ```
 
-后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、管理员无昵称、自定义及邮箱派生昵称、昵称修改与校验、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发；设置测试覆盖默认域名白名单、非白名单拒绝、注册开关、管理员更新与 SMTP 密码不回显。
+后端测试覆盖认证主流程、JWT 鉴权、刷新轮换、OAuth 刷新令牌重放与授权链撤销、scope 最小化、`user:email` 别名、UserInfo 声明、ASCII Bearer 错误头、登出、密码变更、会话撤销、管理员权限隔离、OAuth 公共/机密客户端、PKCE、回调校验、停用客户端、安装入口 404 生命周期与安装配置覆盖顺序。认证测试还覆盖 `1000000` 起始 ID、管理员昵称修改、自定义及邮箱派生昵称、昵称修改与校验、Argon2i 固定哈希、旧 BCrypt 自动升级、重复显示名、根路径 404 与管理员页面转发；设置测试覆盖默认域名白名单、非白名单拒绝、注册开关、管理员更新与 SMTP 密码不回显。
 
 ## 目录
 

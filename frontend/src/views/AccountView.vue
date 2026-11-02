@@ -75,7 +75,7 @@ function validateNickname() {
 }
 
 async function saveNickname() {
-  if (profileLoading.value || user.value?.role === 'ADMIN' || !validateNickname()) return
+  if (profileLoading.value || !validateNickname()) return
   profileLoading.value = true
   profileError.value = ''
   try {
@@ -234,7 +234,7 @@ onMounted(() => {
             </span>
           </div>
 
-          <form v-if="user.role !== 'ADMIN'" class="profile-form" novalidate @submit.prevent="saveNickname">
+          <form class="profile-form" novalidate @submit.prevent="saveNickname">
             <div v-if="profileError" class="alert alert-error" role="alert">
               <AppIcon name="alert" :size="17" />
               <span>{{ profileError }}</span>
@@ -288,7 +288,7 @@ onMounted(() => {
 
           <p class="readonly-note">
             <AppIcon name="lock" :size="14" />
-            {{ user.role === 'ADMIN' ? '管理员显示名称固定为用户名。' : '邮箱与用户名暂不支持自助修改。' }}
+            邮箱与用户名暂不支持自助修改。
           </p>
         </section>
 

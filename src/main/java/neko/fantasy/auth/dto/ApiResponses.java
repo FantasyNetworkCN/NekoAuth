@@ -16,8 +16,7 @@ public final class ApiResponses {
                        Instant lastLoginAt) {
 
         public static User from(neko.fantasy.auth.domain.User user) {
-            String nickname = user.getRole() == Role.ADMIN ? null : user.getDisplayName();
-            return new User(user.getId(), user.getUsername(), nickname, user.getEmail(),
+            return new User(user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(),
                     user.publicName(), user.getRole(), user.isEnabled(),
                     user.getCreatedAt(), user.getUpdatedAt(), user.getLastLoginAt());
         }
