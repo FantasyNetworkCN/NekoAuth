@@ -2,8 +2,13 @@ package neko.fantasy.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+
+import java.util.List;
 
 /**
  * NekoMusic 等可信第一方服务使用的账号桥接请求。
@@ -80,6 +85,21 @@ public final class InternalAccountRequests {
             @Size(max = 32, message = "昵称不能超过 32 个字符")
             @Pattern(regexp = "^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
             String nickname
+    ) {
+    }
+
+    public record Lookup(
+            @NotEmpty(message = "至少需要一个 NekoAuth 用户 ID")
+            @Size(max = 200, message = "单次最多查询 200 个用户")
+            List<@NotNull(message = "NekoAuth 用户 ID 不能为空")
+                 @Positive(message = "NekoAuth 用户 ID 无效") Long> authUserIds
+    ) {
+    }
+
+    public record Search(
+            @NotBlank(message = "请输入搜索关键词")
+            @Size(max = 100, message = "搜索关键词过长")
+            String query
     ) {
     }
 

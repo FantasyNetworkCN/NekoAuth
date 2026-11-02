@@ -123,6 +123,41 @@ class InternalAccountBridgeIntegrationTest {
     }
 
     @Test
+    void bridgeCanLookupNicknamesAndSearchAccounts() throws Exception {
+        Client client = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE));
+        String email = uniqueEmail();
+        String nickname = "查询猫娘_" + UUID.randomUUID().toString().substring(0, 8);
+
+        MvcResult created = mockMvc.perform(post("/api/internal/accounts/admin-create")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"%s","email":"%s","password":"Password123"}
+                                """.formatted(nickname, email)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long authUserId = ((Number) JsonPath.read(
+                created.getResponse().getContentAsString(), "$.id")).longValue();
+
+        mockMvc.perform(post("/api/internal/accounts/lookup")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"authUserIds\":[" + authUserId + ",999999999]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(authUserId))
+                .andExpect(jsonPath("$[0].nickname").value(nickname));
+
+        mockMvc.perform(post("/api/internal/accounts/search")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"" + nickname + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(authUserId))
+                .andExpect(jsonPath("$[0].nickname").value(nickname));
+    }
+
+    @Test
     void registrationPasswordChangeAndResetStayAuthoritativeInAuth() throws Exception {
         when(settingsService.getSmtpConfig()).thenReturn(smtpConfig());
         Client client = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE));

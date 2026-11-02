@@ -23,4 +23,12 @@ public final class InternalAccountResponses {
                     token.expiresIn());
         }
     }
+
+    /** 不含令牌与敏感字段的账号摘要，供第一方应用实时解析昵称与搜索用户。 */
+    public record Summary(long id, String email, String username, String nickname) {
+
+        public static Summary from(User user) {
+            return new Summary(user.getId(), user.getEmail(), user.getUsername(), user.publicName());
+        }
+    }
 }

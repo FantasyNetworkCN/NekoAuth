@@ -6,7 +6,11 @@ import neko.fantasy.auth.dto.InternalAccountRequests;
 import neko.fantasy.auth.dto.InternalAccountResponses;
 import neko.fantasy.auth.internal.InternalTokenService;
 import neko.fantasy.auth.oauth.OAuthClient;
+import neko.fantasy.auth.repository.UserRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * 第一方服务端账号桥接。
@@ -20,13 +24,16 @@ public class InternalAccountService {
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
     private final InternalTokenService tokenService;
+    private final UserRepository userRepository;
 
     public InternalAccountService(AuthService authService,
                                   EmailVerificationService emailVerificationService,
-                                  InternalTokenService tokenService) {
+                                  InternalTokenService tokenService,
+                                  UserRepository userRepository) {
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
         this.tokenService = tokenService;
+        this.userRepository = userRepository;
     }
 
     public InternalAccountResponses.Account login(InternalAccountRequests.Login request, OAuthClient client) {
@@ -52,6 +59,18 @@ public class InternalAccountService {
 
     public void updateNickname(InternalAccountRequests.UpdateNickname request) {
         authService.updateNicknameByEmail(request.email(), new AuthRequests.UpdateProfile(request.nickname()));
+    }
+
+    public List<InternalAccountResponses.Summary> lookup(InternalAccountRequests.Lookup request) {
+        return userRepository.findAllById(request.authUserIds()).stream()
+                .map(InternalAccountResponses.Summary::from)
+                .toList();
+    }
+
+    public List<InternalAccountResponses.Summary> search(InternalAccountRequests.Search request) {
+        return userRepository.search(request.query().trim(), PageRequest.of(0, 20))
+                .map(InternalAccountResponses.Summary::from)
+                .getContent();
     }
 
     public void sendPasswordResetCode(String email) {

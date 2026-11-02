@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * NekoMusic 等服务端应用使用的账号桥接接口。
  *
@@ -83,6 +85,24 @@ public class InternalAccountController {
     ) {
         clientAuthenticator.requireClient(authorization);
         accountService.updateNickname(request);
+    }
+
+    @PostMapping("/lookup")
+    public List<InternalAccountResponses.Summary> lookup(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody InternalAccountRequests.Lookup request
+    ) {
+        clientAuthenticator.requireClient(authorization);
+        return accountService.lookup(request);
+    }
+
+    @PostMapping("/search")
+    public List<InternalAccountResponses.Summary> search(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody InternalAccountRequests.Search request
+    ) {
+        clientAuthenticator.requireClient(authorization);
+        return accountService.search(request);
     }
 
     /**
