@@ -1,6 +1,7 @@
 services:
   auth:
     build: .
+    image: nekoauth:local
     network_mode: host
     user: "${NEKO_UID:-1000}:${NEKO_GID:-1000}"
     environment:
@@ -13,6 +14,10 @@ services:
       SPRING_APPLICATION_JSON: >-
         {"auth":{"cors":{"allowed-origins":["${NEKO_CORS_ORIGIN:-https://auth.nekocore.cn}"]}}}
     volumes:
-      - ./config:/app/config:ro
-      - ./data:/app/data
+      - nekoauth_data:/app/data
     restart: unless-stopped
+
+volumes:
+  nekoauth_data:
+    external: true
+    name: nekoauth_data
