@@ -242,7 +242,7 @@ onMounted(() => {
             <label class="field">
               <span class="field-row">
                 <span class="field-label">昵称</span>
-                <span class="field-hint">1-32 个字符</span>
+                <span class="field-hint">1-32 个字符，不能包含违禁词</span>
               </span>
               <span class="input-shell" :class="{ 'has-error': profileFieldErrors.nickname }">
                 <AppIcon name="user" :size="17" />

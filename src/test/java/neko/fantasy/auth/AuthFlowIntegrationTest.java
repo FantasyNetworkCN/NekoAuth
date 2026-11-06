@@ -289,6 +289,44 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void nicknamesContainingBannedWordsAreRejectedOnRegisterAndUpdate() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String email = "banned_" + suffix + "@gmail.com";
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"0 0 1 工 程","email":"%s","password":"Password123"}
+                                """.formatted(email)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_NICKNAME"))
+                .andExpect(jsonPath("$.message").value("昵称包含违禁词"));
+
+        assertThat(userRepository.findByEmail(email)).isEmpty();
+
+        String nickname = "安全昵称_" + suffix;
+        MvcResult registration = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"%s","email":"%s","password":"Password123"}
+                                """.formatted(nickname, email)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String accessToken = JsonPath.read(registration.getResponse().getContentAsString(), "$.accessToken");
+        mockMvc.perform(patch("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nickname\":\"001\\u200B工程\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_NICKNAME"))
+                .andExpect(jsonPath("$.message").value("昵称包含违禁词"));
+
+        assertThat(userRepository.findByEmail(email).orElseThrow().getDisplayName())
+                .isEqualTo(nickname);
+    }
+
+    @Test
     void derivedNicknameAllowsDuplicatesAndLegacyBcryptUpgradesOnLogin() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String nickname = "duplicate_" + suffix;

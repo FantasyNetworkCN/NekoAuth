@@ -14,6 +14,7 @@ import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.security.JwtService;
 import neko.fantasy.auth.settings.SettingsService;
+import neko.fantasy.auth.util.NicknameValidator;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -108,6 +109,8 @@ public class AuthService {
                 : requestedUsername.toLowerCase(Locale.ROOT);
         String nickname = trimToNull(rawNickname);
         String email = normalizeEmail(rawEmail);
+        String displayName = nickname == null ? defaultDisplayName(email) : nickname;
+        validateNickname(displayName);
         if (enforceRegistrationPolicy) {
             settingsService.requireRegistrationAllowed(email);
         }
@@ -127,7 +130,7 @@ public class AuthService {
         User user = new User();
         user.setUsername(username);
         user.setEmail(email);
-        user.setDisplayName(nickname == null ? defaultDisplayName(email) : nickname);
+        user.setDisplayName(displayName);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setLastLoginAt(Instant.now());
         return userRepository.saveAndFlush(user);
@@ -237,7 +240,9 @@ public class AuthService {
     @Transactional
     public ApiResponses.User updateProfile(Long userId, AuthRequests.UpdateProfile request) {
         User user = requireUser(userId);
-        user.setDisplayName(request.nickname().trim());
+        String nickname = request.nickname().trim();
+        validateNickname(nickname);
+        user.setDisplayName(nickname);
         return ApiResponses.User.from(userRepository.saveAndFlush(user));
     }
 
@@ -496,6 +501,13 @@ public class AuthService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static void validateNickname(String nickname) {
+        String error = NicknameValidator.validate(nickname);
+        if (error != null) {
+            throw ApiException.badRequest("INVALID_NICKNAME", error);
+        }
     }
 
     private static String randomToken() {

@@ -220,7 +220,7 @@ onUnmounted(() => {
       <label class="field">
         <span class="field-row">
           <span class="field-label">昵称</span>
-          <span class="field-hint">1-32 个字符，之后仍可修改</span>
+          <span class="field-hint">1-32 个字符，不能包含违禁词，之后仍可修改</span>
         </span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.nickname }">
           <AppIcon name="user" :size="18" />

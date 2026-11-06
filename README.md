@@ -79,7 +79,7 @@ sudo docker compose logs -f --tail=200 auth
 
 普通用户登录或注册完成后进入 `/account`。该页面只提供最小化的自助能力：
 
-- 修改昵称（1-32 个字符，允许重复）；用户名、邮箱、用户 ID、加入时间与最近登录时间保持只读。
+- 修改昵称（1-32 个字符，不能包含控制字符或违禁词，允许重复）；用户名、邮箱、用户 ID、加入时间与最近登录时间保持只读。
 - 修改密码；成功后服务端会让所有旧访问令牌与刷新会话立即失效，并要求重新登录。
 - 查看当前账户的活跃登录设备，可按会话撤销其他设备，或退出全部设备。登录与注册时会尽力采集 Client Hints、平台版本、设备型号、架构、屏幕、时区与触控特征，以便区分手机、平板和电脑；不支持 Client Hints 的浏览器会退回能力探测与 UA 提示。
 - 默认不显示任何管理员入口；ADMIN 仍需手动访问 `/admin`。
@@ -229,7 +229,7 @@ curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
 
 若仍返回 `401 INVALID_CLIENT`，先查看 NekoAuth 日志中的 `reason`：`not_found_or_disabled` 表示 NekoMusic 保存的 client_id 与实际客户端不一致或客户端被停用；`secret_mismatch` 表示两端密钥不同；`public_client` 表示误建成了公共客户端；`missing_account_bridge_scope` 表示忘了勾选“账号桥接”。修改 scope 不会自动轮换密钥；需要时在客户端卡片上执行“轮换密钥”，再一次性同步到 NekoMusic。日志不会输出客户端密钥。
 
-桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单和密码策略；注册请求可附加可选 `nickname`，未提供时沿用邮箱前缀，只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录与注册成功时，桥接响应除稳定数字用户 ID、邮箱、用户名、昵称、角色和启用状态外，还返回 `accessToken`、`tokenType` 与 `expiresIn`。该 access token 由 NekoAuth 签发并受 NekoAuth 管理，默认有效期为 365 天。NekoAuth 是昵称唯一权威源；NekoMusic 只用其中的稳定用户 ID 绑定本地业务资料，不保存昵称列，展示、搜索与通知场景通过 `lookup` / `search` 实时读取当前昵称。
+桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单、密码策略和昵称违禁词校验；注册请求可附加可选 `nickname`，未提供时沿用邮箱前缀，只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录与注册成功时，桥接响应除稳定数字用户 ID、邮箱、用户名、昵称、角色和启用状态外，还返回 `accessToken`、`tokenType` 与 `expiresIn`。该 access token 由 NekoAuth 签发并受 NekoAuth 管理，默认有效期为 365 天。NekoAuth 是昵称唯一权威源；NekoMusic 只用其中的稳定用户 ID 绑定本地业务资料，不保存昵称列，展示、搜索与通知场景通过 `lookup` / `search` 实时读取当前昵称。
 
 NekoMusic 浏览器登录时，服务端先用授权码和客户端密钥调用 `/oauth2/token`，再把拿到的短期 access token 提交给 `/api/internal/accounts/token/exchange` 换取长期第一方 access token。交换只接受同一客户端签发、未过期、未被吊销且用户会话版本仍有效的令牌；不同客户端的令牌会被拒绝。浏览器只收到 NekoMusic 的一次性登录交接，再由完成页领取 token，URL 中不会出现 access token。
 
@@ -565,9 +565,17 @@ docker compose down
 ```
 
 - `email` 长度不超过 100、统一转小写且必须唯一；域名必须命中当前注册白名单，否则返回 `400 EMAIL_DOMAIN_NOT_ALLOWED`；关闭注册时返回 `403 REGISTRATION_DISABLED`。密码长度 6-30，不强制字母与数字组合。
-- `nickname` 可选，最多 32 个字符且不能包含控制字符，允许重复；留空时取邮箱 `@` 前的部分（最多 20 个 Unicode 字符）。创建后可在 `/account` 或 `PATCH /api/auth/me` 修改。
+- `nickname` 可选，最多 32 个字符，不能包含控制字符或违禁词，允许重复；留空时取邮箱 `@` 前的部分（最多 20 个 Unicode 字符），该默认昵称同样会执行违禁词校验。创建后可在 `/account` 或 `PATCH /api/auth/me` 修改。
 - 新注册用户的内部 `username` 由服务端生成并保持唯一，API 响应同时返回 `username`、`nickname` 与 `displayName`。
 - 管理员设置昵称：安装向导不设置昵称时由用户名生成初始昵称，`bootstrap-admin` 仍不接受 `display-name`；管理员与普通用户一样通过 `nickname` 修改昵称。管理员的唯一登录名仍是 `username`，`nickname`、`displayName` 与 OIDC `name` 均取自可修改的 `display_name`。
+
+昵称违禁词检测由 `SensitiveWordUtil` 统一执行，词库位于 `src/main/resources/违禁词/`：
+
+- `主词表.txt`：中文主词表。
+- `英文词表.txt`：英文补充词表；当前与 NekoMusic 一致，为空文件。
+- `白名单.txt`：命中主词表但允许作为普通文本使用的词。
+
+检测前会移除空白、零宽字符和 BOM；命中时注册、管理员建号、普通改名及桥接改名统一返回 `400 INVALID_NICKNAME`。修改词库后需要重新构建并部署 NekoAuth。
 
 ### 找回密码
 

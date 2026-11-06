@@ -20,6 +20,7 @@
     <properties>
         <java.version>27</java.version>
         <jjwt.version>0.13.0</jjwt.version>
+        <sensitive-word.version>0.29.5</sensitive-word.version>
         <neko.frontend.skip>false</neko.frontend.skip>
     </properties>
 
@@ -53,6 +54,12 @@
             <groupId>de.mkammerer</groupId>
             <artifactId>argon2-jvm</artifactId>
             <version>2.12</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.houbb</groupId>
+            <artifactId>sensitive-word</artifactId>
+            <version>${sensitive-word.version}</version>
         </dependency>
 
         <dependency>
