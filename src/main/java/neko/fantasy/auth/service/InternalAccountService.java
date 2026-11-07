@@ -7,6 +7,7 @@ import neko.fantasy.auth.dto.InternalAccountResponses;
 import neko.fantasy.auth.internal.InternalTokenService;
 import neko.fantasy.auth.oauth.OAuthClient;
 import neko.fantasy.auth.repository.UserRepository;
+import neko.fantasy.auth.exception.ApiException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -58,6 +59,17 @@ public class InternalAccountService {
     public InternalAccountResponses.Account adminCreate(InternalAccountRequests.AdminCreate request) {
         User user = authService.createAccountForAdmin(request.email(), request.password(), request.nickname());
         return InternalAccountResponses.Account.from(user);
+    }
+
+    public InternalAccountResponses.Account loginSsoSession(String ssoSession, OAuthClient client) {
+        User user = authService.findUserBySsoSession(ssoSession)
+                .orElseThrow(() -> ApiException.unauthorized(
+                        "SSO_SESSION_INVALID", "共享登录会话不存在或已失效"));
+        return InternalAccountResponses.Account.from(user, tokenService.issue(user, client));
+    }
+
+    public void logoutSsoSession(String ssoSession) {
+        authService.revokeSsoSession(ssoSession);
     }
 
     public void updateNickname(InternalAccountRequests.UpdateNickname request) {

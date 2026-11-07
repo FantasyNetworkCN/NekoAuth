@@ -22,6 +22,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByIdAndUserId(Long id, Long userId);
 
+    Optional<RefreshToken> findFirstByFamilyIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
+            String familyId, Instant now);
+
     List<RefreshToken> findAllByUserIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
             Long userId, Instant now);
 

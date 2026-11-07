@@ -157,16 +157,14 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 
 授权请求支持 OIDC 的 `prompt=none|login|consent|select_account`、`login_hint` 与 `max_age`。`prompt=none` 在无法静默完成授权时返回 `login_required` 或 `consent_required`；`max_age=0`、`prompt=login` 或 `prompt=select_account` 会要求重新认证。ID Token 的 `auth_time` 来自实际登录时间，并在刷新令牌轮换时保持不变。
 
-启用 `auth.cookie.domain`（例如 `nekocore.cn`）后，Auth 会额外写入一个父域、JavaScript 可读的
-`nekoauth_session_hint` 提示 Cookie。它只表示当前浏览器存在 Auth 会话，不包含刷新令牌或访问令牌；
-刷新令牌仍是 host-only、HttpOnly。子域 Web 应用读取该提示后，可发起带 `prompt=none` 的标准 OIDC
-静默授权：已有 Auth 会话与授权记录时直接完成登录，否则返回 `login_required` / `consent_required`
-并保持游客态。各子域仍使用自己的 OAuth 客户端和回调地址，不能依赖该提示 Cookie 直接认证。
+启用 `auth.cookie.domain`（例如 `nekocore.cn`）后，Auth 会额外写入父域 HttpOnly
+`nekoauth_sso_session`。它的值是当前浏览器刷新令牌会话族的不透明句柄，不是刷新令牌本身；只有
+已登记 `account:bridge` 的第一方服务端可以通过内部接口交换当前用户身份。刷新令牌仍保持 host-only、
+HttpOnly，不会发送给其他子域。子域 Web 因此无需跳转 Auth，即可在本地没有 token 时恢复登录。
 
-当回调地址属于 `auth.cookie.domain` 指定的同一父域时，NekoAuth 将该客户端视为第一方 Web。首次
-`prompt=none` 即使尚未存在同意记录，也会静默补建同意并继续授权；普通交互式授权仍展示同意页。
-第一方子域退出时应使用 OIDC RP-Initiated Logout，并在客户端登记对应的 `post_logout_redirect_uri`，
-以同时清除 Auth 浏览器会话与父域登录提示。
+`nekoauth_session_hint` 仅保留为非敏感登录提示。父域共享会话失效、密码修改或任一子域调用共享会话
+退出接口时，Auth 会撤销整个会话族并清除这两个父域 Cookie。标准 OIDC RP-Initiated Logout 继续供
+需要端点登出的 OAuth 客户端使用。
 
 登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。服务会将 hint 中的用户与当前浏览器刷新会话关联：只有二者匹配时才直接清理会话；没有 hint、没有当前会话或 hint 属于其他用户时，会跳转到 `/logout/confirm`，由用户明确确认后才执行登出。会话匹配时只会撤销发起应用对应的 OAuth 刷新令牌，不影响其他平台。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。成功清理外部应用的登出会话时，响应返回带 `no-store` 的受控 HTML 完成页并下发清除 Cookie，再由页面跳回已登记的 `post_logout_redirect_uri`；这样可避免部分 CDN 自动跟随跨域 302 时丢失 `Set-Cookie`。
 
@@ -177,6 +175,8 @@ NekoMusic 等第一方应用不再保存用户密码，也不再自行签发或�
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `POST` | `/api/internal/accounts/login` | 校验邮箱密码并返回账号身份 |
+| `POST` | `/api/internal/accounts/sso-session` | 用父域共享 SSO 会话句柄换取第一方应用登录态 |
+| `POST` | `/api/internal/accounts/sso-session/logout` | 撤销共享会话族并返回父域清 Cookie 头 |
 | `POST` | `/api/internal/accounts/register/code` | 发送注册邮箱验证码 |
 | `POST` | `/api/internal/accounts/register` | 校验验证码并创建账号，可传可选 `nickname` |
 | `POST` | `/api/internal/accounts/admin-create` | 由已校验权限的第一方后台创建普通用户，可传可选 `nickname`，跳过验证码 |

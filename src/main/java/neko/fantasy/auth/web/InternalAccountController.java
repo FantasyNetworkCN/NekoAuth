@@ -6,9 +6,11 @@ import neko.fantasy.auth.dto.InternalAccountResponses;
 import neko.fantasy.auth.internal.InternalClientAuthenticator;
 import neko.fantasy.auth.internal.InternalTokenService;
 import neko.fantasy.auth.oauth.OAuthClient;
+import neko.fantasy.auth.service.AuthCookieService;
 import neko.fantasy.auth.service.InternalAccountService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -33,11 +35,14 @@ public class InternalAccountController {
 
     private final InternalClientAuthenticator clientAuthenticator;
     private final InternalAccountService accountService;
+    private final AuthCookieService cookieService;
 
     public InternalAccountController(InternalClientAuthenticator clientAuthenticator,
-                                     InternalAccountService accountService) {
+                                     InternalAccountService accountService,
+                                     AuthCookieService cookieService) {
         this.clientAuthenticator = clientAuthenticator;
         this.accountService = accountService;
+        this.cookieService = cookieService;
     }
 
     @PostMapping("/login")
@@ -47,6 +52,28 @@ public class InternalAccountController {
     ) {
         OAuthClient client = clientAuthenticator.requireClient(authorization);
         return accountService.login(request, client);
+    }
+
+    @PostMapping("/sso-session")
+    public InternalAccountResponses.Account loginSsoSession(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody InternalAccountRequests.SsoSession request
+    ) {
+        OAuthClient client = clientAuthenticator.requireClient(authorization);
+        return accountService.loginSsoSession(request.ssoSession(), client);
+    }
+
+    @PostMapping("/sso-session/logout")
+    public ResponseEntity<Void> logoutSsoSession(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody InternalAccountRequests.SsoSession request
+    ) {
+        clientAuthenticator.requireClient(authorization);
+        accountService.logoutSsoSession(request.ssoSession());
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE,
+                        cookieService.clearHeaders().toArray(String[]::new))
+                .build();
     }
 
     @PostMapping("/register/code")

@@ -1,6 +1,7 @@
 package neko.fantasy.auth;
 
 import com.jayway.jsonpath.JsonPath;
+import jakarta.servlet.http.Cookie;
 import neko.fantasy.auth.oauth.OAuthClient;
 import neko.fantasy.auth.oauth.OAuthClientRepository;
 import neko.fantasy.auth.oauth.OAuthException;
@@ -365,6 +366,44 @@ class InternalAccountBridgeIntegrationTest {
                         .content(loginRequest(uniqueEmail(), "Password123")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_CLIENT"));
+    }
+
+    @Test
+    void bridgeExchangesParentDomainSsoSessionAndRevokesItsFamily() throws Exception {
+        Client client = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE));
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"admin","password":"AdminPass123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie refresh = login.getResponse().getCookie("refresh_token");
+        Cookie sso = login.getResponse().getCookie("nekoauth_sso_session");
+        assertThat(refresh).isNotNull();
+        assertThat(sso).isNotNull();
+        assertThat(sso.getDomain()).isEqualTo("fantasy.example");
+        assertThat(sso.isHttpOnly()).isTrue();
+
+        mockMvc.perform(post("/api/internal/accounts/sso-session")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ssoSession\":\"" + sso.getValue() + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1000000))
+                .andExpect(jsonPath("$.accessToken").isNotEmpty());
+
+        MvcResult logout = mockMvc.perform(post("/api/internal/accounts/sso-session/logout")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ssoSession\":\"" + sso.getValue() + "\"}"))
+                .andExpect(status().isNoContent())
+                .andReturn();
+        assertThat(logout.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
+                .anyMatch(value -> value.startsWith("nekoauth_sso_session="));
+
+        mockMvc.perform(post("/api/auth/refresh").cookie(refresh))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -103,6 +103,13 @@ public final class InternalAccountRequests {
     ) {
     }
 
+    public record SsoSession(
+            @NotBlank(message = "共享登录会话不能为空")
+            @Pattern(regexp = "^[A-Za-z0-9-]{16,64}$", message = "共享登录会话格式不正确")
+            String ssoSession
+    ) {
+    }
+
     public record ResetPassword(
             @NotBlank(message = "邮箱不能为空")
             @Email(message = "邮箱格式不正确")

@@ -233,6 +233,27 @@ public class AuthService {
                 .ifPresent(token -> token.setRevokedAt(Instant.now()));
     }
 
+    /** 第一方子域通过父域共享会话句柄解析当前登录用户。 */
+    @Transactional(readOnly = true)
+    public Optional<User> findUserBySsoSession(String sessionFamilyId) {
+        if (sessionFamilyId == null || sessionFamilyId.isBlank()) {
+            return Optional.empty();
+        }
+        return refreshTokenRepository
+                .findFirstByFamilyIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
+                        sessionFamilyId, Instant.now())
+                .map(RefreshToken::getUser)
+                .filter(User::isEnabled);
+    }
+
+    /** 任一第一方子域退出时撤销整个浏览器会话族。 */
+    @Transactional
+    public void revokeSsoSession(String sessionFamilyId) {
+        if (sessionFamilyId != null && !sessionFamilyId.isBlank()) {
+            refreshTokenRepository.revokeFamily(sessionFamilyId, Instant.now());
+        }
+    }
+
     @Transactional(readOnly = true)
     public ApiResponses.User me(Long userId) {
         return ApiResponses.User.from(requireUser(userId));
