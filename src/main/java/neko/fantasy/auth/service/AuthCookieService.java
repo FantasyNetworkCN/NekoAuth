@@ -20,6 +20,7 @@ import java.util.Optional;
 public class AuthCookieService {
 
     public static final String SESSION_HINT_COOKIE = "nekoauth_session_hint";
+    public static final String SSO_SESSION_COOKIE = "nekoauth_sso_session";
     private static final String COOKIE_PATH = "/";
     private static final String LEGACY_COOKIE_PATH = "/api/auth";
 
@@ -47,6 +48,7 @@ public class AuthCookieService {
         headers.add(build("", Duration.ZERO, LEGACY_COOKIE_PATH).toString());
         if (hasHintDomain() && sessionId != null && !sessionId.isBlank()) {
             headers.add(buildHint(sessionHint(sessionId), properties.jwt().refreshTtl()).toString());
+            headers.add(buildSsoSession(sessionId, properties.jwt().refreshTtl()).toString());
         }
         return List.copyOf(headers);
     }
@@ -57,6 +59,7 @@ public class AuthCookieService {
         headers.add(build("", Duration.ZERO, LEGACY_COOKIE_PATH).toString());
         if (hasHintDomain()) {
             headers.add(buildHint("", Duration.ZERO).toString());
+            headers.add(buildSsoSession("", Duration.ZERO).toString());
         }
         return List.copyOf(headers);
     }
@@ -73,6 +76,18 @@ public class AuthCookieService {
                 .map(Cookie::getValue)
                 .filter(value -> value != null && !value.isBlank())
                 .reduce((first, second) -> second);
+    }
+
+    public Optional<String> readSsoSession(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return Optional.empty();
+        }
+        return Arrays.stream(cookies)
+                .filter(cookie -> SSO_SESSION_COOKIE.equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst();
     }
 
     private ResponseCookie build(String value, Duration maxAge, String path) {
@@ -92,6 +107,17 @@ public class AuthCookieService {
     private ResponseCookie buildHint(String value, Duration maxAge) {
         return ResponseCookie.from(SESSION_HINT_COOKIE, value)
                 .httpOnly(false)
+                .secure(properties.cookie().secure())
+                .sameSite(properties.cookie().sameSite())
+                .domain(properties.cookie().domain().trim())
+                .path(COOKIE_PATH)
+                .maxAge(maxAge)
+                .build();
+    }
+
+    private ResponseCookie buildSsoSession(String value, Duration maxAge) {
+        return ResponseCookie.from(SSO_SESSION_COOKIE, value)
+                .httpOnly(true)
                 .secure(properties.cookie().secure())
                 .sameSite(properties.cookie().sameSite())
                 .domain(properties.cookie().domain().trim())

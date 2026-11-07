@@ -57,6 +57,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/register/code",
                                 "/api/auth/register/captcha", "/api/auth/login",
                                 "/api/auth/refresh", "/api/auth/logout",
+                                "/api/auth/shared-session", "/api/auth/shared-session/logout",
                                 "/api/auth/password/reset-code", "/api/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/registration-policy").permitAll()
                         .requestMatchers(HttpMethod.GET, "/avatars/**").permitAll()

@@ -544,4 +544,34 @@ class AuthFlowIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void sharedSessionFollowsBrowserSessionRevocation() throws Exception {
+        String username = "shared_" + UUID.randomUUID().toString().substring(0, 8);
+        MvcResult registration = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","email":"%s@gmail.com","password":"Password123"}
+                                """.formatted(username, username)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String accessToken = JsonPath.read(
+                registration.getResponse().getContentAsString(), "$.accessToken");
+        Cookie refreshCookie = registration.getResponse().getCookie("refresh_token");
+        Cookie sharedCookie = registration.getResponse().getCookie("nekoauth_sso_session");
+        assertThat(sharedCookie).isNotNull();
+
+        mockMvc.perform(post("/api/auth/shared-session").cookie(sharedCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value(username));
+
+        mockMvc.perform(delete("/api/auth/sessions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .cookie(refreshCookie))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/auth/shared-session").cookie(sharedCookie))
+                .andExpect(status().isUnauthorized());
+    }
 }
