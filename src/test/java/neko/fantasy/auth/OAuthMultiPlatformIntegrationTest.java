@@ -43,6 +43,8 @@ class OAuthMultiPlatformIntegrationTest {
     private static final String DESKTOP_REDIRECT = "https://desktop.fantasy.example/oauth/callback";
     private static final String WEB_LOGOUT = "https://web.fantasy.example/logged-out";
     private static final String DESKTOP_LOGOUT = "https://desktop.fantasy.example/logged-out";
+    private static final String EXTERNAL_REDIRECT = "https://partner.example/oauth/callback";
+    private static final String EXTERNAL_LOGOUT = "https://partner.example/logged-out";
     private static final String NATIVE_REDIRECT = "com.nekoauth.test:/oauth/callback";
     private static final String NATIVE_LOGOUT = "com.nekoauth.test:/logged-out";
 
@@ -318,7 +320,7 @@ class OAuthMultiPlatformIntegrationTest {
     @Test
     void authorizationSupportsLoginHintPromptLoginMaxAgeAndPromptNone() throws Exception {
         String adminToken = login("admin", "AdminPass123");
-        Client client = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
+        Client client = createClient(adminToken, true, List.of(EXTERNAL_REDIRECT), List.of(EXTERNAL_LOGOUT),
                 List.of("openid"));
         String username = uniqueUsername("prompt");
         BrowserSession session = registerSession(username);
@@ -329,7 +331,7 @@ class OAuthMultiPlatformIntegrationTest {
         MvcResult none = mockMvc.perform(get("/api/oauth/authorize")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                         .param("client_id", client.clientId())
-                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("redirect_uri", EXTERNAL_REDIRECT)
                         .param("response_type", "code")
                         .param("scope", "openid")
                         .param("state", "none-state")
@@ -344,7 +346,7 @@ class OAuthMultiPlatformIntegrationTest {
         mockMvc.perform(get("/api/oauth/authorize")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                         .param("client_id", client.clientId())
-                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("redirect_uri", EXTERNAL_REDIRECT)
                         .param("response_type", "code")
                         .param("scope", "openid")
                         .param("prompt", "login")
@@ -359,7 +361,7 @@ class OAuthMultiPlatformIntegrationTest {
         mockMvc.perform(get("/api/oauth/authorize")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                         .param("client_id", client.clientId())
-                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("redirect_uri", EXTERNAL_REDIRECT)
                         .param("response_type", "code")
                         .param("scope", "openid")
                         .param("prompt", "select_account")
@@ -371,7 +373,7 @@ class OAuthMultiPlatformIntegrationTest {
         mockMvc.perform(get("/api/oauth/authorize")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                         .param("client_id", client.clientId())
-                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("redirect_uri", EXTERNAL_REDIRECT)
                         .param("response_type", "code")
                         .param("scope", "openid")
                         .param("max_age", "0")
@@ -383,7 +385,7 @@ class OAuthMultiPlatformIntegrationTest {
         mockMvc.perform(get("/api/oauth/authorize")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                         .param("client_id", client.clientId())
-                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("redirect_uri", EXTERNAL_REDIRECT)
                         .param("response_type", "code")
                         .param("scope", "openid")
                         .param("max_age", "3600")
@@ -397,7 +399,7 @@ class OAuthMultiPlatformIntegrationTest {
         mockMvc.perform(get("/api/oauth/authorize")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                         .param("client_id", client.clientId())
-                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("redirect_uri", EXTERNAL_REDIRECT)
                         .param("response_type", "code")
                         .param("scope", "openid")
                         .param("prompt", "none login"))
@@ -407,12 +409,41 @@ class OAuthMultiPlatformIntegrationTest {
         mockMvc.perform(get("/api/oauth/authorize")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                         .param("client_id", client.clientId())
-                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("redirect_uri", EXTERNAL_REDIRECT)
                         .param("response_type", "code")
                         .param("scope", "openid")
                         .param("max_age", "-1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("invalid_request"));
+    }
+
+    @Test
+    void firstPartyPromptNoneCreatesInitialConsentAndReturnsCode() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        Client client = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
+                List.of("openid"));
+        String userToken = register(uniqueUsername("silent_first_party"));
+        String verifier = randomUrlToken(48);
+
+        MvcResult result = mockMvc.perform(get("/api/oauth/authorize")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .param("client_id", client.clientId())
+                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("response_type", "code")
+                        .param("scope", "openid")
+                        .param("state", "silent-first-party")
+                        .param("prompt", "none")
+                        .param("code_challenge", base64UrlSha256(verifier))
+                        .param("code_challenge_method", "S256"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previouslyApproved").value(true))
+                .andReturn();
+
+        String redirectUrl = JsonPath.read(result.getResponse().getContentAsString(), "$.redirectUrl");
+        assertThat(queryParameters(redirectUrl))
+                .containsKey("code")
+                .doesNotContainKey("error")
+                .containsEntry("state", "silent-first-party");
     }
 
     @Test

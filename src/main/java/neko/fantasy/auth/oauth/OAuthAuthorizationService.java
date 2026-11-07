@@ -1,5 +1,6 @@
 package neko.fantasy.auth.oauth;
 
+import neko.fantasy.auth.config.AuthProperties;
 import neko.fantasy.auth.config.OAuthProperties;
 import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.exception.ApiException;
@@ -36,6 +37,7 @@ public class OAuthAuthorizationService {
     private final OAuthAuthorizationCodeRepository codeRepository;
     private final UserRepository userRepository;
     private final OAuthProperties properties;
+    private final AuthProperties authProperties;
     private final OAuthTokenService tokenService;
 
     public OAuthAuthorizationService(OAuthClientRepository clientRepository,
@@ -43,12 +45,14 @@ public class OAuthAuthorizationService {
                                      OAuthAuthorizationCodeRepository codeRepository,
                                      UserRepository userRepository,
                                      OAuthProperties properties,
+                                     AuthProperties authProperties,
                                      OAuthTokenService tokenService) {
         this.clientRepository = clientRepository;
         this.consentRepository = consentRepository;
         this.codeRepository = codeRepository;
         this.userRepository = userRepository;
         this.properties = properties;
+        this.authProperties = authProperties;
         this.tokenService = tokenService;
     }
 
@@ -97,9 +101,13 @@ public class OAuthAuthorizationService {
                         false, loginHint);
             }
             if (!previouslyApproved) {
-                return view(user, validated, false,
-                        errorRedirect(validated, "consent_required", "当前没有可用于完成授权的登录同意记录"),
-                        false, loginHint);
+                if (!isFirstPartyRedirect(validated.redirectUri())) {
+                    return view(user, validated, false,
+                            errorRedirect(validated, "consent_required", "当前没有可用于完成授权的登录同意记录"),
+                            false, loginHint);
+                }
+                saveConsent(user, validated.client(), validated.scopes(), consent);
+                previouslyApproved = true;
             }
             return view(user, validated, true,
                     successRedirect(validated, user, authenticatedAt), false, loginHint);
@@ -135,13 +143,47 @@ public class OAuthAuthorizationService {
         }
         OAuthConsent consent = consentRepository
                 .findByUserIdAndClientId(userId, validated.client().getId())
-                .orElseGet(() -> new OAuthConsent(
-                        user, validated.client(), OAuthScopes.encode(validated.scopes())));
+                .orElse(null);
+        saveConsent(user, validated.client(), validated.scopes(), consent);
+        return successRedirect(validated, user, authenticatedAt);
+    }
+
+    private void saveConsent(User user, OAuthClient client, Set<String> requestedScopes,
+                             OAuthConsent existing) {
+        OAuthConsent consent = existing == null
+                ? new OAuthConsent(user, client, "")
+                : existing;
         LinkedHashSet<String> granted = new LinkedHashSet<>(grantedScopes(consent));
-        granted.addAll(validated.scopes());
+        granted.addAll(requestedScopes);
         consent.setScopes(OAuthScopes.encode(granted));
         consentRepository.save(consent);
-        return successRedirect(validated, user, authenticatedAt);
+    }
+
+    /**
+     * 同一父域下的已登记应用视为第一方 Web。只有 {@code prompt=none} 才会静默补建同意记录，
+     * 正常交互式授权仍会展示同意页。
+     */
+    private boolean isFirstPartyRedirect(String redirectUri) {
+        String configuredDomain = authProperties == null || authProperties.cookie() == null
+                ? "" : authProperties.cookie().domain();
+        String domain = configuredDomain == null ? "" : configuredDomain.trim().toLowerCase(Locale.ROOT);
+        while (domain.startsWith(".")) {
+            domain = domain.substring(1);
+        }
+        if (domain.isEmpty()) {
+            return false;
+        }
+        try {
+            URI redirect = URI.create(redirectUri);
+            String scheme = redirect.getScheme() == null
+                    ? "" : redirect.getScheme().toLowerCase(Locale.ROOT);
+            String host = redirect.getHost() == null
+                    ? "" : redirect.getHost().toLowerCase(Locale.ROOT);
+            return "https".equals(scheme)
+                    && (host.equals(domain) || host.endsWith("." + domain));
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private OAuthDtos.AuthorizeView view(User user, ValidatedAuthorization validated,

@@ -9,6 +9,8 @@ spring:
       ddl-auto: update
 
 auth:
+  cookie:
+    domain: fantasy.example
   bootstrap-admin:
     username: admin
     email: admin@example.com
