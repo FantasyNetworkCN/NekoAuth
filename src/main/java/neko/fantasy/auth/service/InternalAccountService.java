@@ -65,7 +65,8 @@ public class InternalAccountService {
         User user = authService.findUserBySsoSession(ssoSession)
                 .orElseThrow(() -> ApiException.unauthorized(
                         "SSO_SESSION_INVALID", "共享登录会话不存在或已失效"));
-        return InternalAccountResponses.Account.from(user, tokenService.issue(user, client));
+        return InternalAccountResponses.Account.from(
+                user, tokenService.issue(user, client, ssoSession));
     }
 
     public void logoutSsoSession(String ssoSession) {

@@ -37,6 +37,10 @@ public class InternalTokenService {
     }
 
     public IssuedToken issue(User user, OAuthClient client) {
+        return issue(user, client, null);
+    }
+
+    public IssuedToken issue(User user, OAuthClient client, String sessionFamilyId) {
         if (!user.isEnabled()) {
             throw ApiException.forbidden("ACCOUNT_DISABLED", "该账户已被停用");
         }
@@ -53,7 +57,7 @@ public class InternalTokenService {
         }
         Duration ttl = properties.bridgeTokenTtl() == null ? DEFAULT_BRIDGE_TTL : properties.bridgeTokenTtl();
         OAuthTokenService.IssuedAccessToken token = tokenService.issueAccessToken(
-                user, client.getClientId(), scopes, ttl);
+                user, client.getClientId(), scopes, ttl, sessionFamilyId);
         long expiresIn = Math.max(0, Duration.between(Instant.now(), token.expiresAt()).toSeconds());
         return new IssuedToken(token.value(), "Bearer", expiresIn);
     }

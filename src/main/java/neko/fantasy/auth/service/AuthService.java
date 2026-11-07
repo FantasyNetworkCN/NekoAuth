@@ -375,7 +375,11 @@ public class AuthService {
         if (token.getRevokedAt() != null) {
             return false;
         }
-        token.setRevokedAt(Instant.now());
+        if (token.getFamilyId() == null || token.getFamilyId().isBlank()) {
+            token.setRevokedAt(Instant.now());
+        } else {
+            refreshTokenRepository.revokeFamily(token.getFamilyId(), Instant.now());
+        }
         String currentHash = currentRefreshToken == null || currentRefreshToken.isBlank()
                 ? null : hashToken(currentRefreshToken);
         return token.getTokenHash().equals(currentHash);

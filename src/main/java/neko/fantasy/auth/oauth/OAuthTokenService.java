@@ -33,12 +33,20 @@ public class OAuthTokenService {
 
     public IssuedAccessToken issueAccessToken(User user, String clientId, Set<String> scopes,
                                               Duration ttl) {
+        return issueAccessToken(user, clientId, scopes, ttl, null);
+    }
+
+    public IssuedAccessToken issueAccessToken(User user, String clientId, Set<String> scopes,
+                                              Duration ttl, String sessionFamilyId) {
         Instant expiresAt = Instant.now().plus(ttl);
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("typ", "oauth_access");
         claims.put("client_id", clientId);
         claims.put("scope", OAuthScopes.encode(scopes));
         claims.put("ver", user.getTokenVersion());
+        if (sessionFamilyId != null && !sessionFamilyId.isBlank()) {
+            claims.put("sid", sessionFamilyId);
+        }
         if (scopes.contains(OAuthScopes.PROFILE)) {
             claims.put("username", user.getUsername());
         }
@@ -127,6 +135,7 @@ public class OAuthTokenService {
                     claims.get("email", String.class),
                     claims.get("role", String.class),
                     claims.get("ver", Integer.class),
+                    claims.get("sid", String.class),
                     claims.getExpiration().toInstant(),
                     claims.getIssuedAt().toInstant(),
                     claims.getId()
@@ -161,7 +170,8 @@ public class OAuthTokenService {
 
     public record AccessTokenClaims(Long userId, String clientId, String scope, String username,
                                     String email, String role,
-                                    int tokenVersion, Instant expiresAt, Instant issuedAt, String jti) {
+                                    int tokenVersion, String sessionFamilyId,
+                                    Instant expiresAt, Instant issuedAt, String jti) {
     }
 
     public record IdTokenHint(Long userId, String clientId, Instant authenticatedAt) {

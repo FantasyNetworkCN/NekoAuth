@@ -3,6 +3,7 @@ package neko.fantasy.auth.oauth;
 import io.jsonwebtoken.JwtException;
 import neko.fantasy.auth.config.OAuthProperties;
 import neko.fantasy.auth.domain.User;
+import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +33,7 @@ public class OAuthTokenEndpointService {
     private final OAuthClientRepository clientRepository;
     private final OAuthAuthorizationCodeRepository codeRepository;
     private final OAuthRefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenRepository browserRefreshTokenRepository;
     private final OAuthRevokedAccessTokenRepository revokedAccessTokenRepository;
     private final UserRepository userRepository;
     private final OAuthTokenService tokenService;
@@ -42,6 +44,7 @@ public class OAuthTokenEndpointService {
     public OAuthTokenEndpointService(OAuthClientRepository clientRepository,
                                      OAuthAuthorizationCodeRepository codeRepository,
                                      OAuthRefreshTokenRepository refreshTokenRepository,
+                                     RefreshTokenRepository browserRefreshTokenRepository,
                                      OAuthRevokedAccessTokenRepository revokedAccessTokenRepository,
                                      UserRepository userRepository,
                                      OAuthTokenService tokenService,
@@ -51,6 +54,7 @@ public class OAuthTokenEndpointService {
         this.clientRepository = clientRepository;
         this.codeRepository = codeRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.browserRefreshTokenRepository = browserRefreshTokenRepository;
         this.revokedAccessTokenRepository = revokedAccessTokenRepository;
         this.userRepository = userRepository;
         this.tokenService = tokenService;
@@ -136,6 +140,13 @@ public class OAuthTokenEndpointService {
                 return Map.of("active", false);
             }
             if (revokedAccessTokenRepository.existsById(claims.jti())) {
+                return Map.of("active", false);
+            }
+            if (claims.sessionFamilyId() != null && !claims.sessionFamilyId().isBlank()
+                    && browserRefreshTokenRepository
+                    .findFirstByFamilyIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
+                            claims.sessionFamilyId(), Instant.now())
+                    .isEmpty()) {
                 return Map.of("active", false);
             }
             User user = userRepository.findById(claims.userId())

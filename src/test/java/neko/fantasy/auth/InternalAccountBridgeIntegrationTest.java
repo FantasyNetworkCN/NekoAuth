@@ -385,13 +385,16 @@ class InternalAccountBridgeIntegrationTest {
         assertThat(sso.getDomain()).isEqualTo("fantasy.example");
         assertThat(sso.isHttpOnly()).isTrue();
 
-        mockMvc.perform(post("/api/internal/accounts/sso-session")
+        MvcResult issued = mockMvc.perform(post("/api/internal/accounts/sso-session")
                         .header(HttpHeaders.AUTHORIZATION, basic(client))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"ssoSession\":\"" + sso.getValue() + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1000000))
-                .andExpect(jsonPath("$.accessToken").isNotEmpty());
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andReturn();
+        String accessToken = JsonPath.read(
+                issued.getResponse().getContentAsString(), "$.accessToken");
 
         MvcResult logout = mockMvc.perform(post("/api/internal/accounts/sso-session/logout")
                         .header(HttpHeaders.AUTHORIZATION, basic(client))
@@ -401,6 +404,13 @@ class InternalAccountBridgeIntegrationTest {
                 .andReturn();
         assertThat(logout.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
                 .anyMatch(value -> value.startsWith("nekoauth_sso_session="));
+
+        mockMvc.perform(post("/oauth2/introspect")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("token", accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
 
         mockMvc.perform(post("/api/auth/refresh").cookie(refresh))
                 .andExpect(status().isUnauthorized());
