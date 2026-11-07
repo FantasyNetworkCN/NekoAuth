@@ -56,11 +56,6 @@ public class OAuthAuthorizationService {
         this.tokenService = tokenService;
     }
 
-    @Transactional
-    public OAuthDtos.AuthorizeView inspect(Long userId, OAuthDtos.AuthorizationRequest request) {
-        return inspect(userId, Instant.now(), request);
-    }
-
     @Transactional(readOnly = true)
     public OAuthDtos.AuthorizeView inspectAnonymous(OAuthDtos.AuthorizationRequest request) {
         if (!parsePrompts(request.prompt()).contains("none")) {
@@ -84,6 +79,7 @@ public class OAuthAuthorizationService {
 
     @Transactional
     public OAuthDtos.AuthorizeView inspect(Long userId, Instant authenticatedAt,
+                                           String sessionFamilyId,
                                            OAuthDtos.AuthorizationRequest request) {
         ValidatedAuthorization validated = validate(request);
         User user = requireUser(userId);
@@ -110,7 +106,8 @@ public class OAuthAuthorizationService {
                 previouslyApproved = true;
             }
             return view(user, validated, true,
-                    successRedirect(validated, user, authenticatedAt), false, loginHint);
+                    successRedirect(validated, user, authenticatedAt, sessionFamilyId),
+                    false, loginHint);
         }
 
         if (reauthRequired) {
@@ -120,18 +117,15 @@ public class OAuthAuthorizationService {
         boolean forceConsent = validated.prompts().contains("consent");
         if (previouslyApproved && !forceConsent) {
             return view(user, validated, true,
-                    successRedirect(validated, user, authenticatedAt), false, loginHint);
+                    successRedirect(validated, user, authenticatedAt, sessionFamilyId),
+                    false, loginHint);
         }
         return view(user, validated, previouslyApproved, null, false, loginHint);
     }
 
     @Transactional
-    public String decide(Long userId, OAuthDtos.AuthorizationRequest request, boolean approved) {
-        return decide(userId, Instant.now(), request, approved);
-    }
-
-    @Transactional
     public String decide(Long userId, Instant authenticatedAt,
+                         String sessionFamilyId,
                          OAuthDtos.AuthorizationRequest request, boolean approved) {
         ValidatedAuthorization validated = validate(request);
         User user = requireUser(userId);
@@ -145,7 +139,7 @@ public class OAuthAuthorizationService {
                 .findByUserIdAndClientId(userId, validated.client().getId())
                 .orElse(null);
         saveConsent(user, validated.client(), validated.scopes(), consent);
-        return successRedirect(validated, user, authenticatedAt);
+        return successRedirect(validated, user, authenticatedAt, sessionFamilyId);
     }
 
     private void saveConsent(User user, OAuthClient client, Set<String> requestedScopes,
@@ -204,7 +198,8 @@ public class OAuthAuthorizationService {
                 loginHint);
     }
 
-    private String successRedirect(ValidatedAuthorization validated, User user, Instant authenticatedAt) {
+    private String successRedirect(ValidatedAuthorization validated, User user, Instant authenticatedAt,
+                                   String sessionFamilyId) {
         String code = randomToken();
         OAuthAuthorizationCode authorizationCode = new OAuthAuthorizationCode(
                 sha256(code),
@@ -216,7 +211,8 @@ public class OAuthAuthorizationService {
                 validated.codeChallengeMethod(),
                 validated.nonce(),
                 authenticatedAt,
-                Instant.now().plus(properties.authorizationCodeTtl()));
+                Instant.now().plus(properties.authorizationCodeTtl()),
+                sessionFamilyId);
         codeRepository.save(authorizationCode);
         Map<String, String> params = new LinkedHashMap<>();
         params.put("code", code);

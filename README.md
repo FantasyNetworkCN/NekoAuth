@@ -7,7 +7,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 邮箱验证码注册、用户名/邮箱登录、安全退出
 - 15 分钟 JWT 访问令牌，浏览器内存存储，不写入 localStorage
 - 14 天刷新令牌，`HttpOnly + SameSite` Cookie 保存
-- 刷新令牌轮换、SHA-256 哈希落库、重放检测与按设备撤销令牌链；一个设备或旧标签页异常刷新不会注销其他设备
+- 刷新令牌轮换、SHA-256 哈希落库、重放检测与按设备撤销令牌链；OAuth 授权码、OAuth 刷新链和第一方桥接令牌都绑定发起授权的浏览器会话族，撤销该设备后整条授权链立即失效
 - 修改密码后立即失效所有旧访问令牌与刷新会话
 - 通过邮箱验证码找回密码，成功后同样立即失效旧访问令牌与刷新会话
 - 用户登录后可通过 `/account` 修改昵称、查看账户资料、修改密码、管理登录设备与退出全部会话
@@ -165,16 +165,17 @@ HttpOnly，不会发送给其他子域。子域 Web 因此无需跳转 Auth，�
 `nekoauth_session_hint` 仅保留为非敏感登录提示。父域共享会话失效、密码修改或任一子域调用共享会话
 退出接口时，Auth 会撤销整个会话族并清除这两个父域 Cookie。标准 OIDC RP-Initiated Logout 继续供
 需要端点登出的 OAuth 客户端使用。
-通过共享会话签发的第一方 access token 带有会话族标识；管理员撤销设备、用户主动退出或会话族过期后，
-对应 access token 的 introspection 会立即返回 `active=false`，不能继续访问下游业务 API。
+所有由浏览器授权签发并继续交给客户端使用的 access token 都带有会话族标识；管理员撤销设备、用户主动
+退出或会话族过期后，对应的 OAuth access token、OAuth refresh token 和第一方桥接 token 会同时失效，
+introspection 立即返回 `active=false`，不能再刷新或访问下游业务 API。
 从旧版本升级时，已存在的浏览器会话会在下一次 Auth 页面刷新（刷新令牌轮换）时补发
 `nekoauth_sso_session`；新登录会立即写入。
 
-登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。服务会将 hint 中的用户与当前浏览器刷新会话关联：只有二者匹配时才直接清理会话；没有 hint、没有当前会话或 hint 属于其他用户时，会跳转到 `/logout/confirm`，由用户明确确认后才执行登出。会话匹配时只会撤销发起应用对应的 OAuth 刷新令牌，不影响其他平台。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。成功清理外部应用的登出会话时，响应返回带 `no-store` 的受控 HTML 完成页并下发清除 Cookie，再由页面跳回已登记的 `post_logout_redirect_uri`；这样可避免部分 CDN 自动跟随跨域 302 时丢失 `Set-Cookie`。
+登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。服务会将 hint 中的用户与当前浏览器刷新会话关联：只有二者匹配时才直接清理会话；没有 hint、没有当前会话或 hint 属于其他用户时，会跳转到 `/logout/confirm`，由用户明确确认后才执行登出。会话匹配时会撤销当前浏览器会话族，以及由该会话族派生的全部 OAuth 授权链；同一浏览器会话下接入的 Web、Android、PC 等客户端都会立即失效。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。成功清理外部应用的登出会话时，响应返回带 `no-store` 的受控 HTML 完成页并下发清除 Cookie，再由页面跳回已登记的 `post_logout_redirect_uri`；这样可避免部分 CDN 自动跟随跨域 302 时丢失 `Set-Cookie`。
 
 ### 第一方服务端账号桥接
 
-NekoMusic 等第一方应用不再保存用户密码，也不再自行签发或保存用户 Token。它们的旧登录、注册、验证码、改密与找回密码 API 保持原路径和请求格式，由应用后端通过下面的内部接口转发到 NekoAuth；浏览器不会获得客户端密钥，也不会被签发 NekoAuth 浏览器会话。NekoMusic 浏览器登录使用标准 OAuth 授权码流程，服务端在回调中用短期 OAuth access token 换取 NekoAuth 所有的长期第一方 access token，再通过一次性交接交给浏览器。该长期令牌只能由 NekoAuth 吊销或随密码变更、账户停用失效，NekoMusic 不再维护用户 token 键值。
+NekoMusic 等第一方应用不再保存用户密码，也不再自行签发或保存用户 Token。它们的旧登录、注册、验证码、改密与找回密码 API 保持原路径和请求格式，由应用后端通过下面的内部接口转发到 NekoAuth；浏览器不会获得客户端密钥，也不会被签发 NekoAuth 浏览器会话。NekoMusic 浏览器登录使用标准 OAuth 授权码流程，服务端在回调中用短期 OAuth access token 换取 NekoAuth 所有的长期第一方 access token，再通过一次性交接交给浏览器。该长期令牌绑定发起授权的浏览器会话族，可由 NekoAuth 吊销、随设备会话撤销或随密码变更、账户停用失效；NekoMusic 不再维护用户 token 键值。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -247,7 +248,7 @@ curl -sS https://auth.nekocore.cn/api/admin/oauth-clients \
 
 桥接创建账号仍然执行 NekoAuth 的邮箱验证码、注册开关、邮箱域名白名单、密码策略和昵称违禁词校验；注册请求可附加可选 `nickname`，未提供时沿用邮箱前缀，只有已经由 NekoMusic 管理员后台鉴权的 `admin-create` 会跳过验证码与注册开关。登录与注册成功时，桥接响应除稳定数字用户 ID、邮箱、用户名、昵称、角色和启用状态外，还返回 `accessToken`、`tokenType` 与 `expiresIn`。该 access token 由 NekoAuth 签发并受 NekoAuth 管理，默认有效期为 365 天。NekoAuth 是昵称唯一权威源；NekoMusic 只用其中的稳定用户 ID 绑定本地业务资料，不保存昵称列，展示、搜索与通知场景通过 `lookup` / `search` 实时读取当前昵称。
 
-NekoMusic 浏览器登录时，服务端先用授权码和客户端密钥调用 `/oauth2/token`，再把拿到的短期 access token 提交给 `/api/internal/accounts/token/exchange` 换取长期第一方 access token。交换只接受同一客户端签发、未过期、未被吊销且用户会话版本仍有效的令牌；不同客户端的令牌会被拒绝。浏览器只收到 NekoMusic 的一次性登录交接，再由完成页领取 token，URL 中不会出现 access token。
+NekoMusic 浏览器登录时，服务端先用授权码和客户端密钥调用 `/oauth2/token`，再把拿到的短期 access token 提交给 `/api/internal/accounts/token/exchange` 换取长期第一方 access token。交换只接受同一客户端签发、未过期、未被吊销、绑定的 Auth 浏览器会话仍有效且用户会话版本仍有效的令牌；交换后的长期令牌会继承同一会话族，设备撤销后立即失效。不同客户端的令牌会被拒绝。浏览器只收到 NekoMusic 的一次性登录交接，再由完成页领取 token，URL 中不会出现 access token。
 
 NekoMusic 后续每次用户鉴权通过 `/oauth2/introspect` 获取权威身份，响应中的 `name` 为当前昵称；登出通过 `/oauth2/revoke` 吊销 access token。`/oauth2/introspect` 对已吊销、已过期、用户停用或密码变更后的旧令牌返回 `active=false`；`/oauth2/revoke` 按 RFC 7009 对无效令牌同样返回成功。密码、验证码、昵称和账号状态始终以 NekoAuth 为唯一权威源。
 
@@ -610,7 +611,7 @@ docker compose down
 
 验证码 10 分钟有效、最多尝试 5 次；同一邮箱 60 秒内只能发送一次，滚动 24 小时最多发送 5 次。发送限流记录与验证码记录分离，验证码被消费或删除不会解除发送冷却。
 
-注册与找回密码验证码在数据库中都只保存 HMAC-SHA256 摘要，并带有用途标记。修改密码与找回密码都会撤销 Auth 登录会话及 OAuth 授权刷新令牌；已经由 OAuth 换取到第三方应用本地的会话属于该应用自己的会话，只有应用实现对应的注销或撤销回调时才能同步失效。
+注册与找回密码验证码在数据库中都只保存 HMAC-SHA256 摘要，并带有用途标记。修改密码与找回密码都会撤销 Auth 登录会话及 OAuth 授权刷新令牌；由 OAuth 或第一方桥接签发的 access token 在 Auth 侧也会因会话族撤销立即失效，应用应在业务请求收到 `401` / `active=false` 时清理本地登录态。
 
 ### 用户 ID 与密码格式
 

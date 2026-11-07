@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -83,6 +84,55 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     @Test
+    void revokingBrowserSessionImmediatelyInvalidatesOauthAndClientTokens() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        Client client = createClient(adminToken, true, List.of(DESKTOP_REDIRECT), List.of(DESKTOP_LOGOUT),
+                List.of("openid", "profile", "offline_access"));
+        String username = uniqueUsername("device_revoke");
+        BrowserSession session = registerSession(username);
+        Tokens tokens = authorizeAndExchange(
+                session.accessToken(), client, DESKTOP_REDIRECT, username);
+
+        mockMvc.perform(post("/oauth2/introspect")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", client.clientId())
+                        .param("token", tokens.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(true));
+
+        mockMvc.perform(delete("/api/auth/sessions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + session.accessToken())
+                        .cookie(session.cookie()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + session.accessToken()))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/oauth2/introspect")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", client.clientId())
+                        .param("token", tokens.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+
+        mockMvc.perform(get("/oauth2/userinfo")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.accessToken()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("invalid_token"));
+
+        mockMvc.perform(post("/oauth2/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("grant_type", "refresh_token")
+                        .param("client_id", client.clientId())
+                        .param("refresh_token", tokens.refreshToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"));
+
+        assertIntrospection(client.clientId(), tokens.refreshToken(), false);
+    }
+
+    @Test
     void refreshTokenReuseOnlyRevokesItsOwnDeviceFamily() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         Client client = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
@@ -127,7 +177,7 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     @Test
-    void rpInitiatedLogoutOnlyRevokesTheRequestingPlatform() throws Exception {
+    void rpInitiatedLogoutRevokesEveryGrantFromTheSameBrowserSession() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         Client web = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
                 List.of("openid", "offline_access"));
@@ -156,7 +206,7 @@ class OAuthMultiPlatformIntegrationTest {
         assertThat(logout.getResponse().getContentAsString())
                 .contains(WEB_LOGOUT + "?state=" + state);
         assertIntrospection(web.clientId(), webTokens.refreshToken(), false);
-        assertIntrospection(desktop.clientId(), desktopTokens.refreshToken(), true);
+        assertIntrospection(desktop.clientId(), desktopTokens.refreshToken(), false);
 
         mockMvc.perform(get("/oauth2/logout")
                         .param("id_token_hint", desktopTokens.idToken())
@@ -236,7 +286,7 @@ class OAuthMultiPlatformIntegrationTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(WEB_LOGOUT)));
 
         assertIntrospection(web.clientId(), webTokens.refreshToken(), false);
-        assertIntrospection(desktop.clientId(), desktopTokens.refreshToken(), true);
+        assertIntrospection(desktop.clientId(), desktopTokens.refreshToken(), false);
     }
 
     @Test
@@ -640,7 +690,8 @@ class OAuthMultiPlatformIntegrationTest {
         Map<String, Object> claims = jwtClaims(idToken);
         assertThat(((Number) claims.get("auth_time")).longValue())
                 .isLessThanOrEqualTo(java.time.Instant.now().getEpochSecond());
-        return new Tokens(idToken, (String) body.get("refresh_token"));
+        return new Tokens((String) body.get("access_token"), idToken,
+                (String) body.get("refresh_token"));
     }
 
     private void assertIntrospection(String clientId, String refreshToken, boolean active) throws Exception {
@@ -762,7 +813,7 @@ class OAuthMultiPlatformIntegrationTest {
     private record Client(Long id, String clientId, String clientSecret) {
     }
 
-    private record Tokens(String idToken, String refreshToken) {
+    private record Tokens(String accessToken, String idToken, String refreshToken) {
     }
 
     private record BrowserSession(String accessToken, Cookie cookie) {

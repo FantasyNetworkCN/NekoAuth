@@ -43,7 +43,8 @@ public class OAuthAuthorizeApiController {
             return authorizationService.inspectAnonymous(authorizationRequest);
         }
         return authorizationService.inspect(
-                principal.id(), principal.authenticatedAt(), authorizationRequest);
+                principal.id(), principal.authenticatedAt(), principal.sessionFamilyId(),
+                authorizationRequest);
     }
 
     @PostMapping("/decision")
@@ -52,7 +53,7 @@ public class OAuthAuthorizeApiController {
             @RequestBody Decision decision
     ) {
         String redirectUrl = authorizationService.decide(
-                principal.id(), principal.authenticatedAt(),
+                principal.id(), principal.authenticatedAt(), principal.sessionFamilyId(),
                 request(decision.clientId(), decision.redirectUri(), decision.responseType(),
                         decision.scope(), decision.state(), decision.nonce(), decision.codeChallenge(),
                         decision.codeChallengeMethod(), decision.prompt(), decision.loginHint(),

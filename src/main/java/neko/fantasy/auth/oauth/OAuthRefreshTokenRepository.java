@@ -33,6 +33,15 @@ public interface OAuthRefreshTokenRepository extends JpaRepository<OAuthRefreshT
             """)
     int revokeFamily(@Param("familyId") String familyId, @Param("now") Instant now);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update OAuthRefreshToken r set r.revokedAt = :now
+            where r.authSessionFamilyId = :authSessionFamilyId and r.revokedAt is null
+            """)
+    int revokeByAuthSessionFamilyId(
+            @Param("authSessionFamilyId") String authSessionFamilyId,
+            @Param("now") Instant now);
+
     @Modifying
     @Query("""
             update OAuthRefreshToken r set r.revokedAt = :now

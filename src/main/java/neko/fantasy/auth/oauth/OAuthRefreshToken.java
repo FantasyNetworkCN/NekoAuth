@@ -19,6 +19,8 @@ import java.time.Instant;
 @Entity
 @Table(name = "oauth_refresh_tokens", indexes = {
         @Index(name = "idx_oauth_refresh_active", columnList = "user_id, client_id, revoked_at, expires_at"),
+        @Index(name = "idx_oauth_refresh_auth_session",
+                columnList = "auth_session_family_id, revoked_at"),
         @Index(name = "idx_oauth_refresh_expires", columnList = "expires_at")
 })
 public class OAuthRefreshToken {
@@ -61,6 +63,10 @@ public class OAuthRefreshToken {
     @Column(name = "family_id", length = 64)
     private String familyId;
 
+    /** 签发该 OAuth 授权链的 Auth 浏览器会话族；撤销浏览器会话时整条链同步失效。 */
+    @Column(name = "auth_session_family_id", length = 64)
+    private String authSessionFamilyId;
+
     protected OAuthRefreshToken() {
     }
 
@@ -76,6 +82,12 @@ public class OAuthRefreshToken {
 
     public OAuthRefreshToken(String tokenHash, OAuthClient client, User user, String scopes,
                              Instant authTime, Instant expiresAt, String familyId) {
+        this(tokenHash, client, user, scopes, authTime, expiresAt, familyId, null);
+    }
+
+    public OAuthRefreshToken(String tokenHash, OAuthClient client, User user, String scopes,
+                             Instant authTime, Instant expiresAt, String familyId,
+                             String authSessionFamilyId) {
         this.tokenHash = tokenHash;
         this.client = client;
         this.user = user;
@@ -85,6 +97,7 @@ public class OAuthRefreshToken {
         this.createdAt = Instant.now();
         this.lastUsedAt = this.createdAt;
         this.familyId = familyId;
+        this.authSessionFamilyId = authSessionFamilyId;
     }
 
     public OAuthClient getClient() {
@@ -109,6 +122,10 @@ public class OAuthRefreshToken {
 
     public String getFamilyId() {
         return familyId;
+    }
+
+    public String getAuthSessionFamilyId() {
+        return authSessionFamilyId;
     }
 
     public boolean isActive(Instant now) {

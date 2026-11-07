@@ -230,7 +230,7 @@ public class AuthService {
         }
         refreshTokenRepository.findByTokenHash(hashToken(rawRefreshToken))
                 .filter(token -> token.getRevokedAt() == null)
-                .ifPresent(token -> token.setRevokedAt(Instant.now()));
+                .ifPresent(token -> revokeSessionFamily(token, Instant.now()));
     }
 
     /** 第一方子域通过父域共享会话句柄解析当前登录用户。 */
@@ -250,7 +250,7 @@ public class AuthService {
     @Transactional
     public void revokeSsoSession(String sessionFamilyId) {
         if (sessionFamilyId != null && !sessionFamilyId.isBlank()) {
-            refreshTokenRepository.revokeFamily(sessionFamilyId, Instant.now());
+            revokeSessionFamily(sessionFamilyId, Instant.now());
         }
     }
 
@@ -375,11 +375,7 @@ public class AuthService {
         if (token.getRevokedAt() != null) {
             return false;
         }
-        if (token.getFamilyId() == null || token.getFamilyId().isBlank()) {
-            token.setRevokedAt(Instant.now());
-        } else {
-            refreshTokenRepository.revokeFamily(token.getFamilyId(), Instant.now());
-        }
+        revokeSessionFamily(token, Instant.now());
         String currentHash = currentRefreshToken == null || currentRefreshToken.isBlank()
                 ? null : hashToken(currentRefreshToken);
         return token.getTokenHash().equals(currentHash);
@@ -387,13 +383,26 @@ public class AuthService {
 
     @Transactional
     public void revokeAllSessions(Long userId) {
-        refreshTokenRepository.revokeAllForUser(userId, Instant.now());
+        revokeSessionsAndOAuthGrants(userId);
     }
 
     private void revokeSessionsAndOAuthGrants(Long userId) {
         Instant now = Instant.now();
         refreshTokenRepository.revokeAllForUser(userId, now);
         oauthRefreshTokenRepository.revokeAllForUser(userId, now);
+    }
+
+    private void revokeSessionFamily(RefreshToken token, Instant now) {
+        if (token.getFamilyId() == null || token.getFamilyId().isBlank()) {
+            token.setRevokedAt(now);
+            return;
+        }
+        revokeSessionFamily(token.getFamilyId(), now);
+    }
+
+    private void revokeSessionFamily(String familyId, Instant now) {
+        refreshTokenRepository.revokeFamily(familyId, now);
+        oauthRefreshTokenRepository.revokeByAuthSessionFamilyId(familyId, now);
     }
 
     @Scheduled(cron = "0 23 4 * * *")
@@ -422,7 +431,7 @@ public class AuthService {
 
     private AuthResult authResult(User user, String rawRefreshToken, Instant authenticatedAt,
                                   String sessionId) {
-        JwtService.IssuedToken accessToken = jwtService.issue(user, authenticatedAt);
+        JwtService.IssuedToken accessToken = jwtService.issue(user, authenticatedAt, sessionId);
         long expiresIn = Math.max(0, Duration.between(Instant.now(), accessToken.expiresAt()).toSeconds());
         ApiResponses.Auth auth = new ApiResponses.Auth(
                 accessToken.value(), "Bearer", expiresIn, ApiResponses.User.from(user));

@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import neko.fantasy.auth.domain.User;
+import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 
 @Component
@@ -26,10 +28,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository,
+                                   RefreshTokenRepository refreshTokenRepository) {
         this.jwtService = jwtService;
         this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     @Override
@@ -50,9 +55,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (user == null || !user.isEnabled() || user.getTokenVersion() != claims.tokenVersion()) {
                 return;
             }
+            if (!isSessionFamilyActive(claims.sessionFamilyId())) {
+                return;
+            }
 
             UserPrincipal principal = new UserPrincipal(
-                    user.getId(), user.getUsername(), user.getRole(), claims.authenticatedAt());
+                    user.getId(), user.getUsername(), user.getRole(), claims.authenticatedAt(),
+                    claims.sessionFamilyId());
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     principal,
                     null,
@@ -66,5 +75,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (JwtException | IllegalArgumentException ignored) {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    private boolean isSessionFamilyActive(String sessionFamilyId) {
+        return sessionFamilyId != null && !sessionFamilyId.isBlank()
+                && refreshTokenRepository
+                .existsByFamilyIdAndRevokedAtIsNullAndExpiresAtAfter(sessionFamilyId, Instant.now());
     }
 }

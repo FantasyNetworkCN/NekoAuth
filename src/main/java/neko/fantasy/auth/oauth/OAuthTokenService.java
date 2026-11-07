@@ -46,6 +46,9 @@ public class OAuthTokenService {
         claims.put("ver", user.getTokenVersion());
         if (sessionFamilyId != null && !sessionFamilyId.isBlank()) {
             claims.put("sid", sessionFamilyId);
+        } else {
+            // 仅可信内部账号桥接可直接签发独立令牌；旧版未带该标记的令牌会被视为失效。
+            claims.put("session_mode", "standalone");
         }
         if (scopes.contains(OAuthScopes.PROFILE)) {
             claims.put("username", user.getUsername());
@@ -136,6 +139,7 @@ public class OAuthTokenService {
                     claims.get("role", String.class),
                     claims.get("ver", Integer.class),
                     claims.get("sid", String.class),
+                    "standalone".equals(claims.get("session_mode", String.class)),
                     claims.getExpiration().toInstant(),
                     claims.getIssuedAt().toInstant(),
                     claims.getId()
@@ -170,7 +174,7 @@ public class OAuthTokenService {
 
     public record AccessTokenClaims(Long userId, String clientId, String scope, String username,
                                     String email, String role,
-                                    int tokenVersion, String sessionFamilyId,
+                                    int tokenVersion, String sessionFamilyId, boolean standalone,
                                     Instant expiresAt, Instant issuedAt, String jti) {
     }
 

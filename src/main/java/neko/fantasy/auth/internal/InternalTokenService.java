@@ -8,6 +8,7 @@ import neko.fantasy.auth.oauth.OAuthClient;
 import neko.fantasy.auth.oauth.OAuthRevokedAccessTokenRepository;
 import neko.fantasy.auth.oauth.OAuthScopes;
 import neko.fantasy.auth.oauth.OAuthTokenService;
+import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
@@ -25,14 +26,17 @@ public class InternalTokenService {
     private final OAuthTokenService tokenService;
     private final OAuthProperties properties;
     private final UserRepository userRepository;
+    private final RefreshTokenRepository browserRefreshTokenRepository;
     private final OAuthRevokedAccessTokenRepository revokedAccessTokenRepository;
 
     public InternalTokenService(OAuthTokenService tokenService, OAuthProperties properties,
                                 UserRepository userRepository,
+                                RefreshTokenRepository browserRefreshTokenRepository,
                                 OAuthRevokedAccessTokenRepository revokedAccessTokenRepository) {
         this.tokenService = tokenService;
         this.properties = properties;
         this.userRepository = userRepository;
+        this.browserRefreshTokenRepository = browserRefreshTokenRepository;
         this.revokedAccessTokenRepository = revokedAccessTokenRepository;
     }
 
@@ -76,11 +80,18 @@ public class InternalTokenService {
                 || revokedAccessTokenRepository.existsById(claims.jti())) {
             throw ApiException.unauthorized("INVALID_TOKEN", "用户会话已失效");
         }
+        if (!claims.standalone()
+                && (claims.sessionFamilyId() == null || claims.sessionFamilyId().isBlank()
+                || !browserRefreshTokenRepository
+                .existsByFamilyIdAndRevokedAtIsNullAndExpiresAtAfter(
+                        claims.sessionFamilyId(), Instant.now()))) {
+            throw ApiException.unauthorized("INVALID_TOKEN", "用户会话已失效");
+        }
         User user = userRepository.findById(claims.userId())
                 .filter(User::isEnabled)
                 .filter(candidate -> candidate.getTokenVersion() == claims.tokenVersion())
                 .orElseThrow(() -> ApiException.unauthorized("INVALID_TOKEN", "用户会话已失效"));
-        return issue(user, client);
+        return issue(user, client, claims.sessionFamilyId());
     }
 
     public record IssuedToken(String accessToken, String tokenType, long expiresIn) {

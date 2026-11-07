@@ -36,13 +36,17 @@ public class JwtService {
     }
 
     public IssuedToken issue(User user) {
-        return issue(user, Instant.now());
+        return issue(user, Instant.now(), null);
     }
 
     public IssuedToken issue(User user, Instant authenticatedAt) {
+        return issue(user, authenticatedAt, null);
+    }
+
+    public IssuedToken issue(User user, Instant authenticatedAt, String sessionFamilyId) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(accessTtl);
-        String token = Jwts.builder()
+        var builder = Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .issuer(issuer)
                 .subject(user.getId().toString())
@@ -52,9 +56,11 @@ public class JwtService {
                 .claim("username", user.getUsername())
                 .claim("role", user.getRole().name())
                 .claim("ver", user.getTokenVersion())
-                .claim("auth_time", authenticatedAt.getEpochSecond())
-                .signWith(key)
-                .compact();
+                .claim("auth_time", authenticatedAt.getEpochSecond());
+        if (sessionFamilyId != null && !sessionFamilyId.isBlank()) {
+            builder.claim("sid", sessionFamilyId);
+        }
+        String token = builder.signWith(key).compact();
         return new IssuedToken(token, expiresAt);
     }
 
@@ -81,6 +87,7 @@ public class JwtService {
                     Role.valueOf(claims.get("role", String.class)),
                     claims.get("ver", Integer.class),
                     authenticatedAt,
+                    claims.get("sid", String.class),
                     claims.getExpiration().toInstant()
             );
         } catch (RuntimeException exception) {
@@ -92,6 +99,6 @@ public class JwtService {
     }
 
     public record AccessClaims(Long userId, String username, Role role, int tokenVersion,
-                               Instant authenticatedAt, Instant expiresAt) {
+                               Instant authenticatedAt, String sessionFamilyId, Instant expiresAt) {
     }
 }

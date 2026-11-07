@@ -18,6 +18,7 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "oauth_authorization_codes", indexes = {
+        @Index(name = "idx_oauth_codes_auth_session", columnList = "auth_session_family_id"),
         @Index(name = "idx_oauth_codes_expires", columnList = "expires_at")
 })
 public class OAuthAuthorizationCode {
@@ -57,6 +58,10 @@ public class OAuthAuthorizationCode {
     @Column(name = "auth_time")
     private Instant authTime;
 
+    /** 发起本次授权的 Auth 浏览器会话族；OAuth 令牌不得脱离该会话继续使用。 */
+    @Column(name = "auth_session_family_id", length = 64)
+    private String authSessionFamilyId;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
@@ -79,6 +84,14 @@ public class OAuthAuthorizationCode {
     public OAuthAuthorizationCode(String codeHash, OAuthClient client, User user, String scopes,
                                   String redirectUri, String codeChallenge, String codeChallengeMethod,
                                   String nonce, Instant authTime, Instant expiresAt) {
+        this(codeHash, client, user, scopes, redirectUri, codeChallenge, codeChallengeMethod,
+                nonce, authTime, expiresAt, null);
+    }
+
+    public OAuthAuthorizationCode(String codeHash, OAuthClient client, User user, String scopes,
+                                  String redirectUri, String codeChallenge, String codeChallengeMethod,
+                                  String nonce, Instant authTime, Instant expiresAt,
+                                  String authSessionFamilyId) {
         this.codeHash = codeHash;
         this.client = client;
         this.user = user;
@@ -88,6 +101,7 @@ public class OAuthAuthorizationCode {
         this.codeChallengeMethod = codeChallengeMethod;
         this.nonce = nonce;
         this.authTime = authTime;
+        this.authSessionFamilyId = authSessionFamilyId;
         this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
     }
@@ -122,6 +136,10 @@ public class OAuthAuthorizationCode {
 
     public Instant getAuthTime() {
         return authTime;
+    }
+
+    public String getAuthSessionFamilyId() {
+        return authSessionFamilyId;
     }
 
     public Instant getExpiresAt() {

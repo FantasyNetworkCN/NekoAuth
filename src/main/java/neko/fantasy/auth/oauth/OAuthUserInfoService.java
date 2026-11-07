@@ -2,6 +2,7 @@ package neko.fantasy.auth.oauth;
 
 import io.jsonwebtoken.JwtException;
 import neko.fantasy.auth.domain.User;
+import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.service.AvatarService;
 import org.springframework.http.HttpStatus;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -19,14 +21,17 @@ public class OAuthUserInfoService {
     private final OAuthTokenService tokenService;
     private final OAuthClientRepository clientRepository;
     private final UserRepository userRepository;
+    private final RefreshTokenRepository browserRefreshTokenRepository;
     private final OAuthRevokedAccessTokenRepository revokedAccessTokenRepository;
 
     public OAuthUserInfoService(OAuthTokenService tokenService, OAuthClientRepository clientRepository,
                                 UserRepository userRepository,
+                                RefreshTokenRepository browserRefreshTokenRepository,
                                 OAuthRevokedAccessTokenRepository revokedAccessTokenRepository) {
         this.tokenService = tokenService;
         this.clientRepository = clientRepository;
         this.userRepository = userRepository;
+        this.browserRefreshTokenRepository = browserRefreshTokenRepository;
         this.revokedAccessTokenRepository = revokedAccessTokenRepository;
     }
 
@@ -45,6 +50,13 @@ public class OAuthUserInfoService {
         }
         if (revokedAccessTokenRepository.existsById(claims.jti())) {
             throw new OAuthException("invalid_token", "访问令牌已撤销", HttpStatus.UNAUTHORIZED);
+        }
+        if (!claims.standalone()
+                && (claims.sessionFamilyId() == null || claims.sessionFamilyId().isBlank()
+                || !browserRefreshTokenRepository
+                .existsByFamilyIdAndRevokedAtIsNullAndExpiresAtAfter(
+                        claims.sessionFamilyId(), Instant.now()))) {
+            throw new OAuthException("invalid_token", "登录会话已失效", HttpStatus.UNAUTHORIZED);
         }
         OAuthClient client = clientRepository.findByClientId(claims.clientId())
                 .filter(OAuthClient::isEnabled)

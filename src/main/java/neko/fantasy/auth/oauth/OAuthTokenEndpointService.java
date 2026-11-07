@@ -118,7 +118,8 @@ public class OAuthTokenEndpointService {
         if (refreshToken != null) {
             if (!refreshToken.getClient().getId().equals(client.getId())
                     || !refreshToken.isActive(Instant.now())
-                    || !refreshToken.getUser().isEnabled()) {
+                    || !refreshToken.getUser().isEnabled()
+                    || !isBrowserSessionActive(refreshToken.getAuthSessionFamilyId())) {
                 return Map.of("active", false);
             }
             Map<String, Object> response = new LinkedHashMap<>();
@@ -142,11 +143,7 @@ public class OAuthTokenEndpointService {
             if (revokedAccessTokenRepository.existsById(claims.jti())) {
                 return Map.of("active", false);
             }
-            if (claims.sessionFamilyId() != null && !claims.sessionFamilyId().isBlank()
-                    && browserRefreshTokenRepository
-                    .findFirstByFamilyIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
-                            claims.sessionFamilyId(), Instant.now())
-                    .isEmpty()) {
+            if (!claims.standalone() && !isBrowserSessionActive(claims.sessionFamilyId())) {
                 return Map.of("active", false);
             }
             User user = userRepository.findById(claims.userId())
@@ -203,11 +200,15 @@ public class OAuthTokenEndpointService {
         if (!authorizationCode.getRedirectUri().equals(redirectUri)) {
             throw OAuthException.invalidGrant("redirect_uri 与授权请求不一致");
         }
+        if (!isBrowserSessionActive(authorizationCode.getAuthSessionFamilyId())) {
+            throw OAuthException.invalidGrant("授权登录会话已失效");
+        }
         verifyPkce(authorizationCode, form.get("code_verifier"));
         authorizationCode.consume();
         return issueTokens(client, authorizationCode.getUser(),
                 splitScopes(authorizationCode.getScopes()), authorizationCode.getNonce(),
-                authorizationCode.getAuthTime(), true);
+                authorizationCode.getAuthTime(), true, null,
+                authorizationCode.getAuthSessionFamilyId());
     }
 
     private Map<String, Object> refreshTokenGrant(OAuthClient client, Map<String, String> form) {
@@ -231,6 +232,11 @@ public class OAuthTokenEndpointService {
         if (!refreshToken.isActive(Instant.now())) {
             throw OAuthException.invalidGrant("刷新令牌已过期或已被撤销");
         }
+        if (!isBrowserSessionActive(refreshToken.getAuthSessionFamilyId())) {
+            reuseService.revokeFamily(refreshToken.getFamilyId() == null
+                    ? refreshToken.getTokenHash() : refreshToken.getFamilyId());
+            throw OAuthException.invalidGrant("授权登录会话已失效");
+        }
         LinkedHashSet<String> originalScopes = splitScopes(refreshToken.getScopes());
         LinkedHashSet<String> scopes = originalScopes;
         String requestedScope = form.get("scope");
@@ -245,26 +251,26 @@ public class OAuthTokenEndpointService {
         return issueTokens(client, refreshToken.getUser(), scopes, null,
                 refreshToken.getAuthTime(), true,
                 refreshToken.getFamilyId() == null
-                        ? refreshToken.getTokenHash() : refreshToken.getFamilyId());
+                        ? refreshToken.getTokenHash() : refreshToken.getFamilyId(),
+                refreshToken.getAuthSessionFamilyId());
     }
 
     private Map<String, Object> issueTokens(OAuthClient client, User user, Set<String> scopes,
                                             String nonce, Instant authenticatedAt,
-                                            boolean rotateRefreshToken) {
-        return issueTokens(client, user, scopes, nonce, authenticatedAt, rotateRefreshToken, null);
-    }
-
-    private Map<String, Object> issueTokens(OAuthClient client, User user, Set<String> scopes,
-                                            String nonce, Instant authenticatedAt,
-                                            boolean rotateRefreshToken, String refreshFamilyId) {
+                                            boolean rotateRefreshToken, String refreshFamilyId,
+                                            String authSessionFamilyId) {
         if (!user.isEnabled()) {
             throw OAuthException.invalidGrant("用户账户已停用");
+        }
+        if (!isBrowserSessionActive(authSessionFamilyId)) {
+            throw OAuthException.invalidGrant("授权登录会话已失效");
         }
         Instant authTime = authenticatedAt != null
                 ? authenticatedAt
                 : (user.getLastLoginAt() == null ? Instant.now() : user.getLastLoginAt());
         OAuthTokenService.IssuedAccessToken accessToken = tokenService.issueAccessToken(
-                user, client.getClientId(), scopes);
+                user, client.getClientId(), scopes, properties.accessTokenTtl(),
+                authSessionFamilyId);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("access_token", accessToken.value());
         response.put("token_type", "Bearer");
@@ -280,11 +286,19 @@ public class OAuthTokenEndpointService {
             OAuthRefreshToken refreshToken = new OAuthRefreshToken(
                     sha256(rawRefreshToken), client, user, OAuthScopes.encode(scopes), authTime,
                     Instant.now().plus(properties.refreshTokenTtl()),
-                    refreshFamilyId == null ? UUID.randomUUID().toString() : refreshFamilyId);
+                    refreshFamilyId == null ? UUID.randomUUID().toString() : refreshFamilyId,
+                    authSessionFamilyId);
             refreshTokenRepository.save(refreshToken);
             response.put("refresh_token", rawRefreshToken);
         }
         return response;
+    }
+
+    private boolean isBrowserSessionActive(String sessionFamilyId) {
+        return sessionFamilyId != null && !sessionFamilyId.isBlank()
+                && browserRefreshTokenRepository
+                .existsByFamilyIdAndRevokedAtIsNullAndExpiresAtAfter(
+                        sessionFamilyId, Instant.now());
     }
 
     private void verifyPkce(OAuthAuthorizationCode code, String verifier) {
