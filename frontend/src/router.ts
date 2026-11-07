@@ -86,6 +86,10 @@ router.beforeEach((to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.meta.guestOnly && auth.isAuthenticated.value) {
+    const externalReturnTo = to.query.return_to
+    if (typeof externalReturnTo === 'string' && /^https?:\/\//i.test(externalReturnTo)) {
+      return true
+    }
     const redirect = to.query.redirect
     if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
       return redirect

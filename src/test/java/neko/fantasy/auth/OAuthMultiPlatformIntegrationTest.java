@@ -446,6 +446,31 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     @Test
+    void webEntryOnlyReturnsToRegisteredFirstPartyOrigins() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        createClient(adminToken, false, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
+                List.of("openid", "account:bridge"));
+
+        mockMvc.perform(post("/api/auth/web-entry/resolve")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"returnTo":"https://web.fantasy.example/favorites"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.returnTo").value("https://web.fantasy.example/favorites"));
+
+        mockMvc.perform(post("/api/auth/web-entry/resolve")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"returnTo":"https://evil.example/favorites"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_RETURN_TO"));
+    }
+
+    @Test
     void anonymousPromptNoneReturnsLoginRequiredWithoutShowingLoginUi() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         Client client = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),

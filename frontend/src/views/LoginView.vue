@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AuthLayout from '@/components/AuthLayout.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import { ApiError } from '@/lib/api'
+import { ApiError, api } from '@/lib/api'
 import { auth } from '@/stores/auth'
 import { showToast } from '@/lib/toast'
 
@@ -20,6 +20,10 @@ const error = ref('')
 const redirectTarget = computed(() => {
   const value = route.query.redirect
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : null
+})
+const externalReturnTo = computed(() => {
+  const value = route.query.return_to
+  return typeof value === 'string' && /^https?:\/\//i.test(value) ? value : null
 })
 const signedInWithoutRedirect = computed(() => !redirectTarget.value && auth.isAuthenticated.value)
 const isOAuthFlow = computed(() => redirectTarget.value?.startsWith('/authorize') === true)
@@ -44,6 +48,12 @@ async function submit() {
   try {
     await auth.login(identifier.value.trim(), password.value)
     const name = auth.state.user?.displayName || auth.state.user?.username
+    if (externalReturnTo.value) {
+      const resolved = await api.resolveWebEntry(externalReturnTo.value)
+      showToast(`欢迎回来，${name}`, 'success')
+      window.location.assign(resolved.returnTo)
+      return
+    }
     if (redirectTarget.value) {
       showToast(`欢迎回来，${name}`, 'success')
       await router.replace(redirectTarget.value)
@@ -57,6 +67,16 @@ async function submit() {
     loading.value = false
   }
 }
+
+onMounted(async () => {
+  if (!externalReturnTo.value || !auth.isAuthenticated.value) return
+  try {
+    const resolved = await api.resolveWebEntry(externalReturnTo.value)
+    window.location.replace(resolved.returnTo)
+  } catch {
+    error.value = '登录返回地址无效，请重新进入应用。'
+  }
+})
 
 async function logout() {
   if (loggingOut.value) return

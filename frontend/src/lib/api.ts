@@ -171,6 +171,13 @@ export const api = {
     )
   },
 
+  resolveWebEntry(returnTo: string) {
+    return request<{ returnTo: string }>('/auth/web-entry/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ returnTo }),
+    })
+  },
+
   register(input: {
     nickname?: string
     email: string

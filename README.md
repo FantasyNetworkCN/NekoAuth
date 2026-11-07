@@ -535,6 +535,7 @@ docker compose down
 | `POST` | `/api/auth/register/code` | 完成人机验证后向白名单邮箱发送 6 位注册验证码；提交 `email/captchaId/captchaAnswer`，需要先配置 SMTP |
 | `POST` | `/api/auth/register` | 使用可选的 `nickname` 与 `email/password/verificationCode` 注册并登录；昵称留空时使用邮箱前缀 |
 | `GET` | `/api/auth/registration-policy` | 公开查询注册是否开放、是否需要邮箱验证码、邮箱域名白名单，以及验证码有效期、发送冷却、每日上限与计数窗口 |
+| `POST` | `/api/auth/web-entry/resolve` | 登录后校验第一方 Web 的绝对回跳地址；只接受已登记 OAuth 应用的 Origin |
 | `POST` | `/api/auth/login` | 用户名或邮箱登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
 | `POST` | `/api/auth/logout` | 退出当前会话 |
