@@ -29,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -145,14 +146,15 @@ class OAuthMultiPlatformIntegrationTest {
                         .param("id_token_hint", webTokens.idToken())
                         .param("post_logout_redirect_uri", WEB_LOGOUT)
                         .param("state", state))
-                .andExpect(status().isFound())
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE,
+                        org.hamcrest.Matchers.startsWith(MediaType.TEXT_HTML_VALUE)))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE,
                         org.hamcrest.Matchers.containsString("refresh_token=")))
                 .andReturn();
 
-        String location = logout.getResponse().getHeader(HttpHeaders.LOCATION);
-        assertThat(location).startsWith(WEB_LOGOUT);
-        assertThat(queryParameters(location).get("state")).isEqualTo(state);
+        assertThat(logout.getResponse().getContentAsString())
+                .contains(WEB_LOGOUT + "?state=" + state);
         assertIntrospection(web.clientId(), webTokens.refreshToken(), false);
         assertIntrospection(desktop.clientId(), desktopTokens.refreshToken(), true);
 
@@ -194,10 +196,9 @@ class OAuthMultiPlatformIntegrationTest {
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("id_token_hint", hintTokens.idToken())
                         .param("post_logout_redirect_uri", WEB_LOGOUT))
-                .andExpect(status().isFound())
+                .andExpect(status().isOk())
                 .andReturn();
-        assertThat(confirmed.getResponse().getHeader(HttpHeaders.LOCATION))
-                .startsWith(WEB_LOGOUT);
+        assertThat(confirmed.getResponse().getContentAsString()).contains(WEB_LOGOUT);
         assertIntrospection(web.clientId(), hintTokens.refreshToken(), true);
 
         mockMvc.perform(post("/api/auth/refresh").cookie(currentSession.cookie()))
@@ -231,9 +232,8 @@ class OAuthMultiPlatformIntegrationTest {
                         .cookie(session.cookie())
                         .param("id_token_hint", expiredHint)
                         .param("post_logout_redirect_uri", WEB_LOGOUT))
-                .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION,
-                        org.hamcrest.Matchers.startsWith(WEB_LOGOUT)));
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(WEB_LOGOUT)));
 
         assertIntrospection(web.clientId(), webTokens.refreshToken(), false);
         assertIntrospection(desktop.clientId(), desktopTokens.refreshToken(), true);
@@ -265,11 +265,10 @@ class OAuthMultiPlatformIntegrationTest {
                         .param("client_id", client.clientId())
                         .param("post_logout_redirect_uri", WEB_LOGOUT)
                         .param("state", state))
-                .andExpect(status().isFound())
+                .andExpect(status().isOk())
                 .andReturn();
-        String confirmedLocation = confirmed.getResponse().getHeader(HttpHeaders.LOCATION);
-        assertThat(confirmedLocation).startsWith(WEB_LOGOUT);
-        assertThat(queryParameters(confirmedLocation)).containsEntry("state", state);
+        assertThat(confirmed.getResponse().getContentAsString())
+                .contains(WEB_LOGOUT + "?state=" + state);
 
         mockMvc.perform(get("/oauth2/logout")
                         .param("client_id", client.clientId())
@@ -306,9 +305,9 @@ class OAuthMultiPlatformIntegrationTest {
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("client_id", client.clientId())
                         .param("post_logout_redirect_uri", updatedLogout))
-                .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION,
-                        org.hamcrest.Matchers.startsWith(updatedLogout)));
+                .andExpect(status().isOk())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.containsString(updatedLogout)));
 
         mockMvc.perform(get("/oauth2/logout")
                         .param("client_id", client.clientId())

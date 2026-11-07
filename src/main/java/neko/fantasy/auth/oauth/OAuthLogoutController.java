@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import neko.fantasy.auth.service.AuthCookieService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,7 +26,7 @@ public class OAuthLogoutController {
     }
 
     @GetMapping("/oauth2/logout")
-    public ResponseEntity<Void> logoutGet(
+    public ResponseEntity<?> logoutGet(
             @RequestParam(name = "id_token_hint", required = false) String idTokenHint,
             @RequestParam(name = "client_id", required = false) String clientId,
             @RequestParam(name = "post_logout_redirect_uri", required = false) String postLogoutRedirectUri,
@@ -36,7 +37,7 @@ public class OAuthLogoutController {
     }
 
     @PostMapping("/oauth2/logout")
-    public ResponseEntity<Void> logoutPost(
+    public ResponseEntity<?> logoutPost(
             @RequestParam(name = "id_token_hint", required = false) String idTokenHint,
             @RequestParam(name = "client_id", required = false) String clientId,
             @RequestParam(name = "post_logout_redirect_uri", required = false) String postLogoutRedirectUri,
@@ -48,7 +49,7 @@ public class OAuthLogoutController {
 
     /** 用户在确认页明确提交后才执行无 hint 或 hint 与当前会话不匹配的登出。 */
     @PostMapping("/oauth2/logout/confirm")
-    public ResponseEntity<Void> logoutConfirm(
+    public ResponseEntity<?> logoutConfirm(
             @RequestParam(name = "id_token_hint", required = false) String idTokenHint,
             @RequestParam(name = "client_id", required = false) String clientId,
             @RequestParam(name = "post_logout_redirect_uri", required = false) String postLogoutRedirectUri,
@@ -58,9 +59,9 @@ public class OAuthLogoutController {
         return logout(idTokenHint, clientId, postLogoutRedirectUri, state, true, request);
     }
 
-    private ResponseEntity<Void> logout(String idTokenHint, String clientId,
-                                        String postLogoutRedirectUri, String state,
-                                        boolean confirmed, HttpServletRequest request) {
+    private ResponseEntity<?> logout(String idTokenHint, String clientId,
+                                     String postLogoutRedirectUri, String state,
+                                     boolean confirmed, HttpServletRequest request) {
         OAuthLogoutService.LogoutParameters parameters = new OAuthLogoutService.LogoutParameters(
                 idTokenHint, clientId, postLogoutRedirectUri, state);
         String refreshToken = cookieService.read(request).orElse(null);
@@ -93,7 +94,32 @@ public class OAuthLogoutController {
         }
     }
 
-    private ResponseEntity<Void> redirect(String target, boolean clearCookies) {
+    private ResponseEntity<?> redirect(String target, boolean clearCookies) {
+        if (clearCookies && isExternalHttpTarget(target)) {
+            String escaped = htmlEscape(target);
+            String body = """
+                    <!doctype html>
+                    <html lang="zh-CN">
+                    <head>
+                      <meta charset="utf-8">
+                      <meta name="referrer" content="no-referrer">
+                      <meta http-equiv="refresh" content="0;url=%s">
+                      <title>正在退出</title>
+                    </head>
+                    <body>
+                      <p>已退出 NekoAuth，正在返回应用…</p>
+                      <p><a href="%s">如果没有自动跳转，请点击这里</a></p>
+                    </body>
+                    </html>
+                    """.formatted(escaped, escaped);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.TEXT_HTML)
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .header("Referrer-Policy", "no-referrer")
+                    .header(HttpHeaders.SET_COOKIE,
+                            cookieService.clearHeaders().toArray(String[]::new))
+                    .body(body);
+        }
         ResponseEntity.BodyBuilder response = ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(target))
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
@@ -103,5 +129,25 @@ public class OAuthLogoutController {
                     cookieService.clearHeaders().toArray(String[]::new));
         }
         return response.build();
+    }
+
+    private static boolean isExternalHttpTarget(String target) {
+        if (target == null || target.isBlank()) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(target);
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+            return uri.getHost() != null && ("https".equals(scheme) || "http".equals(scheme));
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    private static String htmlEscape(String value) {
+        return value.replace("&", "&amp;")
+                .replace("\"", "&quot;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 }
