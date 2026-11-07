@@ -327,7 +327,7 @@ onMounted(() => {
               >
                 <span v-if="avatarUploading" class="spinner"></span>
                 <AppIcon v-else name="edit" :size="15" />
-                {{ avatarUploading ? '上传中…' : '更换头像' }}
+                <span>{{ avatarUploading ? '上传中…' : '更换头像' }}</span>
               </button>
             </div>
 
@@ -573,7 +573,7 @@ onMounted(() => {
 <style scoped>
 .account-page {
   min-height: 100svh;
-  padding-bottom: 2.5rem;
+  padding-bottom: calc(2.5rem + env(safe-area-inset-bottom));
   background:
     radial-gradient(circle at 88% 4%, rgba(239, 98, 98, 0.055), transparent 30%),
     radial-gradient(circle at 6% 80%, rgba(226, 180, 92, 0.035), transparent 32%);
@@ -659,6 +659,10 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
+.account-overview > * {
+  min-width: 0;
+}
+
 .overview-copy {
   display: flex;
   min-height: 260px;
@@ -690,6 +694,7 @@ onMounted(() => {
 }
 
 .overview-copy h1 {
+  overflow-wrap: anywhere;
   margin-top: 0.75rem;
   color: var(--ink);
   font-size: clamp(2rem, 4vw, 3.2rem);
@@ -1228,6 +1233,10 @@ onMounted(() => {
 }
 
 @media (max-width: 620px) {
+  .account-topbar {
+    padding-top: env(safe-area-inset-top);
+  }
+
   .topbar-inner {
     width: min(100% - 1.2rem, 1180px);
     min-height: 64px;
@@ -1274,6 +1283,17 @@ onMounted(() => {
     border-radius: 18px;
   }
 
+  .avatar-editor {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .avatar-editor > .btn {
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+
   .form-actions,
   .sessions-heading {
     align-items: stretch;
@@ -1286,7 +1306,16 @@ onMounted(() => {
   }
 
   .session-row {
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 0.75rem;
+    row-gap: 0.65rem;
+  }
+
+  .session-revoke {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .session-copy p,
