@@ -56,8 +56,8 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 .auth-page {
   display: grid;
   min-height: 100svh;
-  place-items: center;
-  padding: clamp(0rem, 2.4vw, 1.75rem);
+  place-items: stretch;
+  padding: 0;
   background:
     radial-gradient(circle at 86% 4%, rgba(255, 157, 122, 0.09), transparent 30%),
     radial-gradient(circle at 8% 88%, rgba(232, 189, 102, 0.055), transparent 34%),
@@ -66,14 +66,14 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 
 .auth-shell {
   display: grid;
-  width: min(1180px, 100%);
-  min-height: min(780px, calc(100svh - 3.5rem));
-  grid-template-columns: minmax(0, 0.92fr) minmax(430px, 1.08fr);
+  width: 100%;
+  height: 100svh;
+  min-height: 0;
+  grid-template-columns: minmax(0, 0.94fr) minmax(460px, 1.06fr);
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 28px;
+  border: 0;
+  border-radius: 0;
   background: #130e0b;
-  box-shadow: 0 40px 120px -40px rgba(0, 0, 0, 0.86);
 }
 
 .auth-art {
@@ -155,7 +155,7 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 
 .art-copy {
   max-width: 510px;
-  padding-top: 13rem;
+  padding-top: clamp(7.5rem, 21vh, 13rem);
 }
 
 .art-eyebrow {
@@ -223,10 +223,13 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 .auth-form-side {
   position: relative;
   display: flex;
-  align-items: center;
+  height: 100%;
+  min-height: 0;
+  align-items: safe center;
   justify-content: center;
-  overflow: hidden;
-  padding: clamp(1.5rem, 4vw, 4.2rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: clamp(2rem, 4.4vw, 5.25rem);
   background:
     radial-gradient(circle at 100% 0%, rgba(255, 157, 122, 0.08), transparent 28%),
     linear-gradient(180deg, #17110e, #100c0a);
@@ -261,7 +264,7 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 .auth-form-wrap {
   position: relative;
   z-index: 1;
-  width: min(420px, 100%);
+  width: min(440px, 100%);
   animation: form-in 0.6s var(--ease-out) both;
 }
 
@@ -347,14 +350,46 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   to { opacity: 1; transform: translateY(0); }
 }
 
+@media (min-width: 1600px) {
+  .auth-shell {
+    grid-template-columns: minmax(0, 0.98fr) minmax(500px, 1.02fr);
+  }
+
+  .auth-art {
+    padding: 3rem 4.2rem;
+  }
+
+  .art-copy {
+    max-width: 590px;
+  }
+
+  .art-copy h1 {
+    font-size: clamp(4.2rem, 4.8vw, 5.7rem);
+  }
+
+  .auth-form-side {
+    padding-inline: clamp(4rem, 8vw, 10rem);
+  }
+
+  .auth-form-wrap {
+    width: min(480px, 100%);
+  }
+
+  .form-card {
+    padding: 1.75rem;
+  }
+}
+
 @media (max-width: 920px) {
   .auth-page {
     display: block;
+    min-height: 100svh;
     padding: 0;
   }
 
   .auth-shell {
     display: block;
+    height: auto;
     min-height: 100svh;
     border: 0;
     border-radius: 0;
