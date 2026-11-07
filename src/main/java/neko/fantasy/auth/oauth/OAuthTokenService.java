@@ -47,7 +47,7 @@ public class OAuthTokenService {
         if (sessionFamilyId != null && !sessionFamilyId.isBlank()) {
             claims.put("sid", sessionFamilyId);
         } else {
-            // 仅可信内部账号桥接可直接签发独立令牌；旧版未带该标记的令牌会被视为失效。
+            // 无浏览器会话的内部测试/兼容令牌显式标记为 standalone；旧令牌没有标记会被视为失效。
             claims.put("session_mode", "standalone");
         }
         if (scopes.contains(OAuthScopes.PROFILE)) {

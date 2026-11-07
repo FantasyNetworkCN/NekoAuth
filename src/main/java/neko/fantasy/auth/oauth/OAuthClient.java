@@ -45,6 +45,10 @@ public class OAuthClient {
     @Column(name = "public_client", nullable = false)
     private boolean publicClient;
 
+    /** 可选的访问令牌有效期覆盖值；第一方长期客户端使用，普通客户端保持全局默认。 */
+    @Column(name = "access_token_ttl_seconds")
+    private Long accessTokenTtlSeconds;
+
     @Column(nullable = false)
     private boolean enabled = true;
 
@@ -137,15 +141,27 @@ public class OAuthClient {
     }
 
     public List<String> getScopes() {
-        return split(scopes);
+        return split(scopes).stream()
+                .filter(scope -> !"account:bridge".equals(scope))
+                .toList();
     }
 
     public void setScopes(List<String> scopes) {
-        this.scopes = String.join(" ", scopes);
+        this.scopes = String.join(" ", scopes.stream()
+                .filter(scope -> !"account:bridge".equals(scope))
+                .toList());
     }
 
     public boolean isPublicClient() {
         return publicClient;
+    }
+
+    public Long getAccessTokenTtlSeconds() {
+        return accessTokenTtlSeconds;
+    }
+
+    public void setAccessTokenTtlSeconds(Long accessTokenTtlSeconds) {
+        this.accessTokenTtlSeconds = accessTokenTtlSeconds;
     }
 
     public void setPublicClient(boolean publicClient) {

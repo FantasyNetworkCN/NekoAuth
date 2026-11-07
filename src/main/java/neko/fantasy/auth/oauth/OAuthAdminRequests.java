@@ -2,6 +2,7 @@ package neko.fantasy.auth.oauth;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -27,7 +28,10 @@ public final class OAuthAdminRequests {
             @NotEmpty(message = "至少需要一个权限范围")
             List<String> scopes,
 
-            boolean publicClient
+            boolean publicClient,
+
+            @Min(value = 60, message = "访问令牌有效期至少为 60 秒")
+            Long accessTokenTtlSeconds
     ) {
     }
 
@@ -46,7 +50,10 @@ public final class OAuthAdminRequests {
 
             Boolean publicClient,
 
-            Boolean enabled
+            Boolean enabled,
+
+            @Min(value = 60, message = "访问令牌有效期至少为 60 秒")
+            Long accessTokenTtlSeconds
     ) {
     }
 }

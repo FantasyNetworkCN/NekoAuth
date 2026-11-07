@@ -10,7 +10,6 @@ public record OAuthProperties(
         String keyFile,
         Duration authorizationCodeTtl,
         Duration accessTokenTtl,
-        Duration bridgeTokenTtl,
         Duration idTokenTtl,
         Duration refreshTokenTtl
 ) {

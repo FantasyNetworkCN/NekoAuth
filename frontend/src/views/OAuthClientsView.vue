@@ -26,6 +26,7 @@ const form = reactive({
   postLogoutRedirectUris: '',
   scopes: ['openid', 'profile', 'email'] as string[],
   publicClient: true,
+  accessTokenTtlSeconds: '',
 })
 const editForm = reactive({
   name: '',
@@ -33,12 +34,11 @@ const editForm = reactive({
   redirectUris: '',
   postLogoutRedirectUris: '',
   scopes: [] as string[],
+  accessTokenTtlSeconds: '',
 })
 
 const enabledCount = computed(() => clients.value.filter((client) => client.enabled).length)
 const confidentialCount = computed(() => clients.value.filter((client) => !client.publicClient).length)
-const bridgeSelected = computed(() => form.scopes.includes('account:bridge'))
-
 async function load() {
   loading.value = true
   error.value = ''
@@ -59,9 +59,6 @@ function toggleScope(name: string) {
     form.scopes = form.scopes.filter((scope) => scope !== name)
   } else {
     form.scopes = [...form.scopes, name]
-  }
-  if (form.scopes.includes('account:bridge')) {
-    form.publicClient = false
   }
 }
 
@@ -98,6 +95,9 @@ async function createClient() {
       postLogoutRedirectUris,
       scopes: form.scopes,
       publicClient: form.publicClient,
+      accessTokenTtlSeconds: form.accessTokenTtlSeconds
+        ? Number(form.accessTokenTtlSeconds)
+        : null,
     })
     clients.value = [result.client, ...clients.value]
     showCreate.value = false
@@ -107,6 +107,7 @@ async function createClient() {
     form.postLogoutRedirectUris = ''
     form.scopes = ['openid', 'profile', 'email']
     form.publicClient = true
+    form.accessTokenTtlSeconds = ''
     if (result.clientSecret) {
       secretReveal.value = result
     } else {
@@ -125,7 +126,10 @@ function openEdit(client: OAuthClient) {
   editForm.description = client.description || ''
   editForm.redirectUris = client.redirectUris.join('\n')
   editForm.postLogoutRedirectUris = client.postLogoutRedirectUris.join('\n')
-  editForm.scopes = [...client.scopes]
+  editForm.scopes = client.scopes.filter((scope) => scope !== 'account:bridge')
+  editForm.accessTokenTtlSeconds = client.accessTokenTtlSeconds
+    ? String(client.accessTokenTtlSeconds)
+    : ''
 }
 
 function closeEdit() {
@@ -148,6 +152,9 @@ async function saveEdit() {
       redirectUris,
       postLogoutRedirectUris: uriLines(editForm.postLogoutRedirectUris),
       scopes: editForm.scopes,
+      accessTokenTtlSeconds: editForm.accessTokenTtlSeconds
+        ? Number(editForm.accessTokenTtlSeconds)
+        : null,
     })
     replaceClient(updated)
     editingClient.value = null
@@ -266,6 +273,10 @@ onMounted(() => void load())
             <span class="field-label">登出后回调地址 <small>可选 · 每行一个</small></span>
             <textarea v-model="form.postLogoutRedirectUris" class="atelier-textarea" rows="2" placeholder="https://app.fantasy.network/logged-out"></textarea>
           </label>
+          <label class="field">
+            <span class="field-label">访问令牌有效期（秒） <small>留空使用全局默认</small></span>
+            <span class="input-shell"><AppIcon name="clock" :size="17" /><input v-model="form.accessTokenTtlSeconds" type="number" min="60" placeholder="31536000" /></span>
+          </label>
           <div class="field">
             <span class="field-label">申请权限</span>
             <div class="scope-pills">
@@ -273,7 +284,7 @@ onMounted(() => void load())
                 v-for="scope in allScopes"
                 :key="scope.name"
                 class="scope-choice"
-                :class="{ active: form.scopes.includes(scope.name), internal: scope.name === 'account:bridge' }"
+                :class="{ active: form.scopes.includes(scope.name) }"
                 type="button"
                 @click="toggleScope(scope.name)"
               >
@@ -284,11 +295,11 @@ onMounted(() => void load())
           </div>
           <div class="client-mode-row">
             <label class="mode-switch">
-              <input v-model="form.publicClient" type="checkbox" :disabled="bridgeSelected" />
+              <input v-model="form.publicClient" type="checkbox" />
               <span class="switch-track"><i></i></span>
               <span>
                 <strong>公共客户端</strong>
-                <small>{{ bridgeSelected ? '账号桥接只能使用机密客户端，已锁定' : '强制 PKCE S256，不保存客户端密钥' }}</small>
+                <small>公共客户端强制 PKCE S256，不保存客户端密钥</small>
               </span>
             </label>
             <button class="btn btn-primary" type="submit" :disabled="creating">
@@ -415,6 +426,10 @@ onMounted(() => void load())
               <span class="field-label">登出后回调地址 <small>可选 · 每行一个</small></span>
               <textarea v-model="editForm.postLogoutRedirectUris" class="atelier-textarea" rows="2"></textarea>
             </label>
+            <label class="field">
+              <span class="field-label">访问令牌有效期（秒） <small>留空使用全局默认</small></span>
+              <span class="input-shell"><AppIcon name="clock" :size="17" /><input v-model="editForm.accessTokenTtlSeconds" type="number" min="60" placeholder="31536000" /></span>
+            </label>
             <div class="field">
               <span class="field-label">申请权限</span>
               <div class="scope-pills">
@@ -422,7 +437,7 @@ onMounted(() => void load())
                   v-for="scope in allScopes"
                   :key="scope.name"
                   class="scope-choice"
-                  :class="{ active: editForm.scopes.includes(scope.name), internal: scope.name === 'account:bridge' }"
+                  :class="{ active: editForm.scopes.includes(scope.name) }"
                   type="button"
                   @click="toggleEditScope(scope.name)"
                 >
@@ -569,8 +584,6 @@ onMounted(() => void load())
 }
 
 .scope-choice.active { border-color: rgba(255, 172, 224, 0.24); color: #f4a9d8; background: rgba(255, 147, 211, 0.07); }
-.scope-choice.internal { border-color: rgba(120, 224, 208, 0.16); }
-.scope-choice.internal.active { border-color: rgba(120, 224, 208, 0.34); color: #8be3d3; background: rgba(77, 214, 196, 0.07); }
 .scope-choice span { display: grid; min-width: 0; }
 .scope-choice strong { color: #c9b7d0; font-size: 0.55rem; white-space: nowrap; }
 .scope-choice small { overflow: hidden; color: #6c5b7e; font-size: 0.45rem; text-overflow: ellipsis; white-space: nowrap; }

@@ -49,6 +49,7 @@ public final class OAuthDtos {
             List<String> postLogoutRedirectUris,
             List<String> scopes,
             boolean publicClient,
+            Long accessTokenTtlSeconds,
             boolean enabled,
             Instant createdAt,
             Instant updatedAt
@@ -57,7 +58,8 @@ public final class OAuthDtos {
             return new ClientSummary(client.getId(), client.getClientId(), client.getName(),
                     client.getDescription(), client.getRedirectUris(),
                     client.getPostLogoutRedirectUris(), client.getScopes(),
-                    client.isPublicClient(), client.isEnabled(), client.getCreatedAt(),
+                    client.isPublicClient(), client.getAccessTokenTtlSeconds(),
+                    client.isEnabled(), client.getCreatedAt(),
                     client.getUpdatedAt());
         }
     }

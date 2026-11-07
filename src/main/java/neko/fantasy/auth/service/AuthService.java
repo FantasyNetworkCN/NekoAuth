@@ -81,8 +81,7 @@ public class AuthService {
     }
 
     /**
-     * 创建账号但**不签发 NekoAuth 浏览器会话**，供可信服务端桥接使用。
-     * 密码与邮箱验证码仍由本服务统一校验，调用方只负责传递原始注册信息。
+     * 创建账号但不签发浏览器会话；供注册接口与安装/管理流程复用。
      */
     @Transactional
     public User registerAccount(AuthRequests.Register request) {
@@ -155,7 +154,7 @@ public class AuthService {
 
     /**
      * 校验账号口令并刷新最后登录时间，但不创建任何会话。
-     * 供内部账号桥接使用；登录限流由桥接调用方在其用户入口完成。
+     * 供 Auth 自身登录接口复用，不创建浏览器会话。
      */
     @Transactional
     public User authenticateAccount(String rawIdentifier, String password) {
@@ -231,27 +230,6 @@ public class AuthService {
         refreshTokenRepository.findByTokenHash(hashToken(rawRefreshToken))
                 .filter(token -> token.getRevokedAt() == null)
                 .ifPresent(token -> revokeSessionFamily(token, Instant.now()));
-    }
-
-    /** 第一方子域通过父域共享会话句柄解析当前登录用户。 */
-    @Transactional(readOnly = true)
-    public Optional<User> findUserBySsoSession(String sessionFamilyId) {
-        if (sessionFamilyId == null || sessionFamilyId.isBlank()) {
-            return Optional.empty();
-        }
-        return refreshTokenRepository
-                .findFirstByFamilyIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
-                        sessionFamilyId, Instant.now())
-                .map(RefreshToken::getUser)
-                .filter(User::isEnabled);
-    }
-
-    /** 任一第一方子域退出时撤销整个浏览器会话族。 */
-    @Transactional
-    public void revokeSsoSession(String sessionFamilyId) {
-        if (sessionFamilyId != null && !sessionFamilyId.isBlank()) {
-            revokeSessionFamily(sessionFamilyId, Instant.now());
-        }
     }
 
     @Transactional(readOnly = true)

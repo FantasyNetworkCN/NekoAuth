@@ -499,7 +499,7 @@ class OAuthMultiPlatformIntegrationTest {
     void webEntryOnlyReturnsToRegisteredFirstPartyOrigins() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         createClient(adminToken, false, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
-                List.of("openid", "account:bridge"));
+                List.of("openid"));
 
         mockMvc.perform(post("/api/auth/web-entry/resolve")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)

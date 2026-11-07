@@ -20,7 +20,6 @@ import java.util.Optional;
 public class AuthCookieService {
 
     public static final String SESSION_HINT_COOKIE = "nekoauth_session_hint";
-    public static final String SSO_SESSION_COOKIE = "nekoauth_sso_session";
     private static final String COOKIE_PATH = "/";
     private static final String LEGACY_COOKIE_PATH = "/api/auth";
 
@@ -48,7 +47,6 @@ public class AuthCookieService {
         headers.add(build("", Duration.ZERO, LEGACY_COOKIE_PATH).toString());
         if (hasHintDomain() && sessionId != null && !sessionId.isBlank()) {
             headers.add(buildHint(sessionHint(sessionId), properties.jwt().refreshTtl()).toString());
-            headers.add(buildSsoSession(sessionId, properties.jwt().refreshTtl()).toString());
         }
         return List.copyOf(headers);
     }
@@ -59,7 +57,6 @@ public class AuthCookieService {
         headers.add(build("", Duration.ZERO, LEGACY_COOKIE_PATH).toString());
         if (hasHintDomain()) {
             headers.add(buildHint("", Duration.ZERO).toString());
-            headers.add(buildSsoSession("", Duration.ZERO).toString());
         }
         return List.copyOf(headers);
     }
@@ -95,21 +92,6 @@ public class AuthCookieService {
     private ResponseCookie buildHint(String value, Duration maxAge) {
         return ResponseCookie.from(SESSION_HINT_COOKIE, value)
                 .httpOnly(false)
-                .secure(properties.cookie().secure())
-                .sameSite(properties.cookie().sameSite())
-                .domain(properties.cookie().domain().trim())
-                .path(COOKIE_PATH)
-                .maxAge(maxAge)
-                .build();
-    }
-
-    /**
-     * 父域共享的单点登录会话句柄。它不是刷新令牌，不能直接调用 Auth API；
-     * 仅允许已登记 account:bridge 的第一方服务端通过内部接口换取本应用身份。
-     */
-    private ResponseCookie buildSsoSession(String value, Duration maxAge) {
-        return ResponseCookie.from(SSO_SESSION_COOKIE, value)
-                .httpOnly(true)
                 .secure(properties.cookie().secure())
                 .sameSite(properties.cookie().sameSite())
                 .domain(properties.cookie().domain().trim())

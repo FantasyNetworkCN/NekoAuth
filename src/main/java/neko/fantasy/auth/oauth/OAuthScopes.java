@@ -13,16 +13,12 @@ public final class OAuthScopes {
     public static final String EMAIL = "email";
     public static final String OFFLINE_ACCESS = "offline_access";
     public static final String ROLES = "roles";
-    /** 仅用于第一方服务端账号桥接，不参与用户授权同意页展示。 */
-    public static final String ACCOUNT_BRIDGE = "account:bridge";
-
     private static final Map<String, Definition> CATALOG = Map.of(
             OPENID, new Definition(OPENID, "OpenID 身份", "确认你的梦幻网络身份，并签发 ID Token。"),
             PROFILE, new Definition(PROFILE, "基本资料", "读取昵称、用户名与账户创建时间。"),
             EMAIL, new Definition(EMAIL, "邮箱地址", "读取你的邮箱与验证状态。"),
             ROLES, new Definition(ROLES, "阵营身份", "读取你在梦幻网络中的用户或管理员角色。"),
-            OFFLINE_ACCESS, new Definition(OFFLINE_ACCESS, "保持登录", "允许应用在你离线时刷新访问令牌。"),
-            ACCOUNT_BRIDGE, new Definition(ACCOUNT_BRIDGE, "账号桥接", "仅限第一方服务端账号同步，不发放给浏览器授权。")
+            OFFLINE_ACCESS, new Definition(OFFLINE_ACCESS, "保持登录", "允许应用在你离线时刷新访问令牌。")
     );
 
     private static final Map<String, String> ALIASES = Map.of(
@@ -32,10 +28,6 @@ public final class OAuthScopes {
     private static final List<Definition> ORDERED = List.of(
             CATALOG.get(OPENID), CATALOG.get(PROFILE), CATALOG.get(EMAIL),
             CATALOG.get(ROLES), CATALOG.get(OFFLINE_ACCESS));
-
-    private static final List<Definition> ADMIN_ORDERED = List.of(
-            CATALOG.get(OPENID), CATALOG.get(PROFILE), CATALOG.get(EMAIL),
-            CATALOG.get(ROLES), CATALOG.get(OFFLINE_ACCESS), CATALOG.get(ACCOUNT_BRIDGE));
 
     private OAuthScopes() {
     }
@@ -47,9 +39,6 @@ public final class OAuthScopes {
             String canonical = ALIASES.getOrDefault(part, part);
             if (!CATALOG.containsKey(canonical)) {
                 throw OAuthException.invalidScope("不支持权限范围：" + part);
-            }
-            if (ACCOUNT_BRIDGE.equals(canonical)) {
-                throw OAuthException.invalidScope("account:bridge 仅限服务端账号桥接");
             }
             result.add(canonical);
         }
@@ -81,12 +70,8 @@ public final class OAuthScopes {
         return ORDERED;
     }
 
-    /**
-     * 管理后台可分配的 scope。与 {@link #all()} 不同，这里包含仅限服务端使用的
-     * {@link #ACCOUNT_BRIDGE}；它不能出现在公开发现文档或浏览器授权流程中。
-     */
     public static List<Definition> allForAdministration() {
-        return ADMIN_ORDERED;
+        return ORDERED;
     }
 
     public static String encode(Set<String> scopes) {

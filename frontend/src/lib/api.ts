@@ -344,6 +344,7 @@ export const api = {
     postLogoutRedirectUris: string[]
     scopes: string[]
     publicClient: boolean
+    accessTokenTtlSeconds?: number | null
   }) {
     return request<CreatedOAuthClient>('/admin/oauth-clients', {
       method: 'POST',
@@ -359,6 +360,7 @@ export const api = {
     scopes?: string[]
     enabled?: boolean
     publicClient?: boolean
+    accessTokenTtlSeconds?: number | null
   }) {
     return request<OAuthClient>(`/admin/oauth-clients/${id}`, {
       method: 'PATCH',

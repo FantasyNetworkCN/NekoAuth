@@ -268,8 +268,12 @@ public class OAuthTokenEndpointService {
         Instant authTime = authenticatedAt != null
                 ? authenticatedAt
                 : (user.getLastLoginAt() == null ? Instant.now() : user.getLastLoginAt());
+        Duration accessTokenTtl = client.getAccessTokenTtlSeconds() != null
+                && client.getAccessTokenTtlSeconds() > 0
+                ? Duration.ofSeconds(client.getAccessTokenTtlSeconds())
+                : properties.accessTokenTtl();
         OAuthTokenService.IssuedAccessToken accessToken = tokenService.issueAccessToken(
-                user, client.getClientId(), scopes, properties.accessTokenTtl(),
+                user, client.getClientId(), scopes, accessTokenTtl,
                 authSessionFamilyId);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("access_token", accessToken.value());

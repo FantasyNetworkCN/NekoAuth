@@ -16,7 +16,7 @@ class AuthCookieServiceTest {
 
         List<String> headers = service.createHeaders("refresh-value", "session-family");
 
-        assertThat(headers).hasSize(4);
+        assertThat(headers).hasSize(3);
         assertThat(headers.get(0))
                 .contains("refresh_token=refresh-value")
                 .doesNotContain("Domain=");
@@ -24,10 +24,6 @@ class AuthCookieServiceTest {
                 .startsWith(AuthCookieService.SESSION_HINT_COOKIE + "="
                         + AuthCookieService.sessionHint("session-family"))
                 .contains("Domain=nekocore.cn");
-        assertThat(headers.get(3))
-                .startsWith(AuthCookieService.SSO_SESSION_COOKIE + "=session-family")
-                .contains("Domain=nekocore.cn")
-                .contains("HttpOnly");
     }
 
     @Test
@@ -38,7 +34,6 @@ class AuthCookieServiceTest {
 
         assertThat(headers).hasSize(2);
         assertThat(headers).noneMatch(value -> value.contains(AuthCookieService.SESSION_HINT_COOKIE));
-        assertThat(headers).noneMatch(value -> value.contains(AuthCookieService.SSO_SESSION_COOKIE));
     }
 
     private static AuthProperties properties(String domain) {

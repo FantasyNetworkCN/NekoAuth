@@ -177,6 +177,7 @@ export interface OAuthClient {
   postLogoutRedirectUris: string[]
   scopes: string[]
   publicClient: boolean
+  accessTokenTtlSeconds: number | null
   enabled: boolean
   createdAt: string
   updatedAt: string

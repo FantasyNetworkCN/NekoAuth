@@ -73,7 +73,6 @@ oauth:
   key-file: ./data/oauth-signing-key.pem
   authorization-code-ttl: 5m
   access-token-ttl: 1h
-  bridge-token-ttl: 365d
   id-token-ttl: 10m
   refresh-token-ttl: 30d
 
