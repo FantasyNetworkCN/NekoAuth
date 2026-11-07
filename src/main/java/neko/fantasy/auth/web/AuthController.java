@@ -181,7 +181,8 @@ public class AuthController {
             HttpStatus status, AuthService.AuthResult result) {
         return ResponseEntity.status(status)
                 .header(HttpHeaders.SET_COOKIE,
-                        cookieService.createHeaders(result.refreshToken()).toArray(String[]::new))
+                        cookieService.createHeaders(
+                                result.refreshToken(), result.sessionId()).toArray(String[]::new))
                 .body(result.auth());
     }
 }

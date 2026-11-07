@@ -19,6 +19,7 @@ auth:
     secret: ${jwt_secret}
   cookie:
     secure: false
+    domain: nekocore.cn
   cors:
     allowed-origins:
       - https://auth.nekocore.cn

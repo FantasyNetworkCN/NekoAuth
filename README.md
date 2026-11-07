@@ -157,6 +157,12 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 
 授权请求支持 OIDC 的 `prompt=none|login|consent|select_account`、`login_hint` 与 `max_age`。`prompt=none` 在无法静默完成授权时返回 `login_required` 或 `consent_required`；`max_age=0`、`prompt=login` 或 `prompt=select_account` 会要求重新认证。ID Token 的 `auth_time` 来自实际登录时间，并在刷新令牌轮换时保持不变。
 
+启用 `auth.cookie.domain`（例如 `nekocore.cn`）后，Auth 会额外写入一个父域、JavaScript 可读的
+`nekoauth_session_hint` 提示 Cookie。它只表示当前浏览器存在 Auth 会话，不包含刷新令牌或访问令牌；
+刷新令牌仍是 host-only、HttpOnly。子域 Web 应用读取该提示后，可发起带 `prompt=none` 的标准 OIDC
+静默授权：已有 Auth 会话与授权记录时直接完成登录，否则返回 `login_required` / `consent_required`
+并保持游客态。各子域仍使用自己的 OAuth 客户端和回调地址，不能依赖该提示 Cookie 直接认证。
+
 登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。服务会将 hint 中的用户与当前浏览器刷新会话关联：只有二者匹配时才直接清理会话；没有 hint、没有当前会话或 hint 属于其他用户时，会跳转到 `/logout/confirm`，由用户明确确认后才执行登出。会话匹配时只会撤销发起应用对应的 OAuth 刷新令牌，不影响其他平台。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。
 
 ### 第一方服务端账号桥接
@@ -487,6 +493,7 @@ docker compose down
 | `auth.jwt.refresh-ttl` | `14d` | 刷新令牌有效期 |
 | `auth.cookie.secure` | `false` | HTTPS 部署时设为 `true` |
 | `auth.cookie.same-site` | `Strict` | 刷新 Cookie 的 SameSite |
+| `auth.cookie.domain` | 空 | 跨子域登录提示 Cookie 的父域，例如 `nekocore.cn`；不会放宽刷新令牌 Cookie 的 host-only 范围 |
 | `auth.cors.allowed-origins` | `http://localhost:5173`, `https://auth.nekocore.cn` | 认证站点的浏览器 Origin；OIDC/OAuth 端点还会自动允许已启用客户端回调地址的 Origin |
 | `auth.rate-limit.attempts` | `20` | 单 IP 限流窗口内失败次数 |
 | `auth.rate-limit.window` | `5m` | 登录限流窗口 |

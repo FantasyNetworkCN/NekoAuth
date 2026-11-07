@@ -6,14 +6,20 @@ import neko.fantasy.auth.config.AuthProperties;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class AuthCookieService {
 
+    public static final String SESSION_HINT_COOKIE = "nekoauth_session_hint";
     private static final String COOKIE_PATH = "/";
     private static final String LEGACY_COOKIE_PATH = "/api/auth";
 
@@ -35,16 +41,24 @@ public class AuthCookieService {
      * 写入刷新令牌，并清理旧版本只作用于 {@code /api/auth} 的同名 Cookie。
      * OIDC RP-Initiated Logout 需要读取浏览器会话，因此 Cookie 必须覆盖全站路径。
      */
-    public List<String> createHeaders(String value) {
-        return List.of(
-                build(value, properties.jwt().refreshTtl(), COOKIE_PATH).toString(),
-                build("", Duration.ZERO, LEGACY_COOKIE_PATH).toString());
+    public List<String> createHeaders(String value, String sessionId) {
+        List<String> headers = new ArrayList<>(3);
+        headers.add(build(value, properties.jwt().refreshTtl(), COOKIE_PATH).toString());
+        headers.add(build("", Duration.ZERO, LEGACY_COOKIE_PATH).toString());
+        if (hasHintDomain() && sessionId != null && !sessionId.isBlank()) {
+            headers.add(buildHint(sessionHint(sessionId), properties.jwt().refreshTtl()).toString());
+        }
+        return List.copyOf(headers);
     }
 
     public List<String> clearHeaders() {
-        return List.of(
-                build("", Duration.ZERO, COOKIE_PATH).toString(),
-                build("", Duration.ZERO, LEGACY_COOKIE_PATH).toString());
+        List<String> headers = new ArrayList<>(3);
+        headers.add(build("", Duration.ZERO, COOKIE_PATH).toString());
+        headers.add(build("", Duration.ZERO, LEGACY_COOKIE_PATH).toString());
+        if (hasHintDomain()) {
+            headers.add(buildHint("", Duration.ZERO).toString());
+        }
+        return List.copyOf(headers);
     }
 
     public Optional<String> read(HttpServletRequest request) {
@@ -69,5 +83,34 @@ public class AuthCookieService {
                 .path(path)
                 .maxAge(maxAge)
                 .build();
+    }
+
+    /**
+     * 跨子域登录提示：只说明当前浏览器是否持有 Auth 会话，不包含可用的认证凭据。
+     * 子域可读取该提示后发起 {@code prompt=none} 的 OIDC 静默授权；刷新令牌仍保持 host-only。
+     */
+    private ResponseCookie buildHint(String value, Duration maxAge) {
+        return ResponseCookie.from(SESSION_HINT_COOKIE, value)
+                .httpOnly(false)
+                .secure(properties.cookie().secure())
+                .sameSite(properties.cookie().sameSite())
+                .domain(properties.cookie().domain().trim())
+                .path(COOKIE_PATH)
+                .maxAge(maxAge)
+                .build();
+    }
+
+    private boolean hasHintDomain() {
+        return properties.cookie().domain() != null && !properties.cookie().domain().isBlank();
+    }
+
+    static String sessionHint(String sessionId) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(sessionId.getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
     }
 }

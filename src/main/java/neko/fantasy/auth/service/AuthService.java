@@ -208,6 +208,7 @@ public class AuthService {
                 ? (user.getLastLoginAt() == null ? now : user.getLastLoginAt())
                 : stored.getAuthTime();
         String newRawToken = randomToken();
+        String familyId = stored.getFamilyId() == null ? stored.getTokenHash() : stored.getFamilyId();
         refreshTokenRepository.save(new RefreshToken(
                 user,
                 hashToken(newRawToken),
@@ -216,10 +217,10 @@ public class AuthService {
                 clientIp(servletRequest),
                 truncate(servletRequest.getHeader("User-Agent"), 512),
                 stored.getDeviceInfo(),
-                stored.getFamilyId() == null ? stored.getTokenHash() : stored.getFamilyId()
+                familyId
         ));
 
-        return authResult(user, newRawToken, authenticatedAt);
+        return authResult(user, newRawToken, authenticatedAt, familyId);
     }
 
     @Transactional
@@ -379,6 +380,7 @@ public class AuthService {
     private AuthResult createSession(User user, HttpServletRequest request, Instant authenticatedAt,
                                      AuthRequests.DeviceProfile device) {
         String rawToken = randomToken();
+        String familyId = UUID.randomUUID().toString();
         RefreshToken refreshToken = new RefreshToken(
                 user,
                 hashToken(rawToken),
@@ -387,18 +389,19 @@ public class AuthService {
                 clientIp(request),
                 truncate(request.getHeader("User-Agent"), 512),
                 writeDeviceInfo(device),
-                UUID.randomUUID().toString()
+                familyId
         );
         refreshTokenRepository.save(refreshToken);
-        return authResult(user, rawToken, authenticatedAt);
+        return authResult(user, rawToken, authenticatedAt, familyId);
     }
 
-    private AuthResult authResult(User user, String rawRefreshToken, Instant authenticatedAt) {
+    private AuthResult authResult(User user, String rawRefreshToken, Instant authenticatedAt,
+                                  String sessionId) {
         JwtService.IssuedToken accessToken = jwtService.issue(user, authenticatedAt);
         long expiresIn = Math.max(0, Duration.between(Instant.now(), accessToken.expiresAt()).toSeconds());
         ApiResponses.Auth auth = new ApiResponses.Auth(
                 accessToken.value(), "Bearer", expiresIn, ApiResponses.User.from(user));
-        return new AuthResult(auth, rawRefreshToken);
+        return new AuthResult(auth, rawRefreshToken, sessionId);
     }
 
     private User requireUser(Long userId) {
@@ -540,7 +543,7 @@ public class AuthService {
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 
-    public record AuthResult(ApiResponses.Auth auth, String refreshToken) {
+    public record AuthResult(ApiResponses.Auth auth, String refreshToken, String sessionId) {
     }
 
     public record ActiveSession(Long userId, Instant authenticatedAt, Long sessionId) {

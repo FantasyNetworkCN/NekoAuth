@@ -19,7 +19,7 @@ public record AuthProperties(
     public record Jwt(String secret, String issuer, Duration accessTtl, Duration refreshTtl) {
     }
 
-    public record Cookie(String name, boolean secure, String sameSite) {
+    public record Cookie(String name, boolean secure, String sameSite, String domain) {
     }
 
     public record Cors(List<String> allowedOrigins) {

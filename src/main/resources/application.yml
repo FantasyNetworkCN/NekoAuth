@@ -44,6 +44,7 @@ auth:
     name: refresh_token
     secure: false
     same-site: Strict
+    domain: ""
   cors:
     allowed-origins:
       - http://localhost:5173

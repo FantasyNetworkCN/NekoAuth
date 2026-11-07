@@ -10,6 +10,7 @@ services:
       AUTH_SETUP_ENABLED: "false"
       AUTH_SETUP_STATE_DIR: /app/data
       AUTH_COOKIE_SECURE: "true"
+      AUTH_COOKIE_DOMAIN: ${NEKO_COOKIE_DOMAIN:-nekocore.cn}
       OAUTH_ISSUER: ${NEKO_OAUTH_ISSUER:-https://auth.nekocore.cn}
       SPRING_APPLICATION_JSON: >-
         {"auth":{"cors":{"allowed-origins":["${NEKO_CORS_ORIGIN:-https://auth.nekocore.cn}"]}}}
