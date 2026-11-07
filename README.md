@@ -657,7 +657,8 @@ src/main/java/neko/fantasy/auth/settings/ 运行设置持久化、注册白名�
 src/main/resources/META-INF/spring.factories  安装配置高优先级加载器
 src/test/                                 集成测试与安装测试
 frontend/src/                             Vue 页面、组件、API 客户端与状态
-frontend/src/assets/catgirl/              梦幻网络猫娘主题 WebP 插画
+frontend/src/assets/brand/                品牌标识资源
+frontend/src/assets/local/                页面主视觉与插画资源
 scripts/build-frontend.sh                 Vite 前端构建到 src/main/resources/site
 scripts/build.sh                          前端构建 + 后端 jar 打包
 Dockerfile / compose.yml                  生产镜像与 MySQL、Redis 编排
