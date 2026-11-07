@@ -1,6 +1,6 @@
 # NekoAuth
 
-NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认、可选安装页面、最小化的 `/account` 账户中心，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 不提供页面。默认部署复用宿主机 MySQL/MariaDB 与 Redis；Docker Compose 只启动认证服务并使用 host 网络，现有数据库与 Redis 保持不变，认证服务状态保存在 Docker 命名卷 `nekoauth_data` 中。
+NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 认证服务。它以 API 为主要交付形式，只保留 OAuth 流程必需的登录、注册、授权确认、可选安装页面、最小化的 `/account` 账户中心，以及仅限 ADMIN 使用的 `/admin` 管理后台；根路径 `/` 会根据有效登录状态跳转到 `/account` 或 `/login`。默认部署复用宿主机 MySQL/MariaDB 与 Redis；Docker Compose 只启动认证服务并使用 host 网络，现有数据库与 Redis 保持不变，认证服务状态保存在 Docker 命名卷 `nekoauth_data` 中。
 
 ## 功能
 
@@ -73,7 +73,7 @@ sudo docker compose logs -f --tail=200 auth
 - `/admin/clients`：OAuth 应用、回调地址、scope 与客户端密钥管理
 - `/admin/settings`：注册开关、邮箱域名白名单、SMTP、发件地址与测试邮件
 
-生产环境也可以直接调用 `/api/admin/**` 完成同样操作。根路径 `/` 与 `/app/**` 不提供页面，始终返回 404。
+生产环境也可以直接调用 `/api/admin/**` 完成同样操作。根路径 `/` 返回 SPA，并根据有效登录状态跳转到 `/account` 或 `/login`；已移除的 `/app/**` 路由仍返回 404。
 
 ## 账户中心
 
