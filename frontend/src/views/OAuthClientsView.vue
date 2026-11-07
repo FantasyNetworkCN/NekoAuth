@@ -126,7 +126,7 @@ function openEdit(client: OAuthClient) {
   editForm.description = client.description || ''
   editForm.redirectUris = client.redirectUris.join('\n')
   editForm.postLogoutRedirectUris = client.postLogoutRedirectUris.join('\n')
-  editForm.scopes = client.scopes.filter((scope) => scope !== 'account:bridge')
+  editForm.scopes = [...client.scopes]
   editForm.accessTokenTtlSeconds = client.accessTokenTtlSeconds
     ? String(client.accessTokenTtlSeconds)
     : ''

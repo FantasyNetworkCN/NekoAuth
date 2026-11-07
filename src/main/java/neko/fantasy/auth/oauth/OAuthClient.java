@@ -141,15 +141,11 @@ public class OAuthClient {
     }
 
     public List<String> getScopes() {
-        return split(scopes).stream()
-                .filter(scope -> !"account:bridge".equals(scope))
-                .toList();
+        return split(scopes);
     }
 
     public void setScopes(List<String> scopes) {
-        this.scopes = String.join(" ", scopes.stream()
-                .filter(scope -> !"account:bridge".equals(scope))
-                .toList());
+        this.scopes = String.join(" ", scopes);
     }
 
     public boolean isPublicClient() {

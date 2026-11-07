@@ -381,7 +381,7 @@ class OAuthFlowIntegrationTest {
     }
 
     @Test
-    void removedBridgeScopeIsUnavailable() throws Exception {
+    void removedLegacyServiceScopeIsUnavailable() throws Exception {
         String adminToken = login("admin", "AdminPass123");
 
         mockMvc.perform(get("/.well-known/openid-configuration"))
@@ -399,7 +399,7 @@ class OAuthFlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "name":"已移除桥接 %s",
+                                  "name":"已移除旧服务权限 %s",
                                   "redirectUris":["%s"],
                                   "scopes":["account:bridge"],
                                   "publicClient":true
