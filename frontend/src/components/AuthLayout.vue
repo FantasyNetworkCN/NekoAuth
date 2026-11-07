@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppLogo from './AppLogo.vue'
-import heroNeko from '@/assets/local/hero-neko.webp'
+import heroNekoDesktop from '@/assets/local/hero-neko-desktop.webp'
+import heroNekoMobile from '@/assets/local/hero-neko-mobile.webp'
 
 defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 </script>
@@ -9,7 +10,10 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   <div class="auth-page">
     <div class="auth-shell">
       <section class="auth-art">
-        <img class="auth-art-image" :src="heroNeko" alt="梦幻网络猫娘角色插画" />
+        <picture class="auth-art-media">
+          <source media="(min-width: 921px)" :srcset="heroNekoDesktop" />
+          <img class="auth-art-image" :src="heroNekoMobile" alt="梦幻网络猫娘角色插画" />
+        </picture>
         <div class="art-shade" aria-hidden="true"></div>
         <div class="art-grain" aria-hidden="true"></div>
 
@@ -88,16 +92,27 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   background: #1a120e;
 }
 
-.auth-art-image {
+.auth-art-media {
   position: absolute;
   z-index: -3;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.auth-art-image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  object-position: 50% 34%;
+  object-position: 50% 28%;
   filter: saturate(0.92) contrast(1.02) sepia(0.05);
   transform: scale(1.015);
+}
+
+@media (min-width: 921px) {
+  .auth-art-image {
+    object-position: 50% 34%;
+  }
 }
 
 .art-shade {
