@@ -20,9 +20,10 @@ class SpaRoutingIntegrationTest {
     private MockMvc mockMvc;
 
     @Test
-    void rootIsNotExposed() throws Exception {
+    void rootServesTheVueApplication() throws Exception {
         mockMvc.perform(get("/"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/index.html"));
     }
 
     @Test

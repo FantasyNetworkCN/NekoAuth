@@ -18,6 +18,11 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
   routes: [
     {
+      path: '/',
+      name: 'home',
+      redirect: () => auth.isAuthenticated.value ? { name: 'account' } : { name: 'login' },
+    },
+    {
       path: '/setup',
       name: 'setup',
       component: SetupView,
@@ -85,6 +90,7 @@ router.beforeEach((to) => {
     if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
       return redirect
     }
+    return { name: 'account' }
   }
   if (to.meta.requiresAdmin && !auth.isAdmin.value) {
     return { name: 'login', query: { reason: 'forbidden' } }
