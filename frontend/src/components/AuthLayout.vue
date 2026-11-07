@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppLogo from './AppLogo.vue'
 import heroNeko from '@/assets/local/hero-neko.webp'
+import heroNekoWide from '@/assets/local/hero-neko-wide.webp'
 
 defineProps<{ eyebrow: string; title: string; subtitle: string }>()
 </script>
@@ -9,7 +10,10 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   <div class="auth-page">
     <div class="auth-shell">
       <section class="auth-art">
-        <img class="auth-art-image" :src="heroNeko" alt="梦幻网络猫娘角色插画" />
+        <picture class="auth-art-media">
+          <source media="(min-width: 1600px)" :srcset="heroNekoWide" />
+          <img class="auth-art-image" :src="heroNeko" alt="梦幻网络猫娘角色插画" />
+        </picture>
         <div class="art-shade" aria-hidden="true"></div>
         <div class="art-grain" aria-hidden="true"></div>
 
@@ -88,10 +92,15 @@ defineProps<{ eyebrow: string; title: string; subtitle: string }>()
   background: #1a120e;
 }
 
-.auth-art-image {
+.auth-art-media {
   position: absolute;
   z-index: -3;
   inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.auth-art-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
