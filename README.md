@@ -165,6 +165,8 @@ HttpOnly，不会发送给其他子域。子域 Web 因此无需跳转 Auth，�
 `nekoauth_session_hint` 仅保留为非敏感登录提示。父域共享会话失效、密码修改或任一子域调用共享会话
 退出接口时，Auth 会撤销整个会话族并清除这两个父域 Cookie。标准 OIDC RP-Initiated Logout 继续供
 需要端点登出的 OAuth 客户端使用。
+从旧版本升级时，已存在的浏览器会话会在下一次 Auth 页面刷新（刷新令牌轮换）时补发
+`nekoauth_sso_session`；新登录会立即写入。
 
 登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。服务会将 hint 中的用户与当前浏览器刷新会话关联：只有二者匹配时才直接清理会话；没有 hint、没有当前会话或 hint 属于其他用户时，会跳转到 `/logout/confirm`，由用户明确确认后才执行登出。会话匹配时只会撤销发起应用对应的 OAuth 刷新令牌，不影响其他平台。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。成功清理外部应用的登出会话时，响应返回带 `no-store` 的受控 HTML 完成页并下发清除 Cookie，再由页面跳回已登记的 `post_logout_redirect_uri`；这样可避免部分 CDN 自动跟随跨域 302 时丢失 `Set-Cookie`。
 
