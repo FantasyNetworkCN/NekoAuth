@@ -2,14 +2,14 @@
 import { RouterLink } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AppLogo from '@/components/AppLogo.vue'
-import NekoMascot from '@/components/NekoMascot.vue'
+import lostNeko from '@/assets/local/admin-neko.webp'
 </script>
 
 <template>
   <main class="not-found-page">
     <div class="not-found-card">
       <AppLogo :size="44" />
-      <div class="lost-neko"><NekoMascot pose="sleep" compact /></div>
+      <div class="lost-neko"><img :src="lostNeko" alt="梦幻网络猫娘形象" /></div>
       <p class="not-found-code">404 · 迷路的猫爪印</p>
       <h1>这条世界线不存在喵</h1>
       <p class="not-found-copy">小梦找遍了整片梦域，也没有找到这个地址。也许是传送阵画错了？</p>
@@ -55,7 +55,14 @@ import NekoMascot from '@/components/NekoMascot.vue'
   overflow: hidden;
 }
 
-.lost-neko :deep(.neko-mascot) { width: 135px; }
+.lost-neko img {
+  width: 122px;
+  height: 122px;
+  border: 1px solid var(--line);
+  border-radius: 34px;
+  object-fit: cover;
+  object-position: 50% 14%;
+}
 
 .not-found-code {
   margin-top: 0.15rem;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
-import NekoMascot from '@/components/NekoMascot.vue'
+import adminNeko from '@/assets/local/admin-neko.webp'
 import { api, ApiError } from '@/lib/api'
 import { formatDate, initials } from '@/lib/format'
 import { showToast } from '@/lib/toast'
@@ -82,7 +82,7 @@ onMounted(() => void load(0))
         <p>查看梦幻网络的成员、调整阵营或让异常账户暂时打盹。角色与状态变化会立刻让旧令牌失效喵。</p>
       </div>
       <div class="admin-heading-ornament">
-        <NekoMascot pose="wink" compact />
+        <img :src="adminNeko" class="admin-heading-avatar" alt="梦幻网络管理员形象" />
         <span class="admin-mark"><AppIcon name="shield-cat" :size="18" /> 猫屋管理员</span>
       </div>
     </header>
@@ -187,9 +187,14 @@ onMounted(() => void load(0))
   gap: 0.35rem;
 }
 
-.admin-heading-ornament :deep(.neko-mascot) {
-  width: 78px;
-  margin: -1.1rem -0.3rem -0.8rem 0;
+.admin-heading-avatar {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  object-fit: cover;
+  object-position: 50% 12%;
 }
 
 .admin-mark {
@@ -206,7 +211,7 @@ onMounted(() => void load(0))
 }
 
 @media (max-width: 680px) {
-  .admin-heading-ornament :deep(.neko-mascot) { display: none; }
+  .admin-heading-avatar { display: none; }
 }
 
 .admin-toolbar {

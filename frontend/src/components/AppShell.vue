@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import AppLogo from './AppLogo.vue'
-import adminNeko from '@/assets/catgirl/admin-neko.webp'
+import adminNeko from '@/assets/local/admin-neko.webp'
 import { auth } from '@/stores/auth'
 import { initials } from '@/lib/format'
 import { showToast } from '@/lib/toast'
@@ -14,13 +14,13 @@ const mobileOpen = ref(false)
 const loggingOut = ref(false)
 
 const navItems = [
-  { name: 'admin', to: '/admin', label: '用户名册', icon: 'users', note: '猫屋成员' },
-  { name: 'oauth-clients', to: '/admin/clients', label: 'OAuth 应用', icon: 'apps', note: '接入契约' },
-  { name: 'admin-settings', to: '/admin/settings', label: '系统设置', icon: 'sliders', note: '注册与发信' },
+  { name: 'admin', to: '/admin', label: '用户名册', icon: 'users', note: 'MEMBERS' },
+  { name: 'oauth-clients', to: '/admin/clients', label: 'OAuth 应用', icon: 'apps', note: 'CLIENTS' },
+  { name: 'admin-settings', to: '/admin/settings', label: '系统设置', icon: 'sliders', note: 'SYSTEM' },
 ]
 
 const pageTitle = computed(() => {
-  if (route.name === 'oauth-clients') return 'OAuth 应用猫屋'
+  if (route.name === 'oauth-clients') return 'OAuth 应用'
   if (route.name === 'admin-settings') return '系统设置'
   return '用户名册'
 })
@@ -39,7 +39,7 @@ async function logout() {
   loggingOut.value = true
   try {
     await auth.logout()
-    showToast('已安全离开猫屋，期待下次见面喵', 'success')
+    showToast('已安全退出梦幻网络', 'success')
     await router.push({ name: 'login' })
   } catch {
     showToast('退出请求失败，但本地会话已清除', 'info')
@@ -55,27 +55,27 @@ async function logout() {
     <div v-if="mobileOpen" class="sidebar-scrim" @click="mobileOpen = false"></div>
 
     <aside class="sidebar" :class="{ 'is-open': mobileOpen }">
-      <div class="sidebar-glow" aria-hidden="true"></div>
-      <div class="sidebar-head">
-        <RouterLink to="/admin" class="logo-link" aria-label="FantasyNetwork 管理后台">
+      <div class="sidebar-aurora" aria-hidden="true"></div>
+      <header class="sidebar-head">
+        <RouterLink to="/admin" class="logo-link" aria-label="梦幻网络管理后台">
           <AppLogo :size="38" />
         </RouterLink>
         <button class="icon-button sidebar-close" type="button" aria-label="关闭菜单" @click="mobileOpen = false">
           <AppIcon name="close" :size="20" />
         </button>
-      </div>
+      </header>
 
       <div class="workspace-chip">
         <span class="workspace-avatar"><AppIcon name="paw" :size="17" /></span>
         <span>
-          <strong>梦幻网络猫屋</strong>
-          <small>ADMIN CONTROL ROOM</small>
+          <strong>梦幻网络控制台</strong>
+          <small>FANTASY NETWORK CONSOLE</small>
         </span>
-        <span class="workspace-live"></span>
+        <i></i>
       </div>
 
       <nav class="side-nav" aria-label="主导航">
-        <p class="nav-label">猫娘管理席</p>
+        <p class="nav-label">CONTROL ROOM</p>
         <RouterLink
           v-for="item in navItems"
           :key="item.name"
@@ -85,22 +85,25 @@ async function logout() {
         >
           <span class="side-icon"><AppIcon :name="item.icon" :size="18" /></span>
           <span class="side-copy"><strong>{{ item.label }}</strong><small>{{ item.note }}</small></span>
-          <span v-if="route.name === item.name" class="nav-cat-dot">ฅ</span>
+          <span v-if="route.name === item.name" class="nav-signal"></span>
         </RouterLink>
       </nav>
 
       <div class="sidebar-neko-wrap">
-        <img :src="adminNeko" class="sidebar-neko-portrait" alt="戴眼镜的猫屋管理员小梦" />
-        <div class="sidebar-bubble">小梦已上线，<br />数据都安全喵。</div>
+        <img :src="adminNeko" class="sidebar-neko-portrait" alt="梦幻网络猫娘管理员" />
+        <div class="sidebar-bubble">
+          <strong>今天也一起守护星海。</strong>
+          <span>账户与授权状态实时同步中。</span>
+        </div>
       </div>
 
       <div class="sidebar-spacer"></div>
 
       <div class="security-note">
-        <span class="security-note-icon"><AppIcon name="shield-cat" :size="18" /></span>
+        <span><AppIcon name="shield-cat" :size="18" /></span>
         <div>
-          <strong>管理员会话受猫爪保护</strong>
-          <p>刷新令牌只走 HttpOnly Cookie，不碰 localStorage。</p>
+          <strong>会话保护已启用</strong>
+          <p>刷新令牌仅通过 HttpOnly Cookie 传输。</p>
         </div>
       </div>
 
@@ -108,7 +111,7 @@ async function logout() {
         <span class="user-avatar">{{ avatarText }}</span>
         <span class="user-meta">
           <strong>{{ displayName }}</strong>
-          <small>{{ auth.state.user?.role === 'ADMIN' ? '猫屋管理员' : '@' + auth.state.user?.username }}</small>
+          <small>{{ auth.state.user?.role === 'ADMIN' ? '管理员' : '@' + auth.state.user?.username }}</small>
         </span>
         <button class="icon-button" type="button" aria-label="退出登录" :disabled="loggingOut" @click="logout">
           <AppIcon name="logout" :size="18" />
@@ -133,126 +136,323 @@ async function logout() {
 </template>
 
 <style scoped>
-.app-shell { display: flex; min-height: 100svh; }
+.app-shell {
+  display: flex;
+  min-height: 100svh;
+  background: var(--bg);
+}
 
 .sidebar {
   position: fixed;
   z-index: 50;
   inset: 0 auto 0 0;
   display: flex;
-  width: 268px;
+  width: 278px;
   flex-direction: column;
   overflow: hidden;
-  padding: 1.2rem 0.9rem 1rem;
-  border-right: 1px solid rgba(255, 197, 236, 0.1);
+  padding: 1.15rem 0.9rem 1rem;
+  border-right: 1px solid var(--line);
   background:
-    radial-gradient(circle at 20% 4%, rgba(255, 133, 203, 0.14), transparent 30%),
-    radial-gradient(circle at 90% 85%, rgba(101, 228, 215, 0.06), transparent 36%),
-    rgba(17, 11, 30, 0.97);
-  backdrop-filter: blur(18px);
+    radial-gradient(circle at 15% 0%, rgba(255, 157, 122, 0.07), transparent 30%),
+    rgba(8, 9, 14, 0.97);
+  backdrop-filter: blur(24px);
 }
 
-.sidebar-glow {
+.sidebar-aurora {
   position: absolute;
-  top: 17%;
-  right: -90px;
-  width: 200px;
-  height: 200px;
+  top: 25%;
+  right: -150px;
+  width: 260px;
+  height: 260px;
   border-radius: 50%;
-  background: rgba(225, 133, 255, 0.08);
-  filter: blur(35px);
+  background: var(--accent-2);
+  filter: blur(80px);
+  opacity: 0.09;
   pointer-events: none;
 }
 
-.sidebar > *:not(.sidebar-glow) { position: relative; z-index: 1; }
+.sidebar > *:not(.sidebar-aurora) { position: relative; z-index: 1; }
 
-.sidebar-head { display: flex; align-items: center; justify-content: space-between; padding: 0 0.28rem; }
-.logo-link { display: inline-flex; }
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.1rem 0.25rem;
+}
+
+.logo-link { display: inline-flex; min-width: 0; }
 .sidebar-close { display: none; }
 
 .workspace-chip {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  margin-top: 1.25rem;
-  padding: 0.64rem;
-  border: 1px solid rgba(255, 205, 239, 0.1);
-  border-radius: 13px;
-  background: linear-gradient(115deg, rgba(255, 167, 220, 0.07), rgba(255, 255, 255, 0.018));
+  gap: 0.6rem;
+  margin-top: 1.35rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(18, 22, 33, 0.72);
 }
 
 .workspace-avatar {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 33px;
+  height: 33px;
   flex: none;
   place-items: center;
   border-radius: 10px;
-  color: #ffc0e5;
-  background: rgba(255, 156, 214, 0.1);
+  color: var(--accent);
+  background: rgba(255, 157, 122, 0.08);
 }
 
-.workspace-chip > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 0.13rem; }
-.workspace-chip strong { overflow: hidden; color: #ead8eb; font-size: 0.64rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.workspace-chip small { color: #695673; font-size: 0.42rem; letter-spacing: 0.11em; }
-.workspace-live { width: 6px; height: 6px; flex: none; border-radius: 50%; background: #7ef0dc; box-shadow: 0 0 9px #7ef0dc; }
+.workspace-chip > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 0.14rem; }
+.workspace-chip strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-chip small {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.41rem;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-chip i {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 10px rgba(129, 239, 197, 0.65);
+}
 
-.side-nav { display: grid; gap: 0.28rem; margin-top: 1.45rem; }
-.nav-label { margin: 0 0.55rem 0.38rem; color: #655276; font-size: 0.48rem; font-weight: 700; letter-spacing: 0.13em; }
+.side-nav { display: grid; gap: 0.32rem; margin-top: 1.5rem; }
+.nav-label {
+  margin: 0 0.62rem 0.42rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.47rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
 
 .side-link {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.57rem;
+  gap: 0.6rem;
+  padding: 0.58rem;
   border: 1px solid transparent;
   border-radius: 11px;
-  color: #8b7798;
-  transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+  color: var(--body);
+  transition:
+    color var(--dur-fast) ease,
+    background var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-out);
 }
 
-.side-link:hover { color: #d8c6dc; background: rgba(255, 231, 248, 0.035); }
-.side-link.is-active { border-color: rgba(255, 179, 225, 0.15); color: #ffe9f8; background: linear-gradient(110deg, rgba(255, 150, 211, 0.11), rgba(126, 111, 225, 0.06)); }
+.side-link:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.035);
+}
 
-.side-icon { display: grid; width: 29px; height: 29px; flex: none; place-items: center; border-radius: 9px; background: rgba(255, 255, 255, 0.035); }
-.side-link.is-active .side-icon { color: #ffb2dd; background: rgba(255, 157, 214, 0.09); }
+.side-link.is-active {
+  border-color: rgba(255, 157, 122, 0.18);
+  color: var(--ink);
+  background:
+    linear-gradient(100deg, rgba(255, 157, 122, 0.1), rgba(232, 189, 102, 0.04));
+}
+
+.side-link.is-active::before {
+  position: absolute;
+  left: -1px;
+  width: 2px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(255, 157, 122, 0.62);
+  content: '';
+}
+
+.side-icon {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.side-link.is-active .side-icon {
+  color: var(--accent);
+  background: rgba(255, 157, 122, 0.09);
+}
+
 .side-copy { display: grid; min-width: 0; flex: 1; gap: 0.08rem; }
-.side-copy strong { font-size: 0.64rem; font-weight: 620; }
-.side-copy small { color: #5e4d6d; font-size: 0.45rem; }
-.nav-cat-dot { color: #ffacd8; font-size: 0.62rem; }
+.side-copy strong { font-size: 0.67rem; font-weight: 620; }
+.side-copy small {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.42rem;
+  letter-spacing: 0.06em;
+}
+.nav-signal {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 9px rgba(255, 157, 122, 0.7);
+}
 
-.sidebar-neko-wrap { position: relative; display: flex; align-items: flex-end; gap: 0.45rem; margin: 1.1rem 0.25rem 0; padding: 0.35rem; border-radius: 14px; background: radial-gradient(circle at 30% 50%, rgba(255, 166, 219, 0.08), transparent 66%); }
-.sidebar-neko-portrait { width: 56px; height: 64px; flex: none; border: 1px solid rgba(255, 213, 245, 0.18); border-radius: 12px; object-fit: cover; box-shadow: 0 8px 18px rgba(4, 1, 12, 0.28); }
-.sidebar-bubble { position: relative; margin-bottom: 0.7rem; padding: 0.45rem 0.55rem; border: 1px solid rgba(255, 205, 239, 0.12); border-radius: 10px 10px 10px 3px; color: #aa92b8; background: rgba(38, 25, 56, 0.76); font-size: 0.49rem; line-height: 1.5; }
+.sidebar-neko-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+  margin: 1.2rem 0.2rem 0;
+  padding: 0.35rem;
+  border-radius: 16px;
+  background: radial-gradient(circle at 28% 45%, rgba(255, 157, 122, 0.08), transparent 68%);
+}
+
+.sidebar-neko-portrait {
+  width: 64px;
+  height: 78px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  object-fit: cover;
+  object-position: 50% 20%;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.sidebar-bubble {
+  position: relative;
+  display: grid;
+  gap: 0.15rem;
+  margin-bottom: 0.8rem;
+  padding: 0.48rem 0.56rem;
+  border: 1px solid var(--line);
+  border-radius: 10px 10px 10px 3px;
+  background: rgba(18, 22, 33, 0.9);
+}
+.sidebar-bubble strong { color: var(--body); font-size: 0.5rem; font-weight: 650; line-height: 1.45; }
+.sidebar-bubble span { color: var(--muted); font-size: 0.44rem; line-height: 1.45; }
 
 .sidebar-spacer { flex: 1; min-height: 0.8rem; }
 
-.security-note { display: flex; align-items: flex-start; gap: 0.52rem; padding: 0.7rem 0.55rem; border-top: 1px solid rgba(255, 255, 255, 0.055); }
-.security-note-icon { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 9px; color: #8bded2; background: rgba(92, 229, 209, 0.06); }
-.security-note strong { display: block; color: #a894b3; font-size: 0.55rem; font-weight: 650; }
-.security-note p { margin-top: 0.14rem; color: #5f4d70; font-size: 0.47rem; line-height: 1.5; }
+.security-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.52rem;
+  padding: 0.75rem 0.5rem;
+  border-top: 1px solid var(--line-soft);
+}
+.security-note > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--success);
+  background: rgba(129, 239, 197, 0.07);
+}
+.security-note strong { display: block; color: var(--body); font-size: 0.56rem; font-weight: 650; }
+.security-note p { margin-top: 0.14rem; color: var(--muted); font-size: 0.47rem; line-height: 1.5; }
 
-.sidebar-user { display: flex; align-items: center; gap: 0.55rem; padding: 0.72rem 0.35rem 0.1rem; border-top: 1px solid rgba(255, 255, 255, 0.055); }
-.user-avatar { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 50%; color: #fff2fb; background: linear-gradient(145deg, #ff9dd1, #8275df); font-size: 0.62rem; font-weight: 750; }
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.72rem 0.3rem 0.05rem;
+  border-top: 1px solid var(--line-soft);
+}
+.user-avatar {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgba(255, 157, 122, 0.2);
+  border-radius: 50%;
+  color: var(--ink);
+  background: linear-gradient(145deg, #54382c, #291d17);
+  font-size: 0.62rem;
+  font-weight: 750;
+}
 .user-meta { display: grid; min-width: 0; flex: 1; gap: 0.08rem; }
-.user-meta strong, .user-meta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.user-meta strong { color: #d7c6dc; font-size: 0.62rem; font-weight: 650; }
-.user-meta small { color: #685776; font-size: 0.49rem; }
+.user-meta strong,
+.user-meta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-meta strong { color: var(--body); font-size: 0.62rem; font-weight: 650; }
+.user-meta small { color: var(--muted); font-size: 0.49rem; }
 
-.app-main { width: 100%; min-width: 0; margin-left: 268px; }
-.content { width: min(1370px, 100%); margin: 0 auto; padding: clamp(1.25rem, 3vw, 2.9rem); }
+.app-main {
+  width: 100%;
+  min-width: 0;
+  margin-left: 278px;
+}
+
+.content {
+  width: min(1420px, 100%);
+  margin: 0 auto;
+  padding: clamp(1.3rem, 3vw, 3rem);
+}
+
 .mobile-topbar { display: none; }
 .sidebar-scrim { display: none; }
 
 @media (max-width: 900px) {
-  .sidebar { transform: translateX(-104%); transition: transform 0.22s ease; }
+  .sidebar {
+    transform: translateX(-104%);
+    transition: transform var(--dur-base) var(--ease-out);
+  }
   .sidebar.is-open { transform: translateX(0); }
   .sidebar-close { display: grid; }
-  .sidebar-scrim { position: fixed; z-index: 40; inset: 0; display: block; background: rgba(8, 4, 15, 0.7); backdrop-filter: blur(5px); }
+  .sidebar-scrim {
+    position: fixed;
+    z-index: 40;
+    inset: 0;
+    display: block;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(6px);
+  }
   .app-main { margin-left: 0; }
-  .mobile-topbar { display: flex; position: sticky; z-index: 30; top: 0; align-items: center; justify-content: space-between; gap: 0.7rem; padding: 0.7rem 1rem; border-bottom: 1px solid rgba(255, 205, 239, 0.08); background: rgba(16, 10, 28, 0.88); backdrop-filter: blur(16px); }
-  .mobile-topbar strong { color: #e5d5e8; font-size: 0.72rem; }
-  .topbar-avatar { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 50%; color: #fff1fa; background: linear-gradient(145deg, #ff9dd1, #8275df); font-size: 0.52rem; font-weight: 750; }
+  .mobile-topbar {
+    position: sticky;
+    z-index: 30;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--line);
+    background: rgba(8, 9, 14, 0.88);
+    backdrop-filter: blur(20px);
+  }
+  .mobile-topbar strong { color: var(--ink); font-size: 0.72rem; }
+  .topbar-avatar {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 1px solid rgba(255, 157, 122, 0.2);
+    border-radius: 50%;
+    color: var(--ink);
+    background: linear-gradient(145deg, #54382c, #291d17);
+    font-size: 0.52rem;
+    font-weight: 750;
+  }
   .content { padding: 1.15rem 1rem 2rem; }
 }
 </style>

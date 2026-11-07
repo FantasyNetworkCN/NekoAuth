@@ -39,12 +39,12 @@ import { dismissToast, toasts } from '@/lib/toast'
   gap: 0.65rem;
   padding: 0.8rem 0.85rem;
   border: 1px solid var(--border-strong);
-  border-radius: 13px;
-  background: rgba(16, 22, 41, 0.96);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+  border-radius: 15px;
+  background: rgba(18, 22, 33, 0.96);
+  box-shadow: 0 22px 60px -28px rgba(0, 0, 0, 0.9);
   color: var(--text);
   pointer-events: auto;
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(22px) saturate(130%);
 }
 
 .toast-icon {
@@ -54,18 +54,18 @@ import { dismissToast, toasts } from '@/lib/toast'
   height: 28px;
   place-items: center;
   border-radius: 9px;
-  color: var(--primary-soft);
-  background: rgba(124, 157, 255, 0.12);
+  color: var(--accent);
+  background: rgba(136, 233, 255, 0.1);
 }
 
 .toast-success .toast-icon {
-  color: var(--accent);
-  background: rgba(66, 232, 197, 0.1);
+  color: var(--success);
+  background: rgba(129, 239, 197, 0.1);
 }
 
 .toast-error .toast-icon {
   color: var(--danger);
-  background: rgba(255, 107, 129, 0.1);
+  background: rgba(255, 139, 168, 0.1);
 }
 
 .toast-message {

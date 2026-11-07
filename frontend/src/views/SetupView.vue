@@ -2,8 +2,8 @@
 import { onMounted, reactive, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import AppLogo from '@/components/AppLogo.vue'
-import NekoMascot from '@/components/NekoMascot.vue'
 import { ApiError, api } from '@/lib/api'
+import setupNeko from '@/assets/local/admin-neko.webp'
 import type { SetupInstallRequest, SetupResult } from '@/types'
 
 const setupToken = ref('')
@@ -107,7 +107,7 @@ async function submit() {
       </div>
 
       <div class="aside-neko">
-        <NekoMascot pose="wink" compact />
+        <img :src="setupNeko" alt="梦幻网络安装向导猫娘" />
         <div><strong>小梦安装向导</strong><span>跟着猫爪印走，不会迷路喵。</span></div>
       </div>
 
@@ -303,18 +303,26 @@ async function submit() {
   background: rgba(255, 227, 248, 0.025);
 }
 
-.aside-neko :deep(.neko-mascot) { width: 70px; flex: none; }
+.aside-neko img {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  object-fit: cover;
+  object-position: 50% 12%;
+}
 
 .aside-neko > div { display: grid; gap: 0.1rem; }
-.aside-neko strong { color: #e8cfe5; font-size: 0.61rem; font-weight: 700; }
-.aside-neko span { color: #806b8e; font-size: 0.49rem; line-height: 1.5; }
+.aside-neko strong { color: var(--ink); font-size: 0.61rem; font-weight: 700; }
+.aside-neko span { color: var(--muted); font-size: 0.49rem; line-height: 1.5; }
 
 .setup-page {
   display: grid;
   min-height: 100svh;
   grid-template-columns: minmax(300px, 0.72fr) minmax(0, 1.28fr);
   background:
-    radial-gradient(circle at 80% 0%, rgba(91, 108, 242, 0.11), transparent 32%),
+    radial-gradient(circle at 80% 0%, rgba(255, 157, 122, 0.08), transparent 32%),
     var(--bg);
 }
 
@@ -329,9 +337,9 @@ async function submit() {
   padding: clamp(1.7rem, 4vw, 3.2rem);
   border-right: 1px solid var(--border);
   background:
-    radial-gradient(circle at 100% 20%, rgba(83, 105, 255, 0.2), transparent 38%),
-    radial-gradient(circle at 0% 85%, rgba(66, 232, 197, 0.07), transparent 35%),
-    #090d1a;
+    radial-gradient(circle at 100% 20%, rgba(255, 157, 122, 0.12), transparent 38%),
+    radial-gradient(circle at 0% 85%, rgba(232, 189, 102, 0.06), transparent 35%),
+    #130e0b;
 }
 
 .setup-aside::before {
@@ -370,7 +378,7 @@ async function submit() {
 }
 
 .aside-copy h1 {
-  color: #f4f6ff;
+  color: var(--ink);
   font-size: clamp(2.2rem, 4vw, 3.7rem);
   font-weight: 760;
   letter-spacing: -0.06em;
@@ -379,21 +387,21 @@ async function submit() {
 
 .aside-copy h1 span {
   color: transparent;
-  background: linear-gradient(100deg, #b9c7ff, #7f9bff 52%, #5fe7cc);
+  background: var(--gradient-text);
   background-clip: text;
 }
 
 .aside-copy > p:last-child {
   max-width: 410px;
   margin-top: 1.35rem;
-  color: #8e9ab7;
+  color: var(--body);
   font-size: 0.82rem;
   line-height: 1.75;
 }
 
 .aside-copy code,
 .state-card code {
-  color: #a9b8df;
+  color: var(--primary-soft);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.92em;
 }
@@ -412,14 +420,14 @@ async function submit() {
   padding: 0.7rem;
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: 11px;
-  color: #65708b;
-  background: rgba(255, 255, 255, 0.018);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .setup-steps li.active {
-  border-color: rgba(124, 157, 255, 0.18);
-  color: #c6d1f7;
-  background: rgba(100, 126, 255, 0.065);
+  border-color: rgba(255, 157, 122, 0.2);
+  color: var(--body);
+  background: rgba(255, 157, 122, 0.07);
 }
 
 .setup-steps li > span {
@@ -429,15 +437,15 @@ async function submit() {
   flex: none;
   place-items: center;
   border-radius: 8px;
-  color: #8190b3;
+  color: var(--muted);
   background: rgba(255, 255, 255, 0.045);
   font-family: ui-monospace, monospace;
   font-size: 0.61rem;
 }
 
 .setup-steps .active > span {
-  color: #dfe5ff;
-  background: rgba(111, 138, 255, 0.17);
+  color: var(--primary-soft);
+  background: rgba(255, 157, 122, 0.14);
 }
 
 .setup-steps strong,
@@ -452,7 +460,7 @@ async function submit() {
 
 .setup-steps small {
   margin-top: 0.1rem;
-  color: #69758f;
+  color: var(--muted);
   font-size: 0.61rem;
 }
 
@@ -462,14 +470,14 @@ async function submit() {
   gap: 0.55rem;
   padding-top: 1.1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
-  color: #65718d;
+  color: var(--muted);
   font-size: 0.64rem;
   line-height: 1.55;
 }
 
 .aside-note svg {
   flex: none;
-  color: #88a0ff;
+  color: var(--accent);
 }
 
 .setup-main {
@@ -493,7 +501,7 @@ async function submit() {
 
 .setup-heading h2,
 .state-card h2 {
-  color: #f0f3ff;
+  color: var(--ink);
   font-size: clamp(1.9rem, 3.6vw, 2.7rem);
   font-weight: 750;
   letter-spacing: -0.055em;
@@ -517,8 +525,8 @@ async function submit() {
   padding: 0.4rem 0.64rem;
   border: 1px solid rgba(66, 232, 197, 0.14);
   border-radius: 999px;
-  color: #8ae8d5;
-  background: rgba(66, 232, 197, 0.05);
+  color: var(--success);
+  background: rgba(157, 212, 175, 0.07);
   font-size: 0.6rem;
 }
 
@@ -545,10 +553,10 @@ async function submit() {
 }
 
 .token-section {
-  border-color: rgba(124, 157, 255, 0.18);
+  border-color: rgba(255, 157, 122, 0.2);
   background:
-    linear-gradient(110deg, rgba(95, 119, 245, 0.075), transparent 60%),
-    rgba(16, 22, 41, 0.72);
+    linear-gradient(110deg, rgba(255, 157, 122, 0.07), transparent 60%),
+    rgba(32, 24, 20, 0.72);
 }
 
 .section-title {
@@ -564,23 +572,23 @@ async function submit() {
   height: 28px;
   flex: none;
   place-items: center;
-  border: 1px solid rgba(132, 157, 255, 0.15);
+  border: 1px solid rgba(255, 157, 122, 0.18);
   border-radius: 8px;
-  color: #a9baff;
-  background: rgba(109, 133, 255, 0.07);
+  color: var(--accent);
+  background: rgba(255, 157, 122, 0.08);
   font-family: ui-monospace, monospace;
   font-size: 0.59rem;
 }
 
 .section-title h3 {
-  color: #dfe5f8;
+  color: var(--ink);
   font-size: 0.83rem;
   font-weight: 650;
 }
 
 .section-title p {
   margin-top: 0.22rem;
-  color: #6f7b96;
+  color: var(--muted);
   font-size: 0.64rem;
   line-height: 1.55;
 }
@@ -601,13 +609,13 @@ async function submit() {
 }
 
 .setup-label {
-  color: #aab5cd;
+  color: var(--body);
   font-size: 0.65rem;
   font-weight: 570;
 }
 
 .setup-label small {
-  color: #606b84;
+  color: var(--muted);
   font-size: 0.56rem;
 }
 
@@ -615,11 +623,11 @@ async function submit() {
   width: 100%;
   min-height: 41px;
   padding: 0.55rem 0.7rem;
-  border: 1px solid rgba(255, 255, 255, 0.085);
+  border: 1px solid var(--line);
   border-radius: 9px;
   outline: none;
   color: var(--text);
-  background: rgba(6, 10, 21, 0.52);
+  background: rgba(13, 10, 8, 0.58);
   font-size: 0.73rem;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
@@ -630,9 +638,9 @@ async function submit() {
 }
 
 .setup-input:focus {
-  border-color: rgba(124, 157, 255, 0.48);
-  background: rgba(7, 11, 24, 0.78);
-  box-shadow: 0 0 0 3px rgba(101, 127, 255, 0.08);
+  border-color: rgba(255, 157, 122, 0.52);
+  background: rgba(13, 10, 8, 0.78);
+  box-shadow: 0 0 0 3px rgba(255, 157, 122, 0.09);
 }
 
 .setup-input.invalid {
@@ -640,7 +648,7 @@ async function submit() {
 }
 
 .setup-input::placeholder {
-  color: #4d5871;
+  color: #675a4f;
 }
 
 .password-wrap {
@@ -662,14 +670,14 @@ async function submit() {
   place-items: center;
   border: 0;
   border-radius: 7px;
-  color: #69758f;
+  color: var(--muted);
   background: transparent;
   transform: translateY(-50%);
   cursor: pointer;
 }
 
 .password-toggle:hover {
-  color: #b8c4de;
+  color: var(--ink);
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -683,18 +691,18 @@ async function submit() {
   align-items: center;
   gap: 0.4rem;
   margin-top: 0.6rem;
-  color: #66728d;
+  color: var(--muted);
   font-size: 0.6rem;
 }
 
 .token-hint code,
 .setup-submit-row code {
-  color: #a9b8df;
+  color: var(--primary-soft);
   font-family: ui-monospace, monospace;
 }
 
 .token-hint span {
-  color: #4d5871;
+  color: var(--muted-soft);
 }
 
 .setup-submit-row {
@@ -709,7 +717,7 @@ async function submit() {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  color: #66728c;
+  color: var(--muted);
   font-size: 0.61rem;
   line-height: 1.5;
 }
@@ -774,14 +782,14 @@ async function submit() {
   padding: 0.65rem 0.9rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 9px;
-  color: #bec9e2;
-  background: rgba(5, 8, 18, 0.6);
+  color: var(--body);
+  background: rgba(13, 10, 8, 0.66);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.7rem;
 }
 
 .state-card .state-hint {
-  color: #656f88;
+  color: var(--muted);
   font-size: 0.64rem;
 }
 

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
-import NekoMascot from '@/components/NekoMascot.vue'
 import { ApiError, api } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { showToast } from '@/lib/toast'
+import overviewNeko from '@/assets/local/admin-neko.webp'
 import type { CreatedOAuthClient, OAuthClient, OAuthScopeDetail } from '@/types'
 
 const clients = ref<OAuthClient[]>([])
@@ -234,7 +234,7 @@ onMounted(() => void load())
         <span><strong>{{ confidentialCount }}</strong><small>机密客户端</small></span>
       </div>
       <div class="overview-neko">
-        <NekoMascot pose="wink" compact />
+        <img :src="overviewNeko" alt="梦幻网络猫娘形象" />
         <span>小梦会盯紧每一条 redirect_uri 喵。</span>
       </div>
     </section>
@@ -310,7 +310,7 @@ onMounted(() => void load())
     </div>
 
     <div v-else-if="clients.length === 0" class="empty-state panel clients-empty">
-      <NekoMascot pose="sleep" compact />
+      <img class="clients-empty-image" :src="overviewNeko" alt="梦幻网络猫娘形象" />
       <h2>猫屋里还没有应用</h2>
       <p>登记第一个 OAuth 应用，让它也能看见梦幻网络的星光。</p>
       <button class="btn btn-secondary" type="button" @click="showCreate = true">登记第一个应用</button>
@@ -489,7 +489,15 @@ onMounted(() => void load())
 .overview-card small { color: #7e6b93; font-size: 0.55rem; }
 
 .overview-neko { overflow: hidden; padding: 0.35rem 0.7rem 0.35rem 0.2rem; }
-.overview-neko :deep(.neko-mascot) { width: 66px; flex: none; }
+.overview-neko img {
+  width: 66px;
+  height: 58px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  object-fit: cover;
+  object-position: 50% 12%;
+}
 .overview-neko span { color: #967fa9; font-size: 0.58rem; line-height: 1.55; }
 
 .create-panel {
@@ -638,7 +646,14 @@ onMounted(() => void load())
 .client-actions { display: flex; gap: 0.2rem; }
 
 .clients-empty { min-height: 330px; }
-.clients-empty :deep(.neko-mascot) { width: 100px; }
+.clients-empty-image {
+  width: 100px;
+  height: 100px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  object-fit: cover;
+  object-position: 50% 12%;
+}
 .clients-empty .btn { margin-top: 0.8rem; }
 
 .secret-overlay { position: fixed; z-index: 900; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgba(5, 2, 12, 0.76); backdrop-filter: blur(12px); }
