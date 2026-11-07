@@ -12,6 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const mobileOpen = ref(false)
 const loggingOut = ref(false)
+const avatarBroken = ref(false)
 
 const navItems = [
   { name: 'admin', to: '/admin', label: '用户名册', icon: 'users', note: 'MEMBERS' },
@@ -26,6 +27,11 @@ const pageTitle = computed(() => {
 })
 const displayName = computed(() => auth.state.user?.displayName || auth.state.user?.username || '访客')
 const avatarText = computed(() => initials(displayName.value))
+const avatarUrl = computed(() => auth.state.user?.avatarUrl || '')
+
+watch(avatarUrl, () => {
+  avatarBroken.value = false
+})
 
 watch(
   () => route.fullPath,
@@ -108,7 +114,14 @@ async function logout() {
       </div>
 
       <div class="sidebar-user">
-        <span class="user-avatar">{{ avatarText }}</span>
+        <img
+          v-if="avatarUrl && !avatarBroken"
+          class="user-avatar user-avatar--image"
+          :src="avatarUrl"
+          :alt="displayName"
+          @error="avatarBroken = true"
+        />
+        <span v-else class="user-avatar">{{ avatarText }}</span>
         <span class="user-meta">
           <strong>{{ displayName }}</strong>
           <small>{{ auth.state.user?.role === 'ADMIN' ? '管理员' : '@' + auth.state.user?.username }}</small>
@@ -125,7 +138,14 @@ async function logout() {
           <AppIcon name="menu" :size="21" />
         </button>
         <strong>{{ pageTitle }}</strong>
-        <span class="topbar-avatar">{{ avatarText }}</span>
+        <img
+          v-if="avatarUrl && !avatarBroken"
+          class="topbar-avatar topbar-avatar--image"
+          :src="avatarUrl"
+          :alt="displayName"
+          @error="avatarBroken = true"
+        />
+        <span v-else class="topbar-avatar">{{ avatarText }}</span>
       </header>
 
       <main class="content">
@@ -390,6 +410,7 @@ async function logout() {
   font-size: 0.62rem;
   font-weight: 750;
 }
+.user-avatar--image { object-fit: cover; }
 .user-meta { display: grid; min-width: 0; flex: 1; gap: 0.08rem; }
 .user-meta strong,
 .user-meta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -453,6 +474,7 @@ async function logout() {
     font-size: 0.52rem;
     font-weight: 750;
   }
+  .topbar-avatar--image { object-fit: cover; }
   .content { padding: 1.15rem 1rem 2rem; }
 }
 </style>

@@ -25,15 +25,18 @@ public class InternalAccountService {
     private final EmailVerificationService emailVerificationService;
     private final InternalTokenService tokenService;
     private final UserRepository userRepository;
+    private final AvatarService avatarService;
 
     public InternalAccountService(AuthService authService,
                                   EmailVerificationService emailVerificationService,
                                   InternalTokenService tokenService,
-                                  UserRepository userRepository) {
+                                  UserRepository userRepository,
+                                  AvatarService avatarService) {
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
         this.tokenService = tokenService;
         this.userRepository = userRepository;
+        this.avatarService = avatarService;
     }
 
     public InternalAccountResponses.Account login(InternalAccountRequests.Login request, OAuthClient client) {
@@ -59,6 +62,11 @@ public class InternalAccountService {
 
     public void updateNickname(InternalAccountRequests.UpdateNickname request) {
         authService.updateNicknameByEmail(request.email(), new AuthRequests.UpdateProfile(request.nickname()));
+    }
+
+    public InternalAccountResponses.Summary uploadAvatar(long authUserId,
+                                                         org.springframework.web.multipart.MultipartFile file) {
+        return InternalAccountResponses.Summary.from(avatarService.upload(authUserId, file));
     }
 
     public List<InternalAccountResponses.Summary> lookup(InternalAccountRequests.Lookup request) {

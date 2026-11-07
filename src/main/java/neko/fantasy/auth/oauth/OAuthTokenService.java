@@ -71,6 +71,8 @@ public class OAuthTokenService {
         if (scopes.contains(OAuthScopes.PROFILE)) {
             claims.put("preferred_username", user.getUsername());
             claims.put("name", user.publicName());
+            claims.put("picture", keyService.getIssuer()
+                    + neko.fantasy.auth.service.AvatarService.avatarUrl(user.getId()));
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {
             claims.put("email", user.getEmail());

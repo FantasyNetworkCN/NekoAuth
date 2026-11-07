@@ -21,4 +21,14 @@ class CacheControlFilterTest {
 
         assertThat(response.getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-store");
     }
+
+    @Test
+    void leavesAvatarCacheHeadersToAvatarController() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/avatars/42");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getHeader(HttpHeaders.CACHE_CONTROL)).isNull();
+    }
 }

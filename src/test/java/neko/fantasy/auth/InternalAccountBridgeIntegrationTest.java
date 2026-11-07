@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -38,6 +39,8 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -155,6 +158,46 @@ class InternalAccountBridgeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(authUserId))
                 .andExpect(jsonPath("$[0].nickname").value(nickname));
+    }
+
+    @Test
+    void bridgeCanMigrateAvatarAndAvatarIsPubliclyServed() throws Exception {
+        Client client = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE));
+        String email = uniqueEmail();
+        MvcResult created = mockMvc.perform(post("/api/internal/accounts/admin-create")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"头像猫娘","email":"%s","password":"Password123"}
+                                """.formatted(email)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Number userId = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        byte[] png = new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+        MockMultipartFile avatar = new MockMultipartFile(
+                "avatar", "avatar.png", MediaType.IMAGE_PNG_VALUE, png);
+
+        mockMvc.perform(multipart("/api/internal/accounts/avatar")
+                        .file(avatar)
+                        .param("authUserId", String.valueOf(userId))
+                        .header(HttpHeaders.AUTHORIZATION, basic(client)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").value("/avatars/" + userId));
+
+        MvcResult image = mockMvc.perform(get("/avatars/" + userId))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(image.getResponse().getContentType()).startsWith(MediaType.IMAGE_PNG_VALUE);
+        assertThat(image.getResponse().getContentAsByteArray()).isEqualTo(png);
+    }
+
+    @Test
+    void missingAvatarFallsBackToAuthFavicon() throws Exception {
+        MvcResult image = mockMvc.perform(get("/avatars/999999"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(image.getResponse().getContentType()).startsWith("image/x-icon");
+        assertThat(image.getResponse().getContentAsByteArray()).isNotEmpty();
     }
 
     @Test

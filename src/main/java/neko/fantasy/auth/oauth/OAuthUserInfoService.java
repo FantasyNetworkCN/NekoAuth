@@ -3,6 +3,7 @@ package neko.fantasy.auth.oauth;
 import io.jsonwebtoken.JwtException;
 import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.repository.UserRepository;
+import neko.fantasy.auth.service.AvatarService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +62,7 @@ public class OAuthUserInfoService {
         if (scopes.contains(OAuthScopes.PROFILE)) {
             response.put("preferred_username", user.getUsername());
             response.put("name", user.publicName());
+            response.put("picture", tokenService.issuer() + AvatarService.avatarUrl(user.getId()));
             response.put("updated_at", user.getUpdatedAt().getEpochSecond());
         }
         if (scopes.contains(OAuthScopes.EMAIL)) {

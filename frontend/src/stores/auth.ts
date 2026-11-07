@@ -88,6 +88,12 @@ export const auth = {
     return updated
   },
 
+  async uploadAvatar(file: File): Promise<User> {
+    const updated = await api.uploadAvatar(file)
+    state.user = updated
+    return updated
+  },
+
   async logout() {
     try {
       await api.logout()

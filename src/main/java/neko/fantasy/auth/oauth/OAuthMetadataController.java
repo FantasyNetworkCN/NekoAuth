@@ -46,7 +46,7 @@ public class OAuthMetadataController {
         metadata.put("prompt_values_supported", List.of("none", "login", "consent", "select_account"));
         metadata.put("claims_supported", List.of(
                 "sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "at_hash",
-                "preferred_username", "name", "email", "role", "updated_at"));
+                "preferred_username", "name", "picture", "email", "role", "updated_at"));
         metadata.put("authorization_response_iss_parameter_supported", true);
         metadata.put("request_parameter_supported", false);
         metadata.put("request_uri_parameter_supported", false);

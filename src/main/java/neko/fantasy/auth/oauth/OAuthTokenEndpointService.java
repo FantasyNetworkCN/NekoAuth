@@ -155,6 +155,8 @@ public class OAuthTokenEndpointService {
                 response.put("username", claims.username());
             }
             response.put("name", user.publicName());
+            response.put("picture", tokenService.issuer()
+                    + neko.fantasy.auth.service.AvatarService.avatarUrl(user.getId()));
             response.put("email", user.getEmail());
             if (claims.role() != null) {
                 response.put("role", claims.role());

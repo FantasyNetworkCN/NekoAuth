@@ -59,6 +59,7 @@ public class SecurityConfig {
                                 "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/password/reset-code", "/api/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/registration-policy").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/avatars/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/oauth/authorize").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()

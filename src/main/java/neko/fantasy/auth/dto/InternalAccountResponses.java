@@ -9,26 +9,29 @@ public final class InternalAccountResponses {
     private InternalAccountResponses() {
     }
 
-    public record Account(long id, String email, String username, String nickname, Role role, boolean enabled,
-                          String accessToken, String tokenType, Long expiresIn) {
+    public record Account(long id, String email, String username, String nickname, String avatarUrl,
+                          Role role, boolean enabled, String accessToken, String tokenType, Long expiresIn) {
 
         public static Account from(User user) {
             return new Account(user.getId(), user.getEmail(), user.getUsername(), user.publicName(),
+                    neko.fantasy.auth.service.AvatarService.avatarUrl(user.getId()),
                     user.getRole(), user.isEnabled(), null, null, null);
         }
 
         public static Account from(User user, neko.fantasy.auth.internal.InternalTokenService.IssuedToken token) {
             return new Account(user.getId(), user.getEmail(), user.getUsername(), user.publicName(),
+                    neko.fantasy.auth.service.AvatarService.avatarUrl(user.getId()),
                     user.getRole(), user.isEnabled(), token.accessToken(), token.tokenType(),
                     token.expiresIn());
         }
     }
 
     /** 不含令牌与敏感字段的账号摘要，供第一方应用实时解析昵称与搜索用户。 */
-    public record Summary(long id, String email, String username, String nickname) {
+    public record Summary(long id, String email, String username, String nickname, String avatarUrl) {
 
         public static Summary from(User user) {
-            return new Summary(user.getId(), user.getEmail(), user.getUsername(), user.publicName());
+            return new Summary(user.getId(), user.getEmail(), user.getUsername(), user.publicName(),
+                    neko.fantasy.auth.service.AvatarService.avatarUrl(user.getId()));
         }
     }
 }

@@ -15,6 +15,15 @@ const user = computed(() => auth.state.user)
 const displayName = computed(() => user.value?.displayName || user.value?.username || 'Neko')
 const avatarText = computed(() => initials(displayName.value))
 const roleLabel = computed(() => user.value?.role === 'ADMIN' ? '管理员' : '普通成员')
+const avatarRevision = ref(0)
+const avatarBroken = ref(false)
+const avatarUploading = ref(false)
+const avatarInput = ref<HTMLInputElement | null>(null)
+const avatarSrc = computed(() => {
+  const base = user.value?.avatarUrl || ''
+  if (!base) return ''
+  return avatarRevision.value > 0 ? `${base}?v=${avatarRevision.value}` : base
+})
 
 const sessions = ref<Session[]>([])
 const sessionsLoading = ref(true)
@@ -92,6 +101,32 @@ async function saveNickname() {
     }
   } finally {
     profileLoading.value = false
+  }
+}
+
+async function uploadAvatar(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || avatarUploading.value) return
+  if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp'].includes(file.type)) {
+    showToast('头像仅支持 PNG、JPEG、GIF、WebP 或 BMP', 'error')
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('头像不能超过 10MiB', 'error')
+    return
+  }
+  avatarUploading.value = true
+  try {
+    await auth.uploadAvatar(file)
+    avatarBroken.value = false
+    avatarRevision.value = Date.now()
+    showToast('头像已经更新喵', 'success')
+  } catch (caught) {
+    showToast(caught instanceof ApiError ? caught.message : '头像上传失败，请稍后重试', 'error')
+  } finally {
+    avatarUploading.value = false
   }
 }
 
@@ -227,7 +262,14 @@ onMounted(() => {
           <img class="overview-art" :src="accountNeko" alt="" />
           <div class="overview-shade" aria-hidden="true"></div>
           <div class="overview-profile-top">
-            <span class="identity-avatar">{{ avatarText }}</span>
+            <img
+              v-if="avatarSrc && !avatarBroken"
+              class="identity-avatar identity-avatar--image"
+              :src="avatarSrc"
+              :alt="displayName"
+              @error="avatarBroken = true"
+            />
+            <span v-else class="identity-avatar">{{ avatarText }}</span>
             <span class="status-badge" :class="{ disabled: !user.enabled }">
               <i></i>{{ user.enabled ? '账户正常' : '已停用' }}
             </span>
@@ -255,6 +297,38 @@ onMounted(() => {
             <div v-if="profileError" class="alert alert-error" role="alert">
               <AppIcon name="alert" :size="17" />
               <span>{{ profileError }}</span>
+            </div>
+
+            <div class="avatar-editor">
+              <img
+                v-if="avatarSrc && !avatarBroken"
+                class="avatar-editor__preview"
+                :src="avatarSrc"
+                :alt="displayName"
+                @error="avatarBroken = true"
+              />
+              <span v-else class="avatar-editor__preview avatar-editor__preview--fallback">{{ avatarText }}</span>
+              <div class="avatar-editor__copy">
+                <strong>账户头像</strong>
+                <span>头像会同步展示在 NekoMusic 等已接入应用。</span>
+              </div>
+              <input
+                ref="avatarInput"
+                class="avatar-editor__file"
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp,image/bmp"
+                @change="uploadAvatar"
+              />
+              <button
+                class="btn btn-secondary btn-small"
+                type="button"
+                :disabled="avatarUploading"
+                @click="avatarInput?.click()"
+              >
+                <span v-if="avatarUploading" class="spinner"></span>
+                <AppIcon v-else name="edit" :size="15" />
+                {{ avatarUploading ? '上传中…' : '更换头像' }}
+              </button>
             </div>
 
             <form class="profile-form" novalidate @submit.prevent="saveNickname">
@@ -712,6 +786,61 @@ onMounted(() => {
   font-size: 0.82rem;
   font-weight: 800;
   backdrop-filter: blur(14px);
+}
+
+.identity-avatar--image {
+  object-fit: cover;
+}
+
+.avatar-editor {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: var(--surface-soft);
+}
+
+.avatar-editor__preview {
+  width: 54px;
+  height: 54px;
+  flex: none;
+  border-radius: 0.8rem;
+  object-fit: cover;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.avatar-editor__preview--fallback {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.avatar-editor__copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.avatar-editor__copy strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.avatar-editor__copy span {
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.5;
+}
+
+.avatar-editor__file {
+  display: none;
 }
 
 .status-badge {

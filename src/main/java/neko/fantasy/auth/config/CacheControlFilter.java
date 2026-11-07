@@ -22,7 +22,9 @@ public class CacheControlFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        if (!request.getRequestURI().startsWith("/avatars/")) {
+            response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        }
         filterChain.doFilter(request, response);
     }
 }

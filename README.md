@@ -98,7 +98,7 @@ sudo docker compose logs -f --tail=200 auth
 
 Compose 设置 `AUTH_SETUP_ENABLED=false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 使用宿主机现有服务，Compose 不会创建或暴露额外数据库端口。
 
-数据库与 Redis 数据由宿主机现有服务管理；Compose 部署的 OAuth RS256 签名私钥保存在命名卷 `nekoauth_data` 的 `/app/data/oauth-signing-key.pem`。备份时必须同时备份 MySQL 与该私钥；丢失签名私钥后，已有令牌与 JWKS 将无法继续验证。
+数据库与 Redis 数据由宿主机现有服务管理；Compose 部署的 OAuth RS256 签名私钥保存在命名卷 `nekoauth_data` 的 `/app/data/oauth-signing-key.pem`，用户头像保存在 `/app/data/avatars/`。备份时必须同时备份 MySQL、头像目录与该私钥；丢失签名私钥后，已有令牌与 JWKS 将无法继续验证。
 
 ## 本地开发
 
@@ -170,6 +170,7 @@ NekoMusic 等第一方应用不再保存用户密码，也不再自行签发或�
 | `POST` | `/api/internal/accounts/register` | 校验验证码并创建账号，可传可选 `nickname` |
 | `POST` | `/api/internal/accounts/admin-create` | 由已校验权限的第一方后台创建普通用户，可传可选 `nickname`，跳过验证码 |
 | `POST` | `/api/internal/accounts/nickname` | 修改指定邮箱账号的昵称；NekoMusic 修改昵称时调用 |
+| `POST` | `/api/internal/accounts/avatar` | 第一方服务端迁移或代传头像；提交 `authUserId` 与 multipart `avatar` |
 | `POST` | `/api/internal/accounts/lookup` | 按稳定用户 ID 批量查询账号摘要（邮箱、用户名、当前昵称），单次最多 200 个 |
 | `POST` | `/api/internal/accounts/search` | 按昵称、用户名或邮箱搜索账号摘要，最多返回 20 个 |
 | `POST` | `/api/internal/accounts/password/reset-code` | 发送找回密码验证码，保持账号不可枚举 |
@@ -302,7 +303,7 @@ NekoAuth 按 scope 最小化返回声明。UserInfo 无论如何都会返回 `su
 | Scope | UserInfo 字段 | ID Token 字段 | 说明 |
 | --- | --- | --- | --- |
 | `openid` | `sub`、`client_id` | `sub`、`iss`、`aud`、`azp`、`exp`、`iat`、`auth_time`、`at_hash` | 签发 ID Token；访问令牌仍会正常签发 |
-| `profile` | `preferred_username`、`name`、`updated_at` | `preferred_username`、`name` | 用户名、昵称与更新时间 |
+| `profile` | `preferred_username`、`name`、`picture`、`updated_at` | `preferred_username`、`name`、`picture` | 用户名、昵称、头像地址与更新时间 |
 | `email` | `email` | `email` | 邮箱地址；注册时的验证码校验仍按当前注册策略执行 |
 | `roles` | `role` | `role` | 用户角色；访问令牌中也包含 `role` |
 | `offline_access` | 不增加 UserInfo 字段 | 不增加字段 | 授权码交换时额外签发 refresh token |
@@ -336,6 +337,7 @@ user:email profile openid offline_access
   "sub": "1000000",
   "preferred_username": "neko",
   "name": "neko",
+  "picture": "https://auth.nekocore.cn/avatars/1000000",
   "updated_at": 1793370000,
   "email": "user@example.com",
   "client_id": "fn_your_client_id"
@@ -524,6 +526,9 @@ docker compose down
 | `POST` | `/api/auth/logout` | 退出当前会话 |
 | `GET` | `/api/auth/me` | 当前用户 |
 | `PATCH` | `/api/auth/me` | 修改当前用户昵称；提交 `nickname` 并返回更新后的用户资料 |
+| `POST` | `/api/auth/avatar` | 登录后上传/替换头像；multipart 字段名为 `avatar`，支持 PNG/JPEG/GIF/WebP/BMP，最大 10MiB |
+| `GET` | `/avatars/default` | 公开默认头像，内容为 Auth 站点当前 favicon |
+| `GET` | `/avatars/{id}` | 公开读取指定 Auth 用户头像；无头像或用户不存在时返回默认头像 |
 | `POST` | `/api/auth/password` | 登录后修改密码，撤销 Auth 登录会话与已签发的 OAuth refresh token |
 | `POST` | `/api/auth/password/reset-code` | 获取人机验证码后向邮箱发送找回密码验证码；提交 `email/captchaId/captchaAnswer` |
 | `POST` | `/api/auth/password/reset` | 使用 `email/code/newPassword` 重置密码，并撤销全部 Auth 登录会话与 OAuth refresh token |

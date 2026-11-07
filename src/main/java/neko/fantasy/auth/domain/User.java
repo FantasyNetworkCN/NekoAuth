@@ -43,6 +43,9 @@ public class User {
     @Column(name = "display_name", nullable = false, length = 64)
     private String displayName;
 
+    @Column(name = "avatar_file", length = 128)
+    private String avatarFile;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private Role role = Role.USER;
@@ -112,6 +115,14 @@ public class User {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getAvatarFile() {
+        return avatarFile;
+    }
+
+    public void setAvatarFile(String avatarFile) {
+        this.avatarFile = avatarFile;
     }
 
     public Role getRole() {

@@ -13,8 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -85,6 +88,16 @@ public class InternalAccountController {
     ) {
         clientAuthenticator.requireClient(authorization);
         accountService.updateNickname(request);
+    }
+
+    @PostMapping(value = "/avatar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public InternalAccountResponses.Summary uploadAvatar(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @RequestParam("authUserId") long authUserId,
+            @RequestPart("avatar") MultipartFile avatar
+    ) {
+        clientAuthenticator.requireClient(authorization);
+        return accountService.uploadAvatar(authUserId, avatar);
     }
 
     @PostMapping("/lookup")

@@ -67,7 +67,7 @@ interface RequestOptions {
 
 async function requestOnce<T>(path: string, init: RequestInit = {}, auth = true): Promise<T> {
   const headers = new Headers(init.headers)
-  if (init.body !== undefined && !headers.has('Content-Type')) {
+  if (init.body !== undefined && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
   if (auth && accessToken) {
@@ -229,6 +229,15 @@ export const api = {
     return request<User>('/auth/me', {
       method: 'PATCH',
       body: JSON.stringify({ nickname }),
+    })
+  },
+
+  uploadAvatar(file: File) {
+    const form = new FormData()
+    form.append('avatar', file)
+    return request<User>('/auth/avatar', {
+      method: 'POST',
+      body: form,
     })
   },
 
