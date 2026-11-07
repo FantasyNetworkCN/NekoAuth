@@ -40,7 +40,7 @@ import { dismissToast, toasts } from '@/lib/toast'
   padding: 0.8rem 0.85rem;
   border: 1px solid var(--border-strong);
   border-radius: 15px;
-  background: rgba(18, 22, 33, 0.96);
+  background: rgba(24, 24, 28, 0.97);
   box-shadow: 0 22px 60px -28px rgba(0, 0, 0, 0.9);
   color: var(--text);
   pointer-events: auto;
@@ -55,17 +55,17 @@ import { dismissToast, toasts } from '@/lib/toast'
   place-items: center;
   border-radius: 9px;
   color: var(--accent);
-  background: rgba(136, 233, 255, 0.1);
+  background: rgba(239, 98, 98, 0.1);
 }
 
 .toast-success .toast-icon {
   color: var(--success);
-  background: rgba(129, 239, 197, 0.1);
+  background: rgba(121, 198, 155, 0.1);
 }
 
 .toast-error .toast-icon {
   color: var(--danger);
-  background: rgba(255, 139, 168, 0.1);
+  background: rgba(255, 107, 107, 0.1);
 }
 
 .toast-message {

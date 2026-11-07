@@ -71,8 +71,8 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   place-items: stretch;
   padding: 0;
   background:
-    radial-gradient(circle at 86% 4%, rgba(255, 157, 122, 0.09), transparent 30%),
-    radial-gradient(circle at 8% 88%, rgba(232, 189, 102, 0.055), transparent 34%),
+    radial-gradient(circle at 86% 4%, rgba(239, 98, 98, 0.07), transparent 30%),
+    radial-gradient(circle at 8% 88%, rgba(226, 180, 92, 0.045), transparent 34%),
     var(--bg);
 }
 
@@ -85,7 +85,7 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: #130e0b;
+  background: #0c0c0f;
 }
 
 .auth-art {
@@ -97,7 +97,7 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   flex-direction: column;
   justify-content: space-between;
   padding: clamp(1.3rem, 2.8vw, 2.2rem);
-  background: #1a120e;
+  background: #111114;
 }
 
 .auth-art-media {
@@ -139,8 +139,8 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   inset: 0;
   opacity: 0.16;
   background-image:
-    linear-gradient(rgba(255, 235, 215, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 235, 215, 0.08) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 92px 92px;
   mask-image: linear-gradient(180deg, black, transparent 72%);
   pointer-events: none;
@@ -165,7 +165,7 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   min-height: 32px;
   align-items: center;
   padding: 0 0.72rem;
-  border: 1px solid rgba(255, 235, 215, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--r-pill);
   color: var(--body);
   background: rgba(20, 14, 11, 0.52);
@@ -221,7 +221,7 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   justify-content: space-between;
   gap: 1rem;
   padding-top: 0.9rem;
-  border-top: 1px solid rgba(255, 235, 215, 0.13);
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
   color: rgba(251, 243, 231, 0.56);
   font-family: var(--font-mono);
   font-size: 0.47rem;
@@ -254,8 +254,8 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   overflow-y: auto;
   padding: clamp(2rem, 4.4vw, 5.25rem);
   background:
-    radial-gradient(circle at 100% 0%, rgba(255, 157, 122, 0.08), transparent 28%),
-    linear-gradient(180deg, #17110e, #100c0a);
+    radial-gradient(circle at 100% 0%, rgba(239, 98, 98, 0.065), transparent 28%),
+    linear-gradient(180deg, #101013, #09090b);
 }
 
 .auth-form-side::before {
@@ -345,7 +345,7 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   border-radius: 24px;
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 46%),
-    rgba(32, 24, 20, 0.8);
+    rgba(24, 24, 28, 0.84);
   box-shadow:
     0 32px 84px -40px rgba(0, 0, 0, 0.9),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -356,7 +356,7 @@ const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroN
   position: absolute;
   inset: 0 1.2rem auto;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 157, 122, 0.5), transparent);
+  background: linear-gradient(90deg, transparent, rgba(239, 98, 98, 0.5), transparent);
   content: '';
 }
 

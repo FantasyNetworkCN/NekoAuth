@@ -386,7 +386,7 @@ onUnmounted(() => {
   border: 1px solid var(--line);
   border-radius: 12px;
   color: var(--body);
-  background: rgba(255, 157, 122, 0.045);
+  background: rgba(239, 98, 98, 0.045);
   font-size: 0.61rem;
   line-height: 1.6;
 }
@@ -396,10 +396,10 @@ onUnmounted(() => {
   width: 34px;
   height: 34px;
   flex: none;
-  border: 1px solid rgba(255, 157, 122, 0.16);
+  border: 1px solid rgba(239, 98, 98, 0.16);
   border-radius: 10px;
   color: var(--accent);
-  background: rgba(255, 157, 122, 0.08);
+  background: rgba(239, 98, 98, 0.08);
   place-items: center;
 }
 
@@ -446,7 +446,7 @@ onUnmounted(() => {
   border: 1px solid var(--line);
   border-radius: 10px;
   color: var(--muted);
-  background: rgba(13, 10, 8, 0.72);
+  background: rgba(14, 14, 17, 0.72);
   font-size: 0.58rem;
   place-items: center;
   cursor: pointer;
@@ -514,7 +514,7 @@ onUnmounted(() => {
   border: 1px solid var(--line);
   border-radius: 11px;
   color: var(--muted);
-  background: rgba(255, 157, 122, 0.035);
+  background: rgba(239, 98, 98, 0.035);
   font-size: 0.58rem;
   line-height: 1.6;
 }

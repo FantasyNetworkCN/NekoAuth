@@ -266,8 +266,8 @@ onMounted(() => void load())
   overflow-x: hidden;
   overflow-y: auto;
   background:
-    radial-gradient(circle at 10% 15%, rgba(255, 157, 122, 0.09), transparent 30%),
-    radial-gradient(circle at 91% 5%, rgba(232, 189, 102, 0.06), transparent 28%),
+    radial-gradient(circle at 10% 15%, rgba(239, 98, 98, 0.07), transparent 30%),
+    radial-gradient(circle at 91% 5%, rgba(226, 180, 92, 0.045), transparent 28%),
     var(--bg);
 }
 
@@ -317,9 +317,9 @@ onMounted(() => void load())
 }
 
 .consent-back:hover {
-  border-color: rgba(255, 157, 122, 0.28);
+  border-color: rgba(239, 98, 98, 0.28);
   color: var(--ink);
-  background: rgba(255, 157, 122, 0.07);
+  background: rgba(239, 98, 98, 0.07);
 }
 
 .secure-badge {
@@ -402,8 +402,8 @@ onMounted(() => void load())
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 26px;
-  background: rgba(32, 24, 20, 0.78);
-  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.42), 0 0 0 7px rgba(255, 157, 122, 0.04);
+  background: rgba(24, 24, 28, 0.8);
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.42), 0 0 0 7px rgba(239, 98, 98, 0.04);
   transform: rotate(2deg);
 }
 
@@ -447,10 +447,10 @@ onMounted(() => void load())
   position: absolute;
   width: min(72%, 340px);
   aspect-ratio: 1;
-  border: 1px solid rgba(255, 157, 122, 0.2);
+  border: 1px solid rgba(239, 98, 98, 0.2);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 157, 122, 0.13), transparent 64%);
-  box-shadow: 0 0 70px rgba(255, 157, 122, 0.09);
+  background: radial-gradient(circle, rgba(239, 98, 98, 0.13), transparent 64%);
+  box-shadow: 0 0 70px rgba(239, 98, 98, 0.09);
 }
 
 .art-bubble {
@@ -465,7 +465,7 @@ onMounted(() => void load())
   border: 1px solid var(--line);
   border-radius: 15px 15px 15px 4px;
   color: var(--body);
-  background: rgba(32, 24, 20, 0.82);
+  background: rgba(24, 24, 28, 0.84);
   box-shadow: 0 14px 36px rgba(6, 2, 16, 0.25);
   font-size: 0.55rem;
   line-height: 1.55;
@@ -509,7 +509,7 @@ onMounted(() => void load())
   border-radius: 26px;
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.055), transparent 45%),
-    rgba(32, 24, 20, 0.88);
+    rgba(24, 24, 28, 0.9);
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(22px);
 }
@@ -565,8 +565,8 @@ onMounted(() => void load())
   border: 1px solid var(--line);
   border-radius: 16px;
   color: #fff;
-  background: linear-gradient(145deg, #ffad89, #e8bd66);
-  box-shadow: 0 9px 24px rgba(255, 157, 122, 0.2);
+  background: linear-gradient(145deg, #ef6262, #e2b45c);
+  box-shadow: 0 9px 24px rgba(239, 98, 98, 0.2);
   font-size: 1.25rem;
   font-weight: 850;
 }
@@ -614,7 +614,7 @@ onMounted(() => void load())
   place-items: center;
   border-radius: 11px;
   color: #fff1e7;
-  background: linear-gradient(145deg, #704232, #3b2922);
+  background: linear-gradient(145deg, #5b3033, #292329);
   font-size: 0.62rem;
   font-weight: 750;
 }
@@ -664,7 +664,7 @@ onMounted(() => void load())
   place-items: center;
   border-radius: 10px;
   color: var(--accent);
-  background: rgba(255, 157, 122, 0.08);
+  background: rgba(239, 98, 98, 0.08);
 }
 
 .scope-list li > span:nth-child(2) { display: grid; gap: 0.16rem; min-width: 0; flex: 1; }

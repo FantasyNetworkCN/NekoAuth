@@ -322,7 +322,7 @@ async function submit() {
   min-height: 100svh;
   grid-template-columns: minmax(300px, 0.72fr) minmax(0, 1.28fr);
   background:
-    radial-gradient(circle at 80% 0%, rgba(255, 157, 122, 0.08), transparent 32%),
+    radial-gradient(circle at 80% 0%, rgba(239, 98, 98, 0.065), transparent 32%),
     var(--bg);
 }
 
@@ -337,9 +337,9 @@ async function submit() {
   padding: clamp(1.7rem, 4vw, 3.2rem);
   border-right: 1px solid var(--border);
   background:
-    radial-gradient(circle at 100% 20%, rgba(255, 157, 122, 0.12), transparent 38%),
-    radial-gradient(circle at 0% 85%, rgba(232, 189, 102, 0.06), transparent 35%),
-    #130e0b;
+    radial-gradient(circle at 100% 20%, rgba(239, 98, 98, 0.09), transparent 38%),
+    radial-gradient(circle at 0% 85%, rgba(226, 180, 92, 0.045), transparent 35%),
+    #0d0d10;
 }
 
 .setup-aside::before {
@@ -425,9 +425,9 @@ async function submit() {
 }
 
 .setup-steps li.active {
-  border-color: rgba(255, 157, 122, 0.2);
+  border-color: rgba(239, 98, 98, 0.2);
   color: var(--body);
-  background: rgba(255, 157, 122, 0.07);
+  background: rgba(239, 98, 98, 0.07);
 }
 
 .setup-steps li > span {
@@ -445,7 +445,7 @@ async function submit() {
 
 .setup-steps .active > span {
   color: var(--primary-soft);
-  background: rgba(255, 157, 122, 0.14);
+  background: rgba(239, 98, 98, 0.14);
 }
 
 .setup-steps strong,
@@ -553,10 +553,10 @@ async function submit() {
 }
 
 .token-section {
-  border-color: rgba(255, 157, 122, 0.2);
+  border-color: rgba(239, 98, 98, 0.2);
   background:
-    linear-gradient(110deg, rgba(255, 157, 122, 0.07), transparent 60%),
-    rgba(32, 24, 20, 0.72);
+    linear-gradient(110deg, rgba(239, 98, 98, 0.07), transparent 60%),
+    rgba(24, 24, 28, 0.74);
 }
 
 .section-title {
@@ -572,10 +572,10 @@ async function submit() {
   height: 28px;
   flex: none;
   place-items: center;
-  border: 1px solid rgba(255, 157, 122, 0.18);
+  border: 1px solid rgba(239, 98, 98, 0.18);
   border-radius: 8px;
   color: var(--accent);
-  background: rgba(255, 157, 122, 0.08);
+  background: rgba(239, 98, 98, 0.08);
   font-family: ui-monospace, monospace;
   font-size: 0.59rem;
 }
@@ -627,7 +627,7 @@ async function submit() {
   border-radius: 9px;
   outline: none;
   color: var(--text);
-  background: rgba(13, 10, 8, 0.58);
+  background: rgba(14, 14, 17, 0.62);
   font-size: 0.73rem;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
@@ -638,9 +638,9 @@ async function submit() {
 }
 
 .setup-input:focus {
-  border-color: rgba(255, 157, 122, 0.52);
-  background: rgba(13, 10, 8, 0.78);
-  box-shadow: 0 0 0 3px rgba(255, 157, 122, 0.09);
+  border-color: rgba(239, 98, 98, 0.52);
+  background: rgba(14, 14, 17, 0.8);
+  box-shadow: 0 0 0 3px rgba(239, 98, 98, 0.09);
 }
 
 .setup-input.invalid {
@@ -783,7 +783,7 @@ async function submit() {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 9px;
   color: var(--body);
-  background: rgba(13, 10, 8, 0.66);
+  background: rgba(14, 14, 17, 0.66);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.7rem;
 }

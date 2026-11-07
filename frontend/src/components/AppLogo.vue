@@ -33,7 +33,7 @@ withDefaults(defineProps<{ size?: number; showName?: boolean }>(), {
   width: auto;
   max-width: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.32));
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.4));
 }
 
 .brand-logo.is-mark {

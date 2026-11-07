@@ -153,8 +153,8 @@ async function logout() {
   padding: 1.15rem 0.9rem 1rem;
   border-right: 1px solid var(--line);
   background:
-    radial-gradient(circle at 15% 0%, rgba(255, 157, 122, 0.07), transparent 30%),
-    rgba(8, 9, 14, 0.97);
+    radial-gradient(circle at 15% 0%, rgba(239, 98, 98, 0.055), transparent 30%),
+    rgba(9, 9, 11, 0.97);
   backdrop-filter: blur(24px);
 }
 
@@ -202,7 +202,7 @@ async function logout() {
   place-items: center;
   border-radius: 10px;
   color: var(--accent);
-  background: rgba(255, 157, 122, 0.08);
+  background: rgba(239, 98, 98, 0.08);
 }
 
 .workspace-chip > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 0.14rem; }
@@ -264,10 +264,10 @@ async function logout() {
 }
 
 .side-link.is-active {
-  border-color: rgba(255, 157, 122, 0.18);
+  border-color: rgba(239, 98, 98, 0.18);
   color: var(--ink);
   background:
-    linear-gradient(100deg, rgba(255, 157, 122, 0.1), rgba(232, 189, 102, 0.04));
+    linear-gradient(100deg, rgba(239, 98, 98, 0.1), rgba(226, 180, 92, 0.035));
 }
 
 .side-link.is-active::before {
@@ -277,7 +277,7 @@ async function logout() {
   height: 20px;
   border-radius: 999px;
   background: var(--accent);
-  box-shadow: 0 0 12px rgba(255, 157, 122, 0.62);
+  box-shadow: 0 0 12px rgba(239, 98, 98, 0.62);
   content: '';
 }
 
@@ -293,7 +293,7 @@ async function logout() {
 
 .side-link.is-active .side-icon {
   color: var(--accent);
-  background: rgba(255, 157, 122, 0.09);
+  background: rgba(239, 98, 98, 0.09);
 }
 
 .side-copy { display: grid; min-width: 0; flex: 1; gap: 0.08rem; }
@@ -310,7 +310,7 @@ async function logout() {
   flex: none;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 9px rgba(255, 157, 122, 0.7);
+  box-shadow: 0 0 9px rgba(239, 98, 98, 0.7);
 }
 
 .sidebar-neko-wrap {
@@ -321,7 +321,7 @@ async function logout() {
   margin: 1.2rem 0.2rem 0;
   padding: 0.35rem;
   border-radius: 16px;
-  background: radial-gradient(circle at 28% 45%, rgba(255, 157, 122, 0.08), transparent 68%);
+  background: radial-gradient(circle at 28% 45%, rgba(239, 98, 98, 0.07), transparent 68%);
 }
 
 .sidebar-neko-portrait {
@@ -383,10 +383,10 @@ async function logout() {
   height: 34px;
   flex: none;
   place-items: center;
-  border: 1px solid rgba(255, 157, 122, 0.2);
+  border: 1px solid rgba(239, 98, 98, 0.2);
   border-radius: 50%;
   color: var(--ink);
-  background: linear-gradient(145deg, #54382c, #291d17);
+  background: linear-gradient(145deg, #412b31, #1d1a20);
   font-size: 0.62rem;
   font-weight: 750;
 }
@@ -437,7 +437,7 @@ async function logout() {
     gap: 0.7rem;
     padding: 0.7rem 1rem;
     border-bottom: 1px solid var(--line);
-    background: rgba(8, 9, 14, 0.88);
+    background: rgba(9, 9, 11, 0.9);
     backdrop-filter: blur(20px);
   }
   .mobile-topbar strong { color: var(--ink); font-size: 0.72rem; }
@@ -446,10 +446,10 @@ async function logout() {
     width: 30px;
     height: 30px;
     place-items: center;
-    border: 1px solid rgba(255, 157, 122, 0.2);
+    border: 1px solid rgba(239, 98, 98, 0.2);
     border-radius: 50%;
     color: var(--ink);
-    background: linear-gradient(145deg, #54382c, #291d17);
+    background: linear-gradient(145deg, #412b31, #1d1a20);
     font-size: 0.52rem;
     font-weight: 750;
   }
