@@ -165,6 +165,8 @@ HttpOnly，不会发送给其他子域。子域 Web 因此无需跳转 Auth，�
 `nekoauth_session_hint` 仅保留为非敏感登录提示。父域共享会话失效、密码修改或任一子域调用共享会话
 退出接口时，Auth 会撤销整个会话族并清除这两个父域 Cookie。标准 OIDC RP-Initiated Logout 继续供
 需要端点登出的 OAuth 客户端使用。
+通过共享会话签发的第一方 access token 带有会话族标识；管理员撤销设备、用户主动退出或会话族过期后，
+对应 access token 的 introspection 会立即返回 `active=false`，不能继续访问下游业务 API。
 从旧版本升级时，已存在的浏览器会话会在下一次 Auth 页面刷新（刷新令牌轮换）时补发
 `nekoauth_sso_session`；新登录会立即写入。
 
