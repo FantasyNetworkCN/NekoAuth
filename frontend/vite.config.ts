@@ -1,7 +1,20 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
 import vue from '@vitejs/plugin-vue'
+
+const apiTarget = process.env.VITE_DEV_PROXY_TARGET || 'https://auth.nekocore.cn'
+const apiProxy: ProxyOptions = {
+  target: apiTarget,
+  changeOrigin: true,
+  secure: true,
+  configure(proxy) {
+    proxy.on('proxyReq', (proxyRequest) => {
+      proxyRequest.setHeader('origin', apiTarget)
+      proxyRequest.setHeader('referer', `${apiTarget}/`)
+    })
+  },
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -18,18 +31,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': {
-        target: 'https://auth.nekocore.cn',
-        changeOrigin: true,
-      },
-      '/oauth2': {
-        target: 'https://auth.nekocore.cn',
-        changeOrigin: true,
-      },
-      '/.well-known': {
-        target: 'https://auth.nekocore.cn',
-        changeOrigin: true,
-      },
+      '/api': apiProxy,
+      '/oauth2': apiProxy,
+      '/.well-known': apiProxy,
     },
   },
 })

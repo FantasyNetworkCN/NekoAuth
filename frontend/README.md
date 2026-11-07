@@ -9,8 +9,12 @@ npm ci
 npm run dev
 ```
 
-Vite proxies `/api` to `http://localhost:65534`. Override the API origin with
-`VITE_API_BASE_URL` when the backend is hosted elsewhere.
+Vite proxies `/api`, `/oauth2`, and `/.well-known` to
+`https://auth.nekocore.cn` by default. The proxy rewrites `Origin` and `Referer`
+to the target origin so the deployed CORS policy accepts requests from local
+development URLs. Override the proxy target with `VITE_DEV_PROXY_TARGET`, or set
+`VITE_API_BASE_URL` when the frontend should request another API origin
+directly.
 
 ## Build
 
