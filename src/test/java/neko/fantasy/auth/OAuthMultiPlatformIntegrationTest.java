@@ -496,6 +496,34 @@ class OAuthMultiPlatformIntegrationTest {
     }
 
     @Test
+    void firstPartyNormalAuthorizationSkipsConsentPage() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        Client client = createClient(adminToken, true, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),
+                List.of("openid"));
+        String userToken = register(uniqueUsername("first_party"));
+        String verifier = randomUrlToken(48);
+
+        MvcResult result = mockMvc.perform(get("/api/oauth/authorize")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .param("client_id", client.clientId())
+                        .param("redirect_uri", WEB_REDIRECT)
+                        .param("response_type", "code")
+                        .param("scope", "openid")
+                        .param("state", "first-party-direct")
+                        .param("code_challenge", base64UrlSha256(verifier))
+                        .param("code_challenge_method", "S256"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previouslyApproved").value(true))
+                .andReturn();
+
+        String redirectUrl = JsonPath.read(result.getResponse().getContentAsString(), "$.redirectUrl");
+        assertThat(queryParameters(redirectUrl))
+                .containsKey("code")
+                .doesNotContainKey("error")
+                .containsEntry("state", "first-party-direct");
+    }
+
+    @Test
     void webEntryOnlyReturnsToRegisteredFirstPartyOrigins() throws Exception {
         String adminToken = login("admin", "AdminPass123");
         createClient(adminToken, false, List.of(WEB_REDIRECT), List.of(WEB_LOGOUT),

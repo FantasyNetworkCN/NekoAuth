@@ -115,6 +115,14 @@ public class OAuthAuthorizationService {
         }
 
         boolean forceConsent = validated.prompts().contains("consent");
+        if (!forceConsent && isFirstPartyRedirect(validated.redirectUri())) {
+            if (!previouslyApproved) {
+                saveConsent(user, validated.client(), validated.scopes(), consent);
+            }
+            return view(user, validated, true,
+                    successRedirect(validated, user, authenticatedAt, sessionFamilyId),
+                    false, loginHint);
+        }
         if (previouslyApproved && !forceConsent) {
             return view(user, validated, true,
                     successRedirect(validated, user, authenticatedAt, sessionFamilyId),
