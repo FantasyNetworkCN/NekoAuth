@@ -533,7 +533,7 @@ docker compose down
 | `POST` | `/api/auth/logout` | 退出当前会话 |
 | `GET` | `/api/auth/me` | 当前用户 |
 | `PATCH` | `/api/auth/me` | 修改当前用户昵称；提交 `nickname` 并返回更新后的用户资料 |
-| `POST` | `/api/auth/avatar` | 登录后上传/替换头像；multipart 字段名为 `avatar`，支持 PNG/JPEG/GIF/WebP/BMP，最大 10MiB |
+| `POST` | `/api/auth/avatar` | 登录后上传/替换头像；multipart 字段名为 `avatar`，支持 PNG/JPEG/GIF/WebP/BMP，最大 10MiB；服务端校验完整文件结构，拒绝 SVG、截断文件和尾随负载 |
 | `GET` | `/avatars/default` | 公开默认头像，内容为 Auth 站点当前 favicon |
 | `GET` | `/avatars/{id}` | 公开读取指定 Auth 用户头像；无头像或用户不存在时返回默认头像 |
 | `POST` | `/api/auth/password` | 登录后修改密码，撤销 Auth 登录会话与已签发的 OAuth refresh token |
@@ -623,6 +623,7 @@ docker compose down
 - 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，只撤销该设备对应的刷新令牌链，不影响同一用户的其他设备或 OAuth 客户端。
 - Web 端刷新通过 Web Locks 串行化同一浏览器的多个标签页，避免并发轮换被误判为令牌重放。
 - 用户 `tokenVersion` 使密码修改、密码重置、角色变化或停用立即让旧 JWT 失效；修改或重置密码还会撤销全部 Auth refresh token 与 OAuth refresh token。
+- 头像上传限制为 10MiB，只接受 PNG/JPEG/GIF/WebP/BMP；服务端按文件结构边界校验完整文件，不接受仅伪造文件头、SVG、截断图片或带尾随脚本的载荷。头像文件名由服务端生成，读取时按实际格式返回图片 MIME。
 - API 使用无状态安全上下文；刷新 Cookie 使用全站路径、`SameSite=Strict` 和受限 CORS，以便 OIDC 登出核对当前浏览器会话。登录、注册、刷新及登出响应会清理旧版本 `/api/auth` 路径下的同名 Cookie。
 - CSP 禁止内联脚本，并禁用 iframe 嵌入；HSTS 在 HTTPS 下由 Spring Security 输出。
 - 公共客户端强制 PKCE S256；授权码短期有效、只保存哈希且只能交换一次。

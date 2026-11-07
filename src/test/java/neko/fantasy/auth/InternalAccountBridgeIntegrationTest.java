@@ -24,9 +24,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -173,7 +177,7 @@ class InternalAccountBridgeIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         Number userId = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
-        byte[] png = new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+        byte[] png = png1x1();
         MockMultipartFile avatar = new MockMultipartFile(
                 "avatar", "avatar.png", MediaType.IMAGE_PNG_VALUE, png);
 
@@ -188,6 +192,7 @@ class InternalAccountBridgeIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         assertThat(image.getResponse().getContentType()).startsWith(MediaType.IMAGE_PNG_VALUE);
+        assertThat(image.getResponse().getHeader("X-Content-Type-Options")).isEqualTo("nosniff");
         assertThat(image.getResponse().getContentAsByteArray()).isEqualTo(png);
     }
 
@@ -198,6 +203,31 @@ class InternalAccountBridgeIntegrationTest {
                 .andReturn();
         assertThat(image.getResponse().getContentType()).startsWith("image/x-icon");
         assertThat(image.getResponse().getContentAsByteArray()).isNotEmpty();
+    }
+
+    @Test
+    void avatarUploadRejectsFakeOversizedAndNonImageFiles() throws Exception {
+        Client client = createClient(false, List.of(OAuthScopes.ACCOUNT_BRIDGE));
+        String email = uniqueEmail();
+        MvcResult created = mockMvc.perform(post("/api/internal/accounts/admin-create")
+                        .header(HttpHeaders.AUTHORIZATION, basic(client))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nickname":"头像校验","email":"%s","password":"Password123"}
+                                """.formatted(email)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Number userId = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+        byte[] validPng = png1x1();
+        byte[] fakePng = {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+        byte[] oversized = Arrays.copyOf(validPng, 10 * 1024 * 1024 + 1);
+
+        assertBadAvatar(client, userId.longValue(),
+                new MockMultipartFile("avatar", "fake.png", MediaType.IMAGE_PNG_VALUE, fakePng));
+        assertBadAvatar(client, userId.longValue(),
+                new MockMultipartFile("avatar", "large.png", MediaType.IMAGE_PNG_VALUE, oversized));
+        assertBadAvatar(client, userId.longValue(),
+                new MockMultipartFile("avatar", "image.png", MediaType.TEXT_HTML_VALUE, validPng));
     }
 
     @Test
@@ -457,6 +487,21 @@ class InternalAccountBridgeIntegrationTest {
 
     private static String uniqueEmail() {
         return "bridge_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12) + "@gmail.com";
+    }
+
+    private static byte[] png1x1() throws Exception {
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", output);
+        return output.toByteArray();
+    }
+
+    private void assertBadAvatar(Client client, long userId, MockMultipartFile avatar) throws Exception {
+        mockMvc.perform(multipart("/api/internal/accounts/avatar")
+                        .file(avatar)
+                        .param("authUserId", String.valueOf(userId))
+                        .header(HttpHeaders.AUTHORIZATION, basic(client)))
+                .andExpect(status().isBadRequest());
     }
 
     private static SettingsService.SmtpConfig smtpConfig() {

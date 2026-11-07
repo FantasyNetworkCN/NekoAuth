@@ -4,6 +4,7 @@ import neko.fantasy.auth.config.AvatarProperties;
 import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.exception.ApiException;
 import neko.fantasy.auth.repository.UserRepository;
+import neko.fantasy.auth.util.AvatarImageValidator;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -60,6 +61,11 @@ public class AvatarService {
         if (file.getSize() > maxBytes) {
             throw ApiException.badRequest("AVATAR_TOO_LARGE", "头像不能超过 10MiB");
         }
+        String declaredType = file.getContentType();
+        if (StringUtils.hasText(declaredType)
+                && !declaredType.toLowerCase(java.util.Locale.ROOT).startsWith("image/")) {
+            throw ApiException.badRequest("AVATAR_INVALID", "头像必须是图片文件");
+        }
 
         byte[] bytes;
         try {
@@ -70,9 +76,10 @@ public class AvatarService {
         if (bytes.length == 0 || bytes.length > maxBytes) {
             throw ApiException.badRequest("AVATAR_TOO_LARGE", "头像不能超过 10MiB");
         }
-        ImageType type = detectImageType(bytes);
+        AvatarImageValidator.Format type = AvatarImageValidator.validate(bytes);
         if (type == null) {
-            throw ApiException.badRequest("AVATAR_INVALID", "头像仅支持 PNG、JPEG、GIF、WebP 或 BMP");
+            throw ApiException.badRequest(
+                    "AVATAR_INVALID", "头像文件损坏、结构不完整或格式不受支持");
         }
 
         String fileName = userId + "-" + UUID.randomUUID() + "." + type.extension();
@@ -216,33 +223,6 @@ public class AvatarService {
         return MediaType.IMAGE_PNG;
     }
 
-    private static ImageType detectImageType(byte[] bytes) {
-        if (bytes.length >= 8
-                && (bytes[0] & 0xff) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4e && bytes[3] == 0x47
-                && bytes[4] == 0x0d && bytes[5] == 0x0a && bytes[6] == 0x1a && bytes[7] == 0x0a) {
-            return ImageType.PNG;
-        }
-        if (bytes.length >= 3
-                && (bytes[0] & 0xff) == 0xff && (bytes[1] & 0xff) == 0xd8 && (bytes[2] & 0xff) == 0xff) {
-            return ImageType.JPEG;
-        }
-        if (bytes.length >= 6) {
-            String signature = new String(bytes, 0, 6, java.nio.charset.StandardCharsets.US_ASCII);
-            if ("GIF87a".equals(signature) || "GIF89a".equals(signature)) {
-                return ImageType.GIF;
-            }
-        }
-        if (bytes.length >= 12
-                && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
-                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P') {
-            return ImageType.WEBP;
-        }
-        if (bytes.length >= 2 && bytes[0] == 'B' && bytes[1] == 'M') {
-            return ImageType.BMP;
-        }
-        return null;
-    }
-
     private static void deleteQuietly(Path path) {
         if (path == null) return;
         try {
@@ -255,21 +235,4 @@ public class AvatarService {
                                long lastModified, boolean immutable) {
     }
 
-    private enum ImageType {
-        PNG("png"),
-        JPEG("jpg"),
-        GIF("gif"),
-        WEBP("webp"),
-        BMP("bmp");
-
-        private final String extension;
-
-        ImageType(String extension) {
-            this.extension = extension;
-        }
-
-        String extension() {
-            return extension;
-        }
-    }
 }
