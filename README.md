@@ -157,23 +157,28 @@ NekoAuth 同时是 FantasyNetwork 的 OAuth 2.0 / OpenID Connect 授权服务。
 
 授权请求支持 OIDC 的 `prompt=none|login|consent|select_account`、`login_hint` 与 `max_age`。`prompt=none` 在无法静默完成授权时返回 `login_required` 或 `consent_required`；`max_age=0`、`prompt=login` 或 `prompt=select_account` 会要求重新认证。ID Token 的 `auth_time` 来自实际登录时间，并在刷新令牌轮换时保持不变。
 
-启用 `auth.cookie.domain`（例如 `nekocore.cn`）后，Auth 会额外写入可被同父域读取的
-`nekoauth_session_hint`。它只表示当前浏览器持有 Auth 会话，不含身份凭据。子域 Web 可据此发起
-标准 OIDC `prompt=none` 静默授权；刷新令牌仍保持 host-only、HttpOnly。
+启用 `auth.cookie.domain`（例如 `nekocore.cn`）后，Auth 会额外写入父域的
+`nekoauth_session_hint` 与 HttpOnly 的 `nekoauth_sso_session`。前者只表示当前浏览器持有 Auth
+会话，不含身份凭据，供第一方 Web 检测登录账号切换或退出；后者用于第一方子域后端解析当前登录用户。
+第一方 Web 不使用 OIDC 授权码静默登录，原生客户端仍使用标准 OAuth/OIDC。刷新令牌保持
+host-only、HttpOnly。
 
 所有由浏览器授权签发并继续交给客户端使用的 access token 都带有会话族标识；管理员撤销设备、用户主动
 退出或会话族过期后，对应的 OAuth access token 与 refresh token 会同时失效，introspection 立即返回
-`active=false`。第一方应用通过标准 OIDC RP-Initiated Logout 同步退出 Auth 浏览器会话。
+`active=false`。退出 Auth 会撤销当前浏览器会话族并清理父域共享 Cookie，所有依赖该会话的第一方子域
+随之退出；第一方子域退出时也会撤销整条会话族，使 Auth 与其它子域同步退出。
 
 登出申请通过 `id_token_hint` 与已登记的 `post_logout_redirect_uri` 校验目标地址；可选 `state` 会原样追加到回调。签名、issuer、audience/azp 合法但已过期的 `id_token_hint` 仍可用于登出。服务会将 hint 中的用户与当前浏览器刷新会话关联：只有二者匹配时才直接清理会话；没有 hint、没有当前会话或 hint 属于其他用户时，会跳转到 `/logout/confirm`，由用户明确确认后才执行登出。会话匹配时会撤销当前浏览器会话族，以及由该会话族派生的全部 OAuth 授权链；同一浏览器会话下接入的 Web、Android、PC 等客户端都会立即失效。发现文档中的 `end_session_endpoint` 指向 `/oauth2/logout`。成功清理外部应用的登出会话时，响应返回带 `no-store` 的受控 HTML 完成页并下发清除 Cookie，再由页面跳回已登记的 `post_logout_redirect_uri`；这样可避免部分 CDN 自动跟随跨域 302 时丢失 `Set-Cookie`。
 
 ### 第一方服务端集成
 
-NekoMusic 等第一方应用只使用标准 OAuth/OIDC：
+NekoMusic 等第一方应用按客户端类型选择登录方式：
 
-- 浏览器通过授权码 + PKCE 登录，`prompt=none` 用于父域会话存在时的静默登录。
-- 应用后端通过 `/oauth2/introspect` 校验用户令牌，通过 `/oauth2/revoke` 吊销令牌。
-- 退出登录使用标准 OIDC RP-Initiated Logout，同步撤销 Auth 浏览器会话族。
+- Web 通过 Auth 登录页写入的父域共享会话恢复登录态，不使用 OIDC 授权码。
+- Android / PC 等原生客户端使用标准 OAuth/OIDC 授权码 + PKCE。
+- 应用后端通过 `/oauth2/introspect` 校验原生客户端令牌，通过 `/oauth2/revoke` 吊销令牌。
+- Web 与原生客户端退出都会撤销 Auth 浏览器会话族；Auth 主动退出也会通过清除父域共享 Cookie
+  让第一方子域同步失效。
 - 头像修改、昵称修改、密码与登录设备全部在 Auth 账号中心完成。
 - 用户昵称与公开头像通过只读公开资料接口获取，不再需要服务端 Basic 客户端凭据。
 
@@ -439,7 +444,7 @@ docker compose down
 | `auth.jwt.refresh-ttl` | `14d` | 刷新令牌有效期 |
 | `auth.cookie.secure` | `false` | HTTPS 部署时设为 `true` |
 | `auth.cookie.same-site` | `Strict` | 刷新 Cookie 的 SameSite |
-| `auth.cookie.domain` | 空 | 跨子域登录提示 Cookie 的父域，例如 `nekocore.cn`；不会放宽刷新令牌 Cookie 的 host-only 范围 |
+| `auth.cookie.domain` | 空 | 第一方跨子域共享会话与登录提示 Cookie 的父域，例如 `nekocore.cn`；不会放宽刷新令牌 Cookie 的 host-only 范围 |
 | `auth.cors.allowed-origins` | `http://localhost:5173`, `https://auth.nekocore.cn` | 认证站点的浏览器 Origin；OIDC/OAuth 端点还会自动允许已启用客户端回调地址的 Origin |
 | `auth.rate-limit.attempts` | `20` | 单 IP 限流窗口内失败次数 |
 | `auth.rate-limit.window` | `5m` | 登录限流窗口 |
@@ -476,7 +481,9 @@ docker compose down
 | `POST` | `/api/auth/web-entry/resolve` | 登录后校验第一方 Web 的绝对回跳地址；只接受已登记 OAuth 应用的 Origin |
 | `POST` | `/api/auth/login` | 用户名或邮箱登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
-| `POST` | `/api/auth/logout` | 退出当前会话 |
+| `POST` | `/api/auth/logout` | 退出当前会话，同时撤销刷新令牌与父域共享会话，并清理相关 Cookie |
+| `POST` | `/api/auth/shared-session` | 第一方子域凭父域共享会话解析当前登录用户 |
+| `POST` | `/api/auth/shared-session/logout` | 第一方子域退出当前浏览器会话族并清理共享 Cookie |
 | `GET` | `/api/auth/me` | 当前用户 |
 | `PATCH` | `/api/auth/me` | 修改当前用户昵称；提交 `nickname` 并返回更新后的用户资料 |
 | `POST` | `/api/auth/avatar` | 登录后上传/替换头像；multipart 字段名为 `avatar`，支持 PNG/JPEG/GIF/WebP/BMP，最大 10MiB；服务端校验完整文件结构，拒绝 SVG、截断文件和尾随负载 |

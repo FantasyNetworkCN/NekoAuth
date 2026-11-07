@@ -102,7 +102,7 @@ public class AuthCookieService {
 
     /**
      * 跨子域登录提示：只说明当前浏览器是否持有 Auth 会话，不包含可用的认证凭据。
-     * 子域可读取该提示后发起 {@code prompt=none} 的 OIDC 静默授权；刷新令牌仍保持 host-only。
+     * 第一方 Web 子域据此检测登录切换或退出；刷新令牌仍保持 host-only。
      */
     private ResponseCookie buildHint(String value, Duration maxAge) {
         return ResponseCookie.from(SESSION_HINT_COOKIE, value)

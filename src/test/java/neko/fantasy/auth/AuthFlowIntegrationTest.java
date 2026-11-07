@@ -546,6 +546,28 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void logoutWithOnlySharedSessionCookieRevokesBrowserSessionFamily() throws Exception {
+        String username = "shared_logout_" + UUID.randomUUID().toString().substring(0, 8);
+        MvcResult registration = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","email":"%s@gmail.com","password":"Password123"}
+                                """.formatted(username, username)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        Cookie sharedCookie = registration.getResponse().getCookie("nekoauth_sso_session");
+        assertThat(sharedCookie).isNotNull();
+
+        mockMvc.perform(post("/api/auth/logout").cookie(sharedCookie))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge("nekoauth_sso_session", 0));
+
+        mockMvc.perform(post("/api/auth/shared-session").cookie(sharedCookie))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void sharedSessionFollowsBrowserSessionRevocation() throws Exception {
         String username = "shared_" + UUID.randomUUID().toString().substring(0, 8);
         MvcResult registration = mockMvc.perform(post("/api/auth/register")

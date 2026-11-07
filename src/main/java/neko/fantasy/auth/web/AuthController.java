@@ -94,7 +94,10 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request) {
+        // 两个 Cookie 的生命周期和作用域不同：即使刷新令牌过期、丢失或已经被撤销，
+        // 也必须按父域共享会话再撤销一次，确保第一方子域不会继续保持登录态。
         authService.logout(cookieService.read(request).orElse(null));
+        cookieService.readSsoSession(request).ifPresent(authService::revokeSsoSession);
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookieService.clearHeaders().toArray(String[]::new))
                 .build();
