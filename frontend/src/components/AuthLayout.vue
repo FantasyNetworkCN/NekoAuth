@@ -1,9 +1,17 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import AppLogo from './AppLogo.vue'
-import heroNekoDesktop from '@/assets/local/hero-neko-desktop.webp'
+import heroNekoNewYear from '@/assets/local/hero-neko-newyear.webp'
+import heroNekoRegular from '@/assets/local/hero-neko-regular.webp'
 import heroNekoMobile from '@/assets/local/hero-neko-mobile.webp'
 
 defineProps<{ eyebrow: string; title: string; subtitle: string }>()
+
+const today = new Date()
+const isNewYearSeason =
+  (today.getMonth() === 11 && today.getDate() >= 20) ||
+  (today.getMonth() === 0 && today.getDate() <= 10)
+const heroNekoDesktop = computed(() => isNewYearSeason ? heroNekoNewYear : heroNekoRegular)
 </script>
 
 <template>
