@@ -20,45 +20,6 @@ public final class InternalAccountRequests {
     private InternalAccountRequests() {
     }
 
-    public record Login(
-            @NotBlank(message = "请输入邮箱")
-            @Email(message = "邮箱格式不正确")
-            @Size(max = 254, message = "邮箱过长")
-            String email,
-
-            @NotBlank(message = "请输入密码")
-            @Size(max = 128, message = "密码过长")
-            String password
-    ) {
-    }
-
-    public record EmailRequest(
-            @NotBlank(message = "邮箱不能为空")
-            @Email(message = "邮箱格式不正确")
-            @Size(max = 254, message = "邮箱过长")
-            String email
-    ) {
-    }
-
-    public record Register(
-            @Size(max = 32, message = "昵称不能超过 32 个字符")
-            @Pattern(regexp = "^$|^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
-            String nickname,
-
-            @NotBlank(message = "邮箱不能为空")
-            @Email(message = "邮箱格式不正确")
-            @Size(max = 254, message = "邮箱过长")
-            String email,
-
-            @NotBlank(message = "密码不能为空")
-            @Size(min = 6, max = 30, message = "密码长度需为 6-30 个字符")
-            String password,
-
-            @Pattern(regexp = "^\\d{6}$", message = "邮箱验证码需为 6 位数字")
-            String verificationCode
-    ) {
-    }
-
     public record AdminCreate(
             @Size(max = 32, message = "昵称不能超过 32 个字符")
             @Pattern(regexp = "^$|^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
@@ -107,38 +68,6 @@ public final class InternalAccountRequests {
             @NotBlank(message = "共享登录会话不能为空")
             @Pattern(regexp = "^[A-Za-z0-9-]{16,64}$", message = "共享登录会话格式不正确")
             String ssoSession
-    ) {
-    }
-
-    public record ResetPassword(
-            @NotBlank(message = "邮箱不能为空")
-            @Email(message = "邮箱格式不正确")
-            @Size(max = 254, message = "邮箱过长")
-            String email,
-
-            @NotBlank(message = "请输入邮箱验证码")
-            @Pattern(regexp = "^\\d{6}$", message = "邮箱验证码需为 6 位数字")
-            String code,
-
-            @NotBlank(message = "请输入新密码")
-            @Size(min = 6, max = 30, message = "新密码长度需为 6-30 个字符")
-            String newPassword
-    ) {
-    }
-
-    public record ChangePassword(
-            @NotBlank(message = "邮箱不能为空")
-            @Email(message = "邮箱格式不正确")
-            @Size(max = 254, message = "邮箱过长")
-            String email,
-
-            @NotBlank(message = "请输入当前密码")
-            @Size(max = 128, message = "当前密码过长")
-            String currentPassword,
-
-            @NotBlank(message = "请输入新密码")
-            @Size(min = 6, max = 30, message = "新密码长度需为 6-30 个字符")
-            String newPassword
     ) {
     }
 

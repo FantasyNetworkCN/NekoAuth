@@ -16,44 +16,25 @@ import java.util.List;
 /**
  * 第一方服务端账号桥接。
  *
- * <p>密码、邮箱验证码、注册策略、用户令牌签发和会话撤销均以 NekoAuth 为唯一权威源。
- * 第一方服务只保存 NekoAuth 返回的账号映射，不自行生成用户令牌。</p>
+ * <p>第一方服务只负责在 NekoAuth 中维护账号映射、资料、头像、管理员操作与登录会话，
+ * 不自行生成用户令牌。</p>
  */
 @Service
 public class InternalAccountService {
 
     private final AuthService authService;
-    private final EmailVerificationService emailVerificationService;
     private final InternalTokenService tokenService;
     private final UserRepository userRepository;
     private final AvatarService avatarService;
 
     public InternalAccountService(AuthService authService,
-                                  EmailVerificationService emailVerificationService,
                                   InternalTokenService tokenService,
                                   UserRepository userRepository,
                                   AvatarService avatarService) {
         this.authService = authService;
-        this.emailVerificationService = emailVerificationService;
         this.tokenService = tokenService;
         this.userRepository = userRepository;
         this.avatarService = avatarService;
-    }
-
-    public InternalAccountResponses.Account login(InternalAccountRequests.Login request, OAuthClient client) {
-        User user = authService.authenticateAccount(request.email(), request.password());
-        return InternalAccountResponses.Account.from(user, tokenService.issue(user, client));
-    }
-
-    public void sendRegistrationCode(String email) {
-        emailVerificationService.sendRegistrationCode(email);
-    }
-
-    public InternalAccountResponses.Account register(InternalAccountRequests.Register request, OAuthClient client) {
-        User user = authService.registerAccount(new AuthRequests.Register(
-                null, request.nickname(), request.email(), request.password(),
-                request.verificationCode(), null));
-        return InternalAccountResponses.Account.from(user, tokenService.issue(user, client));
     }
 
     public InternalAccountResponses.Account adminCreate(InternalAccountRequests.AdminCreate request) {
@@ -92,20 +73,6 @@ public class InternalAccountService {
         return userRepository.search(request.query().trim(), PageRequest.of(0, 20))
                 .map(InternalAccountResponses.Summary::from)
                 .getContent();
-    }
-
-    public void sendPasswordResetCode(String email) {
-        authService.sendPasswordResetCode(email);
-    }
-
-    public void resetPassword(InternalAccountRequests.ResetPassword request) {
-        authService.resetPassword(new AuthRequests.ResetPassword(
-                request.email(), request.code(), request.newPassword()));
-    }
-
-    public void changePassword(InternalAccountRequests.ChangePassword request) {
-        authService.changePasswordByEmail(request.email(), new AuthRequests.ChangePassword(
-                request.currentPassword(), request.newPassword()));
     }
 
     public void setPassword(InternalAccountRequests.SetPassword request) {

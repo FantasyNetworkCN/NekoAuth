@@ -45,15 +45,6 @@ public class InternalAccountController {
         this.cookieService = cookieService;
     }
 
-    @PostMapping("/login")
-    public InternalAccountResponses.Account login(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
-            @Valid @RequestBody InternalAccountRequests.Login request
-    ) {
-        OAuthClient client = clientAuthenticator.requireClient(authorization);
-        return accountService.login(request, client);
-    }
-
     @PostMapping("/sso-session")
     public InternalAccountResponses.Account loginSsoSession(
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
@@ -74,26 +65,6 @@ public class InternalAccountController {
                 .header(HttpHeaders.SET_COOKIE,
                         cookieService.clearHeaders().toArray(String[]::new))
                 .build();
-    }
-
-    @PostMapping("/register/code")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void registrationCode(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
-            @Valid @RequestBody InternalAccountRequests.EmailRequest request
-    ) {
-        clientAuthenticator.requireClient(authorization);
-        accountService.sendRegistrationCode(request.email());
-    }
-
-    @PostMapping("/register")
-    @ResponseStatus(HttpStatus.CREATED)
-    public InternalAccountResponses.Account register(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
-            @Valid @RequestBody InternalAccountRequests.Register request
-    ) {
-        OAuthClient client = clientAuthenticator.requireClient(authorization);
-        return accountService.register(request, client);
     }
 
     /** 由已校验管理员权限的后台调用，创建普通用户并跳过邮箱验证码。 */
@@ -156,36 +127,6 @@ public class InternalAccountController {
     ) {
         OAuthClient client = clientAuthenticator.requireClient(authorization);
         return accountService.exchangeToken(client, request.accessToken());
-    }
-
-    @PostMapping("/password/reset-code")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void passwordResetCode(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
-            @Valid @RequestBody InternalAccountRequests.EmailRequest request
-    ) {
-        clientAuthenticator.requireClient(authorization);
-        accountService.sendPasswordResetCode(request.email());
-    }
-
-    @PostMapping("/password/reset")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void resetPassword(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
-            @Valid @RequestBody InternalAccountRequests.ResetPassword request
-    ) {
-        clientAuthenticator.requireClient(authorization);
-        accountService.resetPassword(request);
-    }
-
-    @PostMapping("/password/change")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void changePassword(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
-            @Valid @RequestBody InternalAccountRequests.ChangePassword request
-    ) {
-        clientAuthenticator.requireClient(authorization);
-        accountService.changePassword(request);
     }
 
     /** 仅由已校验权限的管理后台调用，用于管理员创建用户或重置任意用户密码。 */
