@@ -177,8 +177,8 @@ NekoMusic 等第一方应用按客户端类型选择登录方式：
 - Web 通过 Auth 登录页写入的父域共享会话恢复登录态，不使用 OIDC 授权码。
 - Android / PC 等原生客户端使用标准 OAuth/OIDC 授权码 + PKCE。
 - 应用后端通过 `/oauth2/introspect` 校验原生客户端令牌，通过 `/oauth2/revoke` 吊销令牌。
-- Web 与原生客户端退出都会撤销 Auth 浏览器会话族；Auth 主动退出也会通过清除父域共享 Cookie
-  让第一方子域同步失效。
+- Web 退出与显式“退出所有设备”会撤销 Auth 浏览器会话族；Android / PC 的普通退出只吊销本机
+  Token，不影响 Web 与其它设备。Auth 主动退出会通过清除父域共享 Cookie 让第一方子域同步失效。
 - 头像修改、昵称修改、密码与登录设备全部在 Auth 账号中心完成。
 - 用户昵称与公开头像通过只读公开资料接口获取，不再需要服务端 Basic 客户端凭据。
 
