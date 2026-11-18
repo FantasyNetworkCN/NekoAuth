@@ -459,9 +459,13 @@ onMounted(() => {
             </header>
 
             <dl class="identity-list">
-              <div>
+              <div v-if="user.email">
                 <dt>邮箱</dt>
                 <dd>{{ user.email }}</dd>
+              </div>
+              <div v-if="user.phone">
+                <dt>手机号</dt>
+                <dd>{{ user.phone }}</dd>
               </div>
               <div>
                 <dt>用户名</dt>

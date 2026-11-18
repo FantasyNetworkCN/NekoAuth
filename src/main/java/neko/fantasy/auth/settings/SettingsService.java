@@ -2,6 +2,7 @@ package neko.fantasy.auth.settings;
 
 import neko.fantasy.auth.config.AuthProperties;
 import neko.fantasy.auth.exception.ApiException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -30,6 +31,7 @@ public class SettingsService {
     private static final String DEFAULT_SERVICE_NAME = "NekoAuth";
     private static final int DEFAULT_SMTP_PORT = 587;
     private static final int DEFAULT_TIMEOUT_MS = 10_000;
+    private static final String DEFAULT_SMS_CODE_PARAMETER = "code";
     private static final Pattern DOMAIN_PATTERN = Pattern.compile(
             "^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+"
                     + "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$");
@@ -57,7 +59,7 @@ public class SettingsService {
         ApplicationSettings settings = loadOrCreate();
         AuthProperties.Registration registration = properties.registration();
         return new SettingsResponses.RegistrationPolicy(
-                settings.isRegistrationEnabled(), emailVerificationRequired,
+                settings.isRegistrationEnabled(), emailVerificationRequired, isSmsEnabled(settings.getSms()),
                 readDomains(settings.getEmailDomainWhitelist()),
                 registration.emailCodeTtl().toSeconds(),
                 registration.emailCodeCooldown().toSeconds(),
@@ -68,9 +70,7 @@ public class SettingsService {
     @Transactional
     public void requireRegistrationAllowed(String email) {
         ApplicationSettings settings = loadOrCreate();
-        if (!settings.isRegistrationEnabled()) {
-            throw ApiException.forbidden("REGISTRATION_DISABLED", "当前暂未开放新用户注册");
-        }
+        checkRegistrationEnabled(settings);
 
         int separator = email.lastIndexOf('@');
         String domain = separator >= 0 ? email.substring(separator + 1) : "";
@@ -79,6 +79,17 @@ public class SettingsService {
             throw ApiException.badRequest(
                     "EMAIL_DOMAIN_NOT_ALLOWED",
                     "不允许的邮箱");
+        }
+    }
+
+    @Transactional
+    public void requirePhoneRegistrationEnabled() {
+        requireSmsSettings(loadOrCreate());
+    }
+
+    private static void checkRegistrationEnabled(ApplicationSettings settings) {
+        if (!settings.isRegistrationEnabled()) {
+            throw ApiException.forbidden("REGISTRATION_DISABLED", "当前暂未开放新用户注册");
         }
     }
 
@@ -143,7 +154,80 @@ public class SettingsService {
             settings.setSmtpPasswordCiphertext(null);
         }
 
+        if (request.sms() != null) {
+            settings.setSms(updateSms(settings.getSms(), request.sms()));
+        }
+
         return toResponse(repository.saveAndFlush(settings));
+    }
+
+    private SmsRegistrationSettings updateSms(SmsRegistrationSettings existing, SettingsRequests.Sms request) {
+        ensureSingleLine(request.accessKeyId(), "AccessKey ID");
+        ensureSingleLine(request.accessKeySecret(), "AccessKey Secret");
+        ensureSingleLine(request.signName(), "短信签名");
+        ensureSingleLine(request.templateCode(), "短信模板 CODE");
+        ensureSingleLine(request.schemeName(), "认证方案名称");
+        ensureSingleLine(request.codeParameter(), "验证码变量名");
+        ensureSingleLine(request.minutesParameter(), "有效分钟数变量名");
+
+        String newSecret = trimToNull(request.accessKeySecret());
+        boolean clearSecret = Boolean.TRUE.equals(request.clearAccessKeySecret());
+        if (newSecret != null && clearSecret) {
+            throw ApiException.badRequest("SMS_SECRET_CONFLICT", "不能同时设置和清除 AccessKey Secret");
+        }
+
+        var sms = new SmsRegistrationSettings();
+        sms.enabled = request.enabled();
+        sms.accessKeyId = trimToNull(request.accessKeyId());
+        sms.signName = trimToNull(request.signName());
+        sms.templateCode = trimToNull(request.templateCode());
+        sms.schemeName = trimToNull(request.schemeName());
+        sms.codeParameter = trimToNull(request.codeParameter());
+        sms.minutesParameter = trimToNull(request.minutesParameter());
+        if (effectiveCodeParameter(sms).equals(sms.minutesParameter)) {
+            throw ApiException.badRequest("SMS_TEMPLATE_PARAMETERS_CONFLICT", "验证码与有效分钟数不能使用同一个模板变量名");
+        }
+
+        if (newSecret != null) {
+            sms.accessKeySecretCiphertext = secretCipher.encrypt(newSecret);
+        } else if (!clearSecret && existing != null) {
+            sms.accessKeySecretCiphertext = existing.accessKeySecretCiphertext;
+        }
+        if (request.enabled() && (sms.accessKeyId == null || sms.signName == null || sms.templateCode == null
+                || !StringUtils.hasText(sms.accessKeySecretCiphertext))) {
+            throw ApiException.badRequest("SMS_SETTINGS_REQUIRED", "启用手机号注册前必须填写 AccessKey ID、AccessKey Secret、签名和模板 CODE");
+        }
+        return sms;
+    }
+
+    @Transactional(noRollbackFor = ApiException.class)
+    public SmsConfig getSmsConfig() {
+        var sms = requireSmsSettings(loadOrCreate());
+        String secret;
+        try {
+            secret = secretCipher.decrypt(sms.accessKeySecretCiphertext);
+        } catch (IllegalStateException exception) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "SMS_SERVICE_UNAVAILABLE", "短信服务暂不可用，请联系管理员");
+        }
+        return new SmsConfig(sms.accessKeyId, secret, sms.signName, sms.templateCode, sms.schemeName,
+                effectiveCodeParameter(sms), sms.minutesParameter);
+    }
+
+    private static SmsRegistrationSettings requireSmsSettings(ApplicationSettings settings) {
+        checkRegistrationEnabled(settings);
+        var sms = settings.getSms();
+        if (!isSmsEnabled(sms)) {
+            throw ApiException.forbidden("SMS_REGISTRATION_DISABLED", "当前未开放手机号注册");
+        }
+        return sms;
+    }
+
+    private static boolean isSmsEnabled(SmsRegistrationSettings sms) {
+        return sms != null && Boolean.TRUE.equals(sms.enabled);
+    }
+
+    private static String effectiveCodeParameter(SmsRegistrationSettings sms) {
+        return sms.codeParameter == null ? DEFAULT_SMS_CODE_PARAMETER : sms.codeParameter;
     }
 
     @Transactional
@@ -228,8 +312,19 @@ public class SettingsService {
                         settings.getSmtpConnectionTimeoutMs(),
                         settings.getSmtpReadTimeoutMs(),
                         settings.getSmtpWriteTimeoutMs()
-                )
+                ),
+                toSmsResponse(settings.getSms())
         );
+    }
+
+    private static SettingsResponses.Sms toSmsResponse(SmsRegistrationSettings sms) {
+        if (sms == null) {
+            return new SettingsResponses.Sms(false, "", false, "", "", "", "", "");
+        }
+        return new SettingsResponses.Sms(isSmsEnabled(sms), trimToEmpty(sms.accessKeyId),
+                StringUtils.hasText(sms.accessKeySecretCiphertext), trimToEmpty(sms.signName),
+                trimToEmpty(sms.templateCode), trimToEmpty(sms.schemeName), trimToEmpty(sms.codeParameter),
+                trimToEmpty(sms.minutesParameter));
     }
 
     private static List<String> readDomains(String value) {
@@ -297,5 +392,13 @@ public class SettingsService {
             int readTimeoutMs,
             int writeTimeoutMs
     ) {
+    }
+
+    public record SmsConfig(String accessKeyId, String accessKeySecret, String signName, String templateCode,
+                            String schemeName, String codeParameter, String minutesParameter) {
+        @Override
+        public String toString() {
+            return "SmsConfig[credentials redacted]";
+        }
     }
 }

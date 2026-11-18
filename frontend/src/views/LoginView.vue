@@ -119,7 +119,7 @@ async function logout() {
 
     <form class="auth-form" novalidate @submit.prevent="submit">
       <label class="field">
-        <span class="field-label">邮箱或用户名</span>
+        <span class="field-label">邮箱、手机号或用户名</span>
         <span class="input-shell" :class="{ 'has-error': error }">
           <AppIcon name="user" :size="18" />
           <input
@@ -127,7 +127,7 @@ async function logout() {
             name="identifier"
             type="text"
             autocomplete="username"
-            placeholder="neko@fantasy.network 或 neko"
+            placeholder="输入邮箱、手机号或用户名"
             maxlength="254"
             required
             autofocus

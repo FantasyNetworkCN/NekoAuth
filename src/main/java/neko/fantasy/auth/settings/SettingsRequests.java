@@ -29,7 +29,22 @@ public final class SettingsRequests {
 
             @Valid
             @NotNull(message = "SMTP 设置不能为空")
-            Smtp smtp
+            Smtp smtp,
+
+            @Valid Sms sms
+    ) {
+    }
+
+    public record Sms(
+            boolean enabled,
+            @Size(max = 128, message = "AccessKey ID 过长") String accessKeyId,
+            @Size(max = 256, message = "AccessKey Secret 过长") String accessKeySecret,
+            Boolean clearAccessKeySecret,
+            @Size(max = 128, message = "短信签名过长") String signName,
+            @Size(max = 128, message = "短信模板 CODE 过长") String templateCode,
+            @Size(max = 20, message = "认证方案名称不能超过 20 个字符") String schemeName,
+            @Size(max = 64, message = "验证码变量名过长") String codeParameter,
+            @Size(max = 64, message = "有效分钟数变量名过长") String minutesParameter
     ) {
     }
 

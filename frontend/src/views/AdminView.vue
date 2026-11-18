@@ -90,7 +90,7 @@ onMounted(() => void load(0))
     <section class="admin-toolbar">
       <form class="search-box" @submit.prevent="search">
         <AppIcon name="search" :size="18" />
-        <input v-model="query" type="search" placeholder="搜索成员名、邮箱或昵称" autocomplete="off" />
+        <input v-model="query" type="search" placeholder="搜索用户名、邮箱、手机号或昵称" autocomplete="off" />
         <button class="btn btn-secondary btn-small" type="submit" :disabled="loading">搜索</button>
       </form>
       <div class="user-count">
@@ -134,7 +134,7 @@ onMounted(() => void load(0))
           </span>
         </div>
 
-        <p class="user-email"><AppIcon name="mail" :size="14" /> {{ user.email }}</p>
+        <p class="user-email"><AppIcon :name="user.email ? 'mail' : 'smartphone'" :size="14" /> {{ user.email || user.phone }}</p>
 
         <div class="user-facts">
           <span><small>加入时间</small><strong>{{ formatDate(user.createdAt) }}</strong></span>

@@ -169,7 +169,7 @@ class EmailVerificationIntegrationTest {
         mockMvc.perform(get("/api/auth/register/captcha"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").isNotEmpty())
-                .andExpect(jsonPath("$.image").value(org.hamcrest.Matchers.startsWith("data:image/svg+xml;base64,")))
+                .andExpect(jsonPath("$.image").value(org.hamcrest.Matchers.startsWith("data:image/png;base64,")))
                 .andExpect(jsonPath("$.expiresInSeconds").value(300));
     }
 

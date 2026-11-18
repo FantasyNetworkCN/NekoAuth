@@ -13,7 +13,20 @@ public final class SettingsResponses {
             boolean registrationEnabled,
             List<String> emailDomainWhitelist,
             Instant updatedAt,
-            Smtp smtp
+            Smtp smtp,
+            Sms sms
+    ) {
+    }
+
+    public record Sms(
+            boolean enabled,
+            String accessKeyId,
+            boolean accessKeySecretConfigured,
+            String signName,
+            String templateCode,
+            String schemeName,
+            String codeParameter,
+            String minutesParameter
     ) {
     }
 
@@ -36,6 +49,7 @@ public final class SettingsResponses {
     public record RegistrationPolicy(
             boolean enabled,
             boolean emailVerificationRequired,
+            boolean smsRegistrationEnabled,
             List<String> emailDomains,
             long emailCodeExpiresInSeconds,
             long emailCodeResendAfterSeconds,

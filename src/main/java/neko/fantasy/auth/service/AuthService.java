@@ -50,6 +50,7 @@ public class AuthService {
     private final LoginRateLimiter rateLimiter;
     private final SettingsService settingsService;
     private final EmailVerificationService emailVerificationService;
+    private final SmsRegistrationService smsRegistrationService;
     private final ObjectMapper objectMapper;
     private final String dummyPasswordHash;
 
@@ -58,7 +59,7 @@ public class AuthService {
                        UserPasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy,
                        JwtService jwtService, AuthProperties properties,
                        LoginRateLimiter rateLimiter, SettingsService settingsService,
-                       EmailVerificationService emailVerificationService,
+                       EmailVerificationService emailVerificationService, SmsRegistrationService smsRegistrationService,
                        ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -70,6 +71,7 @@ public class AuthService {
         this.rateLimiter = rateLimiter;
         this.settingsService = settingsService;
         this.emailVerificationService = emailVerificationService;
+        this.smsRegistrationService = smsRegistrationService;
         this.objectMapper = objectMapper;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-42");
     }
@@ -77,6 +79,21 @@ public class AuthService {
     @Transactional
     public AuthResult register(AuthRequests.Register request, HttpServletRequest servletRequest) {
         User user = registerAccount(request);
+        return createSession(user, servletRequest, user.getLastLoginAt(), request.device());
+    }
+
+    @Transactional
+    public AuthResult registerByPhone(AuthRequests.PhoneRegister request, HttpServletRequest servletRequest) {
+        smsRegistrationService.requireEnabled();
+        String phone = SmsRegistrationService.normalizePhone(request.phone());
+        passwordPolicy.validate(request.password());
+        String username = generateUsername();
+        String nickname = trimToNull(request.nickname());
+        String displayName = nickname == null ? username : nickname;
+        validateNickname(displayName);
+        smsRegistrationService.requireAvailable(phone);
+        smsRegistrationService.verifyAndConsume(phone, request.verificationCode());
+        User user = persistAccount(username, displayName, null, phone, request.password());
         return createSession(user, servletRequest, user.getLastLoginAt(), request.device());
     }
 
@@ -126,9 +143,14 @@ public class AuthService {
                     email, verificationCode, EmailVerificationPurpose.REGISTRATION);
         }
 
+        return persistAccount(username, displayName, email, null, password);
+    }
+
+    private User persistAccount(String username, String displayName, String email, String phone, String password) {
         User user = new User();
         user.setUsername(username);
         user.setEmail(email);
+        user.setPhone(phone);
         user.setDisplayName(displayName);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setLastLoginAt(Instant.now());
@@ -159,14 +181,12 @@ public class AuthService {
     @Transactional
     public User authenticateAccount(String rawIdentifier, String password) {
         String identifier = rawIdentifier.trim();
-        User user = identifier.contains("@")
-                ? userRepository.findByEmail(normalizeEmail(identifier)).orElse(null)
-                : userRepository.findByUsername(identifier.toLowerCase(Locale.ROOT)).orElse(null);
+        User user = findLoginAccount(identifier).orElse(null);
 
         String passwordHash = user == null ? dummyPasswordHash : user.getPasswordHash();
         boolean passwordMatches = passwordEncoder.matches(password, passwordHash);
         if (user == null || !passwordMatches) {
-            throw ApiException.unauthorized("INVALID_CREDENTIALS", "用户名或密码错误");
+            throw ApiException.unauthorized("INVALID_CREDENTIALS", "账号或密码错误");
         }
         if (!user.isEnabled()) {
             throw ApiException.forbidden("ACCOUNT_DISABLED", "该账户已被停用");
@@ -177,6 +197,21 @@ public class AuthService {
         }
         user.setLastLoginAt(Instant.now());
         return userRepository.saveAndFlush(user);
+    }
+
+    private Optional<User> findLoginAccount(String identifier) {
+        if (identifier.contains("@")) {
+            return userRepository.findByEmail(normalizeEmail(identifier));
+        }
+        if (SmsRegistrationService.isPhone(identifier)) {
+            String phone = SmsRegistrationService.normalizePhone(identifier);
+            if (identifier.startsWith("+86")) {
+                return userRepository.findByPhone(phone);
+            }
+            // Keep existing numeric usernames reachable. +86 always selects the phone account.
+            return userRepository.findByUsername(identifier).or(() -> userRepository.findByPhone(phone));
+        }
+        return userRepository.findByUsername(identifier.toLowerCase(Locale.ROOT));
     }
 
     @Transactional(noRollbackFor = ApiException.class)

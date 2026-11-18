@@ -200,6 +200,28 @@ export const api = {
     )
   },
 
+  registerByPhone(input: {
+    nickname?: string
+    phone: string
+    password: string
+    verificationCode: string
+    device?: DeviceProfile
+  }) {
+    return request<AuthPayload>(
+      '/auth/register/phone',
+      { method: 'POST', body: JSON.stringify(input) },
+      { auth: false, retry: false },
+    )
+  },
+
+  requestPhoneRegistrationCode(phone: string, captchaId: string, captchaAnswer: string) {
+    return request<VerificationCodeSent>(
+      '/auth/register/phone/code',
+      { method: 'POST', body: JSON.stringify({ phone, captchaId, captchaAnswer }) },
+      { auth: false, retry: false },
+    )
+  },
+
   requestRegistrationCode(email: string, captchaId: string, captchaAnswer: string) {
     return request<VerificationCodeSent>(
       '/auth/register/code',

@@ -4,7 +4,8 @@ export interface User {
   id: number
   username: string
   nickname: string | null
-  email: string
+  email?: string
+  phone?: string
   displayName: string
   avatarUrl: string
   role: Role
@@ -107,6 +108,7 @@ export type MailSecurity = 'STARTTLS' | 'SSL' | 'NONE'
 export interface RegistrationPolicy {
   enabled: boolean
   emailVerificationRequired: boolean
+  smsRegistrationEnabled: boolean
   emailDomains: string[]
   emailCodeExpiresInSeconds: number
   emailCodeResendAfterSeconds: number
@@ -120,6 +122,7 @@ export interface AdminSettings {
   emailDomainWhitelist: string[]
   updatedAt: string
   smtp: SmtpSettings
+  sms?: SmsSettings
 }
 
 export interface SmtpSettings {
@@ -137,6 +140,22 @@ export interface SmtpSettings {
   writeTimeoutMs: number
 }
 
+export interface SmsSettings {
+  enabled: boolean
+  accessKeyId: string
+  accessKeySecretConfigured: boolean
+  signName: string
+  templateCode: string
+  schemeName: string
+  codeParameter: string
+  minutesParameter: string
+}
+
+export type SmsSettingsUpdate = Omit<SmsSettings, 'accessKeySecretConfigured'> & {
+  accessKeySecret?: string
+  clearAccessKeySecret: boolean
+}
+
 export interface SettingsUpdate {
   serviceName: string
   registrationEnabled: boolean
@@ -145,6 +164,7 @@ export interface SettingsUpdate {
     password?: string
     clearPassword: boolean
   }
+  sms: SmsSettingsUpdate
 }
 
 export interface OAuthScopeDetail {

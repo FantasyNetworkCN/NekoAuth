@@ -10,9 +10,11 @@ import type { RegistrationPolicy } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
+const registrationMethod = ref<'email' | 'phone'>('email')
 const form = reactive({
   nickname: '',
   email: '',
+  phone: '',
   captchaAnswer: '',
   verificationCode: '',
   password: '',
@@ -21,7 +23,9 @@ const form = reactive({
 const showPassword = ref(false)
 const loading = ref(false)
 const sendingCode = ref(false)
-const codeCooldown = ref(0)
+const cooldownUntil = reactive({ email: 0, phone: 0 })
+const currentTime = ref(Date.now())
+const codeCooldown = computed(() => Math.max(0, Math.ceil((cooldownUntil[registrationMethod.value] - currentTime.value) / 1000)))
 const error = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 const captcha = reactive({
@@ -33,6 +37,7 @@ const captcha = reactive({
 const registrationPolicy = ref<RegistrationPolicy>({
   enabled: false,
   emailVerificationRequired: false,
+  smsRegistrationEnabled: false,
   emailDomains: [],
   emailCodeExpiresInSeconds: 0,
   emailCodeResendAfterSeconds: 0,
@@ -41,6 +46,10 @@ const registrationPolicy = ref<RegistrationPolicy>({
 })
 const policyLoaded = ref(false)
 let cooldownTimer: ReturnType<typeof setInterval> | undefined
+let mounted = true
+const isPhoneRegistration = computed(() => registrationMethod.value === 'phone')
+const phoneRegistrationAvailable = computed(() => registrationPolicy.value.smsRegistrationEnabled === true)
+const codeRequired = computed(() => isPhoneRegistration.value || registrationPolicy.value.emailVerificationRequired)
 
 const redirectTarget = computed(() => {
   const value = route.query.redirect
@@ -51,6 +60,7 @@ const loginLink = computed(() => ({
   query: redirectTarget.value ? { redirect: redirectTarget.value } : {},
 }))
 const nicknamePlaceholder = computed(() => {
+  if (isPhoneRegistration.value) return '可选，留空则使用生成的用户名'
   const localPart = form.email.split('@')[0]?.trim()
   return localPart ? `留空则使用「${[...localPart].slice(0, 20).join('')}」` : '可选，留空则使用邮箱前缀'
 })
@@ -70,15 +80,30 @@ function emailValidationError() {
   return ''
 }
 
+function contactValidationError() {
+  if (!isPhoneRegistration.value) return emailValidationError()
+  return /^(?:\+86)?1[3-9][0-9]{9}$/.test(form.phone.trim()) ? '' : '请输入有效的中国大陆手机号'
+}
+
+function selectMethod(method: 'email' | 'phone') {
+  if (registrationMethod.value === method) return
+  if (method === 'phone' && !phoneRegistrationAvailable.value) return
+  registrationMethod.value = method
+  form.verificationCode = ''
+  fieldErrors.value = {}
+  error.value = ''
+  if (codeRequired.value && !captcha.id) void loadCaptcha()
+}
+
 function validate() {
   const errors: Record<string, string> = {}
   const nickname = form.nickname.trim()
   if (nickname.length > 32) errors.nickname = '昵称不能超过 32 个字符'
   else if (/[\u0000-\u001f\u007f-\u009f]/.test(nickname)) errors.nickname = '昵称不能包含控制字符'
-  const emailError = emailValidationError()
-  if (emailError) errors.email = emailError
-  else if (registrationPolicy.value.emailVerificationRequired && !/^\d{6}$/.test(form.verificationCode)) {
-    errors.verificationCode = '请输入 6 位邮箱验证码'
+  const contactError = contactValidationError()
+  if (contactError) errors[registrationMethod.value] = contactError
+  if (codeRequired.value && !/^\d{6}$/.test(form.verificationCode)) {
+    errors.verificationCode = isPhoneRegistration.value ? '请输入 6 位短信验证码' : '请输入 6 位邮箱验证码'
   }
   if (form.password.length < 6 || form.password.length > 30) errors.password = '密码长度需为 6-30 个字符'
   if (form.confirmPassword !== form.password) errors.confirmPassword = '两次输入的密码不一致'
@@ -87,11 +112,13 @@ function validate() {
 }
 
 function startCooldown(seconds: number) {
-  if (cooldownTimer) clearInterval(cooldownTimer)
-  codeCooldown.value = Math.max(1, Math.floor(seconds))
+  if (!mounted) return
+  currentTime.value = Date.now()
+  cooldownUntil[registrationMethod.value] = currentTime.value + seconds * 1000
+  if (cooldownTimer) return
   cooldownTimer = setInterval(() => {
-    codeCooldown.value = Math.max(0, codeCooldown.value - 1)
-    if (codeCooldown.value === 0 && cooldownTimer) {
+    currentTime.value = Date.now()
+    if (Math.max(cooldownUntil.email, cooldownUntil.phone) <= currentTime.value) {
       clearInterval(cooldownTimer)
       cooldownTimer = undefined
     }
@@ -99,7 +126,7 @@ function startCooldown(seconds: number) {
 }
 
 async function loadCaptcha() {
-  if (captcha.loading) return
+  if (captcha.loading || !mounted) return
   captcha.loading = true
   form.captchaAnswer = ''
   try {
@@ -118,10 +145,10 @@ async function loadCaptcha() {
 }
 
 async function sendCode() {
-  if (sendingCode.value || codeCooldown.value > 0 || !registrationPolicy.value.enabled) return
-  const emailError = emailValidationError()
+  if (loading.value || sendingCode.value || captcha.loading || codeCooldown.value > 0 || !registrationPolicy.value.enabled) return
+  const contactError = contactValidationError()
   const errors: Record<string, string> = {}
-  if (emailError) errors.email = emailError
+  if (contactError) errors[registrationMethod.value] = contactError
   if (!captcha.id) errors.captcha = '人机验证尚未加载，请刷新后重试'
   else if (!/^[A-Za-z0-9]{5}$/.test(form.captchaAnswer.trim())) {
     errors.captcha = '请输入图中的 5 位人机验证码'
@@ -132,11 +159,10 @@ async function sendCode() {
   error.value = ''
   sendingCode.value = true
   try {
-    const result = await api.requestRegistrationCode(
-      form.email.trim(),
-      captcha.id,
-      form.captchaAnswer.trim().toUpperCase(),
-    )
+    const answer = form.captchaAnswer.trim().toUpperCase()
+    const result = isPhoneRegistration.value
+      ? await api.requestPhoneRegistrationCode(form.phone.trim(), captcha.id, answer)
+      : await api.requestRegistrationCode(form.email.trim(), captcha.id, answer)
     form.verificationCode = ''
     startCooldown(result.resendAfterSeconds)
     showToast(result.message, 'success')
@@ -155,16 +181,20 @@ async function sendCode() {
 }
 
 async function submit() {
-  if (loading.value || !validate()) return
+  if (loading.value || sendingCode.value || !policyLoaded.value || !registrationPolicy.value.enabled || !validate()) return
   error.value = ''
   loading.value = true
   try {
-    await auth.register({
+    const account = {
       nickname: form.nickname.trim() || undefined,
-      email: form.email.trim(),
       password: form.password,
-      verificationCode: registrationPolicy.value.emailVerificationRequired ? form.verificationCode.trim() : '',
-    })
+      verificationCode: codeRequired.value ? form.verificationCode.trim() : '',
+    }
+    if (isPhoneRegistration.value) {
+      await auth.registerByPhone({ ...account, phone: form.phone.trim() })
+    } else {
+      await auth.register({ ...account, email: form.email.trim() })
+    }
     showToast('契约成立，欢迎来到梦幻网络喵！', 'success')
     if (redirectTarget.value) {
       await router.replace(redirectTarget.value)
@@ -187,13 +217,14 @@ onMounted(async () => {
   try {
     registrationPolicy.value = await api.registrationPolicy()
     policyLoaded.value = true
-    if (registrationPolicy.value.emailVerificationRequired) void loadCaptcha()
+    if (registrationPolicy.value.enabled && codeRequired.value) void loadCaptcha()
   } catch {
     error.value = '注册策略加载失败，请刷新页面后重试'
   }
 })
 
 onUnmounted(() => {
+  mounted = false
   if (cooldownTimer) clearInterval(cooldownTimer)
 })
 </script>
@@ -217,6 +248,19 @@ onUnmounted(() => {
     </div>
 
     <form class="auth-form" novalidate @submit.prevent="submit">
+      <div v-if="policyLoaded && registrationPolicy.enabled"
+        class="registration-method" role="group" aria-label="注册方式">
+        <button type="button" :aria-pressed="!isPhoneRegistration" :disabled="loading || sendingCode"
+          @click="selectMethod('email')">
+          <span class="registration-method-label"><AppIcon name="mail" :size="16" /> 邮箱注册</span>
+        </button>
+        <button type="button" :aria-pressed="isPhoneRegistration"
+          :disabled="!phoneRegistrationAvailable || loading || sendingCode" @click="selectMethod('phone')">
+          <span class="registration-method-label"><AppIcon name="smartphone" :size="16" /> 手机号注册</span>
+          <span v-if="!phoneRegistrationAvailable" class="registration-method-status">暂未开放</span>
+        </button>
+      </div>
+
       <label class="field">
         <span class="field-row">
           <span class="field-label">昵称</span>
@@ -236,22 +280,32 @@ onUnmounted(() => {
         <span v-if="fieldErrors.nickname" class="field-error">{{ fieldErrors.nickname }}</span>
       </label>
 
-      <label class="field">
+      <label v-if="isPhoneRegistration" class="field">
+        <span class="field-row"><span class="field-label">手机号</span><span class="field-hint">中国大陆 +86</span></span>
+        <span class="input-shell" :class="{ 'has-error': fieldErrors.phone }">
+          <AppIcon name="smartphone" :size="18" />
+          <input v-model.trim="form.phone" name="phone" type="tel" autocomplete="tel" inputmode="tel"
+            placeholder="11 位手机号" maxlength="14" :readonly="sendingCode || loading" required />
+        </span>
+        <span v-if="fieldErrors.phone" class="field-error">{{ fieldErrors.phone }}</span>
+      </label>
+
+      <label v-else class="field">
         <span class="field-label">邮箱地址</span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.email }">
           <AppIcon name="mail" :size="18" />
-          <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="name@example.com" maxlength="100" required />
+          <input v-model="form.email" name="email" type="email" autocomplete="email" placeholder="name@example.com" maxlength="100" :readonly="sendingCode || loading" required />
         </span>
         <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
       </label>
 
-      <div v-if="registrationPolicy.emailVerificationRequired" class="field captcha-field">
+      <div v-if="registrationPolicy.enabled && codeRequired" class="field captcha-field">
         <span class="field-label">人机验证</span>
         <div class="captcha-row">
           <button
             class="captcha-visual"
             type="button"
-            :disabled="captcha.loading"
+            :disabled="captcha.loading || sendingCode"
             aria-label="刷新人机验证码"
             @click="loadCaptcha"
           >
@@ -269,12 +323,13 @@ onUnmounted(() => {
               autocapitalize="characters"
               spellcheck="false"
               placeholder="5 位字符"
+              aria-label="图中的 5 位人机验证码"
               maxlength="5"
               pattern="[A-Za-z0-9]{5}"
               required
             />
           </span>
-          <button class="captcha-refresh" type="button" :disabled="captcha.loading" aria-label="换一张人机验证码" @click="loadCaptcha">
+          <button class="captcha-refresh" type="button" :disabled="captcha.loading || sendingCode" aria-label="换一张人机验证码" @click="loadCaptcha">
             <AppIcon name="refresh" :size="16" />
           </button>
         </div>
@@ -282,8 +337,8 @@ onUnmounted(() => {
         <span v-if="fieldErrors.captcha" class="field-error">{{ fieldErrors.captcha }}</span>
       </div>
 
-      <label v-if="registrationPolicy.emailVerificationRequired" class="field">
-        <span class="field-label">邮箱验证码</span>
+      <label v-if="registrationPolicy.enabled && codeRequired" class="field">
+        <span class="field-label">{{ isPhoneRegistration ? '短信验证码' : '邮箱验证码' }}</span>
         <span class="input-shell" :class="{ 'has-error': fieldErrors.verificationCode }">
           <AppIcon name="shield-cat" :size="18" />
           <input
@@ -300,7 +355,7 @@ onUnmounted(() => {
           <button
             class="input-action code-action"
             type="button"
-            :disabled="sendingCode || codeCooldown > 0 || captcha.loading || !captcha.id || !registrationPolicy.enabled"
+            :disabled="loading || sendingCode || codeCooldown > 0 || captcha.loading || !captcha.id"
             @click="sendCode"
           >
             {{ sendingCode ? '发送中…' : codeCooldown > 0 ? `${codeCooldown}s 后重发` : '获取验证码' }}
@@ -355,7 +410,7 @@ onUnmounted(() => {
         <span>签订契约即表示你同意梦幻网络的服务条款与隐私约定。小梦不会偷看你的秘密咒语。</span>
       </div>
 
-      <button class="btn btn-primary btn-block" type="submit" :disabled="loading || !policyLoaded || !registrationPolicy.enabled">
+      <button class="btn btn-primary btn-block" type="submit" :disabled="loading || sendingCode || !policyLoaded || !registrationPolicy.enabled">
         <span v-if="loading" class="spinner"></span>
         <template v-else>
           <AppIcon name="heart" :size="17" />
@@ -373,6 +428,60 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.registration-method {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.registration-method button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-height: 44px;
+  padding: 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--body);
+  background: transparent;
+  font: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.registration-method button[aria-pressed='true'],
+.registration-method button:hover:not(:disabled) {
+  border-color: var(--line);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.registration-method button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.registration-method button:disabled {
+  cursor: default;
+}
+
+.registration-method-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.registration-method-status {
+  color: var(--muted);
+  font-size: 0.56rem;
+}
+
 .strength-label {
   color: var(--muted);
   font-size: 0.56rem;
@@ -472,6 +581,16 @@ onUnmounted(() => {
 .captcha-input input {
   text-transform: uppercase;
   letter-spacing: 0.12em;
+}
+
+@media (max-width: 440px) {
+  .captcha-row {
+    grid-template-columns: minmax(76px, 0.9fr) minmax(0, 1.1fr) 34px;
+  }
+
+  .captcha-input :deep(svg) {
+    display: none;
+  }
 }
 
 .captcha-refresh {

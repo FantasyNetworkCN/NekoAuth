@@ -130,7 +130,9 @@ public class OAuthTokenEndpointService {
             response.put("sub", refreshToken.getUser().getId().toString());
             response.put("username", refreshToken.getUser().getUsername());
             response.put("name", refreshToken.getUser().publicName());
-            response.put("email", refreshToken.getUser().getEmail());
+            if (refreshToken.getUser().getEmail() != null) {
+                response.put("email", refreshToken.getUser().getEmail());
+            }
             response.put("iss", tokenService.issuer());
             return response;
         }
@@ -165,7 +167,9 @@ public class OAuthTokenEndpointService {
             response.put("name", user.publicName());
             response.put("picture", tokenService.issuer()
                     + neko.fantasy.auth.service.AvatarService.avatarUrl(user.getId()));
-            response.put("email", user.getEmail());
+            if (user.getEmail() != null) {
+                response.put("email", user.getEmail());
+            }
             if (claims.role() != null) {
                 response.put("role", claims.role());
             }

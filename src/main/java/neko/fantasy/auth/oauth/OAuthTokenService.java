@@ -53,7 +53,7 @@ public class OAuthTokenService {
         if (scopes.contains(OAuthScopes.PROFILE)) {
             claims.put("username", user.getUsername());
         }
-        if (scopes.contains(OAuthScopes.EMAIL)) {
+        if (scopes.contains(OAuthScopes.EMAIL) && user.getEmail() != null) {
             claims.put("email", user.getEmail());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {
@@ -85,7 +85,7 @@ public class OAuthTokenService {
             claims.put("picture", keyService.getIssuer()
                     + neko.fantasy.auth.service.AvatarService.avatarUrl(user.getId()));
         }
-        if (scopes.contains(OAuthScopes.EMAIL)) {
+        if (scopes.contains(OAuthScopes.EMAIL) && user.getEmail() != null) {
             claims.put("email", user.getEmail());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {

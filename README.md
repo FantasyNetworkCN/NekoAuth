@@ -4,7 +4,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 
 ## 功能
 
-- 邮箱验证码注册、用户名/邮箱登录、安全退出
+- 邮箱验证码注册、可选阿里云短信验证码注册；支持用户名、邮箱或手机号登录
 - 15 分钟 JWT 访问令牌，浏览器内存存储，不写入 localStorage
 - 14 天刷新令牌，`HttpOnly + SameSite` Cookie 保存
 - 刷新令牌轮换、SHA-256 哈希落库、重放检测与按设备撤销令牌链；OAuth 授权码与刷新链绑定发起授权的浏览器会话族，撤销该设备后整条授权链立即失效
@@ -13,7 +13,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 用户登录后可通过 `/account` 修改昵称、查看账户资料、修改密码、管理登录设备与退出全部会话
 - 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态、OAuth 应用与运行设置
 - 注册邮箱默认只允许 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`，可在 `/admin/settings` 修改
-- `/admin/settings` 可维护注册开关、邮箱域名白名单、SMTP 服务器、认证信息、发件地址与发件人名称；SMTP 同时承担注册验证码与测试邮件发送
+- `/admin/settings` 可维护注册开关、邮箱域名白名单、阿里云短信和 SMTP 发件设置
 - 用户密码使用 Argon2i（10 次、64 MiB、并行度 1）
 - 表结构由 JPA 实体自动管理，支持 H2、PostgreSQL、MySQL、MariaDB
 - 仅保留猫娘主题的登录、注册、账户中心、OAuth 授权确认、可选安装页与管理员后台；`/account` 需要登录，`/admin`、`/admin/clients`、`/admin/settings` 仅限 ADMIN，`/`、`/app/**` 返回 404
@@ -71,7 +71,7 @@ sudo docker compose logs -f --tail=200 auth
 
 - `/admin`：用户名册、角色调整与账户启停
 - `/admin/clients`：OAuth 应用、回调地址、scope 与客户端密钥管理
-- `/admin/settings`：注册开关、邮箱域名白名单、SMTP、发件地址与测试邮件
+- `/admin/settings`：注册开关、邮箱域名白名单、阿里云短信、SMTP 与测试邮件
 
 生产环境也可以直接调用 `/api/admin/**` 完成同样操作。根路径 `/` 返回 SPA，并根据有效登录状态跳转到 `/account` 或 `/login`；已移除的 `/app/**` 路由仍返回 404。
 
@@ -91,14 +91,24 @@ sudo docker compose logs -f --tail=200 auth
 - 默认开放注册，邮箱域名白名单为 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`。
 - 域名精确匹配 `@` 后的部分，统一转小写，不支持通配符；可在设置页填写 `@qq.com` 或 `qq.com`，保存时会自动规范化。
 - 获取注册邮箱验证码前必须完成一次性图形人机验证；人机验证码 5 分钟内有效，错误 3 次后失效，前端每次发送尝试后都会自动换新。
-- 注册必须通过 SMTP 发送邮箱验证码；服务端强制同一邮箱 60 秒内只能发送一次、滚动 24 小时最多发送 5 次。验证码 10 分钟内有效、最多允许输错 5 次，验证成功后立即删除且不可复用。注册页会展示当前支持的邮箱域名、有效期与发送限制，这些时间参数由公开注册策略接口返回。
-- SMTP 关闭或配置不完整时，注册验证码接口返回明确错误，新用户无法完成注册；启用后可使用“保存并发送测试”验证服务器、端口、加密方式、认证信息与发件地址。
+- 邮箱注册默认必须通过 SMTP 发送邮箱验证码；服务端强制同一邮箱 60 秒内只能发送一次、滚动 24 小时最多发送 5 次。验证码 10 分钟内有效、最多允许输错 5 次，验证成功后不可复用。
+- SMTP 关闭或配置不完整时，邮箱注册无法完成；启用后可使用“保存并发送测试”验证服务器、端口、加密方式、认证信息与发件地址。
 - SMTP 密码不会通过 API 回显，使用由 `auth.jwt.secret` 派生的 AES-GCM 密钥加密后落库。**更换 JWT 密钥后，已保存的 SMTP 密码将无法解密，需要在设置页重新填写。**
 - 端口、数据库、Redis、JWT、Cookie、CORS、管理员引导、安装向导与 OAuth 签名等启动级配置由部署配置提供；Compose 下来自命名卷内的 `/app/data/nekoauth-setup.yml` 与环境变量，不会暴露给管理员网页修改。
 
 Compose 设置 `AUTH_SETUP_ENABLED=false`，因此 `/setup`、`/setup/**` 与 `/api/setup/**` 直接返回 HTTP 404。MySQL 与 Redis 使用宿主机现有服务，Compose 不会创建或暴露额外数据库端口。
 
 数据库与 Redis 数据由宿主机现有服务管理；Compose 部署的 OAuth RS256 签名私钥保存在命名卷 `nekoauth_data` 的 `/app/data/oauth-signing-key.pem`，用户头像保存在 `/app/data/avatars/`。备份时必须同时备份 MySQL、头像目录与该私钥；丢失签名私钥后，已有令牌与 JWKS 将无法继续验证。
+
+### 开启手机号注册
+
+1. 在[阿里云号码认证控制台](https://dypns.console.aliyun.com/smsServiceOverview)开通短信认证服务，选择匹配的签名与验证码模板。为专用 RAM 身份授予调用 `dypns:SendSmsVerifyCode` 和 `dypns:CheckSmsVerifyCode` 的权限。
+2. 管理员登录后打开 `/admin/settings` 的「阿里云短信注册」，填写 AccessKey ID、AccessKey Secret、短信签名和模板 CODE。设置默认留空，功能默认关闭。认证方案名称留空使用默认方案。验证码变量名留空使用 `code`。如果模板含 `${min}` 等有效分钟数变量，请填写实际变量名。
+3. 开启「启用手机号注册」和「开放新用户注册」，点击「保存全部设置」。配置保存在数据库中，保存后立即生效。AccessKey Secret 加密存储，页面只显示是否已保存。更换 JWT 密钥后需要重新填写 AccessKey Secret。`/register` 在开放注册时显示两种注册方式，短信功能关闭时会把手机号注册标注为「暂未开放」。
+
+从旧版本升级时，数据库会保留邮箱唯一约束并允许邮箱为空，应用数据库账号需要 `ALTER TABLE` 权限。
+
+仅支持中国大陆手机号（可带 `+86`）。发码前需完成一次性图形验证。短信验证码为 6 位数字，服务端从发码起固定计时 360 秒，到期立即失效，最多试错 5 次。每号码发送间隔至少 60 秒、24 小时最多请求 5 次。另有单实例的 IP 和全局频控，多实例请同时在网关和阿里云配置限额，反代必须覆盖来自客户端的转发头。手机号账户可用手机号或用户名加密码登录，无需邮箱。OAuth 不提供手机号。自助找回密码通过邮箱完成。
 
 ## 本地开发
 
@@ -477,7 +487,9 @@ docker compose down
 | `GET` | `/api/auth/register/captcha` | 获取一次性注册图形人机验证码、挑战 ID 与有效期 |
 | `POST` | `/api/auth/register/code` | 完成人机验证后向白名单邮箱发送 6 位注册验证码；提交 `email/captchaId/captchaAnswer`，需要先配置 SMTP |
 | `POST` | `/api/auth/register` | 使用可选的 `nickname` 与 `email/password/verificationCode` 注册并登录；昵称留空时使用邮箱前缀 |
-| `GET` | `/api/auth/registration-policy` | 公开查询注册是否开放、是否需要邮箱验证码、邮箱域名白名单，以及验证码有效期、发送冷却、每日上限与计数窗口 |
+| `POST` | `/api/auth/register/phone/code` | 完成人机验证后发送注册短信；提交 `phone/captchaId/captchaAnswer` |
+| `POST` | `/api/auth/register/phone` | 使用 `phone/password/verificationCode` 和可选的 `nickname` 注册并登录 |
+| `GET` | `/api/auth/registration-policy` | 公开查询注册开关、`smsRegistrationEnabled`、邮箱注册策略和邮箱验证码限额 |
 | `POST` | `/api/auth/web-entry/resolve` | 登录后校验第一方 Web 的绝对回跳地址；只接受已登记 OAuth 应用的 Origin |
 | `POST` | `/api/auth/login` | 用户名或邮箱登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
@@ -502,8 +514,8 @@ docker compose down
 | `POST` | `/api/admin/oauth-clients` | 登记 OAuth 应用并一次性返回客户端密钥 |
 | `PATCH` | `/api/admin/oauth-clients/{id}` | 修改回调、scope、启用状态或客户端类型 |
 | `POST` | `/api/admin/oauth-clients/{id}/secret` | 轮换机密客户端密钥 |
-| `GET` | `/api/admin/settings` | 管理员读取注册策略与 SMTP 设置，密码仅返回是否已配置 |
-| `PUT` | `/api/admin/settings` | 管理员更新注册开关、邮箱域名白名单与 SMTP/发件人配置 |
+| `GET` | `/api/admin/settings` | 管理员读取注册策略、SMTP 与短信设置，密钥字段仅返回配置状态 |
+| `PUT` | `/api/admin/settings` | 管理员更新注册策略、SMTP 与短信设置，省略 `sms` 时保留已有短信设置 |
 | `POST` | `/api/admin/settings/mail/test` | 使用已保存的 SMTP 配置发送测试邮件 |
 
 错误响应统一为：

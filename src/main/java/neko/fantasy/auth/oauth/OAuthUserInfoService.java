@@ -77,7 +77,7 @@ public class OAuthUserInfoService {
             response.put("picture", tokenService.issuer() + AvatarService.avatarUrl(user.getId()));
             response.put("updated_at", user.getUpdatedAt().getEpochSecond());
         }
-        if (scopes.contains(OAuthScopes.EMAIL)) {
+        if (scopes.contains(OAuthScopes.EMAIL) && user.getEmail() != null) {
             response.put("email", user.getEmail());
         }
         if (scopes.contains(OAuthScopes.ROLES)) {

@@ -1,6 +1,7 @@
 package neko.fantasy.auth.settings;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -67,6 +68,9 @@ public class ApplicationSettings {
 
     @Column(name = "smtp_write_timeout_ms", nullable = false)
     private int smtpWriteTimeoutMs;
+
+    @Embedded
+    private SmsRegistrationSettings sms;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -212,6 +216,14 @@ public class ApplicationSettings {
 
     public void setSmtpWriteTimeoutMs(int smtpWriteTimeoutMs) {
         this.smtpWriteTimeoutMs = smtpWriteTimeoutMs;
+    }
+
+    SmsRegistrationSettings getSms() {
+        return sms;
+    }
+
+    void setSms(SmsRegistrationSettings sms) {
+        this.sms = sms;
     }
 
     public Instant getCreatedAt() {

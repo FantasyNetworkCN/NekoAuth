@@ -10,6 +10,7 @@ interface SettingsForm {
   serviceName: string
   registrationEnabled: boolean
   emailDomains: string
+  sms: SettingsUpdate['sms'] & { accessKeySecret: string }
   smtp: {
     enabled: boolean
     host: string
@@ -31,6 +32,17 @@ const form = reactive<SettingsForm>({
   serviceName: 'NekoAuth',
   registrationEnabled: true,
   emailDomains: '',
+  sms: {
+    enabled: false,
+    accessKeyId: '',
+    accessKeySecret: '',
+    clearAccessKeySecret: false,
+    signName: '',
+    templateCode: '',
+    schemeName: '',
+    codeParameter: '',
+    minutesParameter: '',
+  },
   smtp: {
     enabled: false,
     host: '',
@@ -55,6 +67,7 @@ const testingMail = ref(false)
 const error = ref('')
 const updatedAt = ref<string | null>(null)
 const passwordConfigured = ref(false)
+const smsSecretConfigured = ref(false)
 const showPassword = ref(false)
 const testRecipient = ref('')
 
@@ -93,6 +106,19 @@ function apply(settings: AdminSettings) {
   form.smtp.readTimeoutMs = settings.smtp.readTimeoutMs
   form.smtp.writeTimeoutMs = settings.smtp.writeTimeoutMs
   passwordConfigured.value = settings.smtp.passwordConfigured
+  const sms = settings.sms
+  form.sms = {
+    enabled: sms?.enabled ?? false,
+    accessKeyId: sms?.accessKeyId ?? '',
+    accessKeySecret: '',
+    clearAccessKeySecret: false,
+    signName: sms?.signName ?? '',
+    templateCode: sms?.templateCode ?? '',
+    schemeName: sms?.schemeName ?? '',
+    codeParameter: sms?.codeParameter ?? '',
+    minutesParameter: sms?.minutesParameter ?? '',
+  }
+  smsSecretConfigured.value = sms?.accessKeySecretConfigured ?? false
   updatedAt.value = settings.updatedAt
   if (!testRecipient.value) testRecipient.value = settings.smtp.fromEmail
 }
@@ -127,6 +153,16 @@ function validate() {
   }
   if (form.smtp.password.trim() && form.smtp.clearPassword) return '不能同时设置和清除 SMTP 密码'
   if (form.smtp.fromEmail.trim() && !/^\S+@\S+\.\S+$/.test(form.smtp.fromEmail.trim())) return '发件地址格式不正确'
+  if (form.sms.accessKeySecret.trim() && form.sms.clearAccessKeySecret) return '不能同时设置和清除 AccessKey Secret'
+  if ((form.sms.codeParameter.trim() || 'code') === form.sms.minutesParameter.trim()) return '验证码与有效分钟数不能使用同一个模板变量名'
+  if (form.sms.enabled) {
+    if (!form.sms.accessKeyId.trim() || !form.sms.signName.trim() || !form.sms.templateCode.trim()) {
+      return '启用手机号注册前必须填写 AccessKey ID、签名和模板 CODE'
+    }
+    if (form.sms.clearAccessKeySecret || (!smsSecretConfigured.value && !form.sms.accessKeySecret.trim())) {
+      return '启用手机号注册前必须填写或保留 AccessKey Secret'
+    }
+  }
   return ''
 }
 
@@ -135,6 +171,17 @@ function payload(): SettingsUpdate {
     serviceName: form.serviceName.trim(),
     registrationEnabled: form.registrationEnabled,
     emailDomainWhitelist: domains.value,
+    sms: {
+      enabled: form.sms.enabled,
+      accessKeyId: form.sms.accessKeyId.trim(),
+      accessKeySecret: form.sms.accessKeySecret.trim() || undefined,
+      clearAccessKeySecret: form.sms.clearAccessKeySecret,
+      signName: form.sms.signName.trim(),
+      templateCode: form.sms.templateCode.trim(),
+      schemeName: form.sms.schemeName.trim(),
+      codeParameter: form.sms.codeParameter.trim(),
+      minutesParameter: form.sms.minutesParameter.trim(),
+    },
     smtp: {
       enabled: form.smtp.enabled,
       host: form.smtp.host.trim(),
@@ -207,7 +254,7 @@ onMounted(() => void load())
       <div>
         <p class="page-kicker"><AppIcon name="paw" :size="13" /> NEKO CONTROL PANEL</p>
         <h1>系统设置</h1>
-        <p>集中维护注册策略、邮箱域名白名单与 SMTP 发件配置。保存后立即生效，无需重启服务。</p>
+        <p>管理注册策略、阿里云短信与 SMTP 发件。保存后立即生效，无需重启服务。</p>
       </div>
       <div class="settings-heading-meta">
         <span class="settings-live"><span></span> 即时生效</span>
@@ -252,7 +299,7 @@ onMounted(() => void load())
             <span class="toggle-track"><span></span></span>
             <span class="toggle-copy">
               <strong>开放新用户注册</strong>
-              <small>{{ form.registrationEnabled ? '当前允许使用白名单邮箱创建账户' : '当前已关闭注册入口' }}</small>
+              <small>{{ form.registrationEnabled ? '允许使用白名单邮箱，以及已启用的手机号注册' : '邮箱与手机号注册均已关闭' }}</small>
             </span>
             <span class="badge" :class="form.registrationEnabled ? 'badge-accent' : 'badge-neutral'">
               {{ form.registrationEnabled ? '已开放' : '已关闭' }}
@@ -278,6 +325,79 @@ onMounted(() => void load())
             <span v-for="domain in domains" :key="domain">@{{ domain }}</span>
             <span v-if="domains.length === 0" class="is-empty">尚未配置域名</span>
           </div>
+        </section>
+
+        <section class="settings-card panel" aria-labelledby="sms-settings-heading">
+          <div class="settings-section-head">
+            <span class="settings-section-icon mint"><AppIcon name="smartphone" :size="19" /></span>
+            <div>
+              <p class="panel-kicker">ALIYUN SMS VERIFICATION</p>
+              <h2 id="sms-settings-heading">阿里云短信注册</h2>
+              <p>支持中国大陆手机号。短信验证码自发出起 360 秒有效。</p>
+            </div>
+          </div>
+
+          <label class="toggle-row">
+            <input v-model="form.sms.enabled" type="checkbox" aria-label="启用手机号注册" />
+            <span class="toggle-track"><span></span></span>
+            <span class="toggle-copy">
+              <strong>启用手机号注册</strong>
+              <small>同时开启「开放新用户注册」后，用户才可获取短信验证码。</small>
+            </span>
+            <span class="badge" :class="form.sms.enabled ? 'badge-accent' : 'badge-neutral'">
+              {{ form.sms.enabled ? '已启用' : '未启用' }}
+            </span>
+          </label>
+
+          <div class="field-grid">
+            <label class="field">
+              <span class="field-label">AccessKey ID</span>
+              <span class="input-shell"><input v-model="form.sms.accessKeyId" name="smsAccessKeyId" maxlength="128" autocomplete="off" spellcheck="false" /></span>
+            </label>
+            <div class="field">
+              <label for="sms-access-key-secret" class="field-row">
+                <span class="field-label">AccessKey Secret</span>
+                <span v-if="smsSecretConfigured" class="badge badge-accent">已保存</span>
+              </label>
+              <span class="input-shell">
+                <input id="sms-access-key-secret" v-model="form.sms.accessKeySecret" type="password" maxlength="256"
+                  autocomplete="new-password" :placeholder="smsSecretConfigured ? '留空保留现有密钥' : ''" />
+              </span>
+              <label v-if="smsSecretConfigured" class="clear-password">
+                <input v-model="form.sms.clearAccessKeySecret" type="checkbox" /> 清除已保存的密钥
+              </label>
+            </div>
+          </div>
+
+          <div class="field-grid">
+            <label class="field">
+              <span class="field-label">短信签名</span>
+              <span class="input-shell"><input v-model="form.sms.signName" name="smsSignName" maxlength="128" autocomplete="off" /></span>
+            </label>
+            <label class="field">
+              <span class="field-label">短信模板 CODE</span>
+              <span class="input-shell"><input v-model="form.sms.templateCode" name="smsTemplateCode" maxlength="128" autocomplete="off" /></span>
+            </label>
+          </div>
+
+          <details class="advanced-settings">
+            <summary><AppIcon name="sliders" :size="15" /> 认证方案与模板变量</summary>
+            <div class="field-grid advanced-grid">
+              <label class="field">
+                <span class="field-label">认证方案名称</span>
+                <span class="input-shell"><input v-model="form.sms.schemeName" maxlength="20" placeholder="留空使用默认方案" /></span>
+              </label>
+              <label class="field">
+                <span class="field-label">验证码变量名</span>
+                <span class="input-shell"><input v-model="form.sms.codeParameter" maxlength="64" placeholder="留空使用 code" /></span>
+              </label>
+              <label class="field">
+                <span class="field-label">有效分钟数变量名</span>
+                <span class="input-shell"><input v-model="form.sms.minutesParameter" maxlength="64" placeholder="例如 min" /></span>
+                <span class="field-hint">模板不含分钟数变量时留空。</span>
+              </label>
+            </div>
+          </details>
         </section>
 
         <section class="settings-card panel">
@@ -420,6 +540,7 @@ onMounted(() => void load())
           <dl class="settings-summary">
             <div><dt>注册</dt><dd :class="{ on: form.registrationEnabled }">{{ form.registrationEnabled ? '开放' : '关闭' }}</dd></div>
             <div><dt>邮箱域名</dt><dd>{{ domains.length }} 个</dd></div>
+            <div><dt>手机号注册</dt><dd :class="{ on: form.registrationEnabled && form.sms.enabled }">{{ form.registrationEnabled && form.sms.enabled ? '已开放' : '未开放' }}</dd></div>
             <div><dt>SMTP</dt><dd :class="{ on: form.smtp.enabled }">{{ form.smtp.enabled ? '已启用' : '未启用' }}</dd></div>
             <div><dt>密码</dt><dd>{{ passwordConfigured ? '已加密保存' : '未设置' }}</dd></div>
           </dl>
@@ -451,7 +572,7 @@ onMounted(() => void load())
           <AppIcon name="shield-cat" :size="18" />
           <div>
             <strong>敏感信息不会回显</strong>
-            <p>SMTP 密码使用服务端密钥加密后写入数据库；设置接口只返回“是否已保存”。</p>
+            <p>SMTP 密码与 AccessKey Secret 加密后写入数据库；设置接口只返回“是否已保存”。</p>
           </div>
         </section>
       </aside>

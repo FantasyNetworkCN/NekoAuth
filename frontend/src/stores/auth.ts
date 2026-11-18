@@ -82,6 +82,11 @@ export const auth = {
     apply(payload)
   },
 
+  async registerByPhone(input: { nickname?: string; phone: string; password: string; verificationCode: string }) {
+    const payload = await api.registerByPhone({ ...input, device: await collectDeviceProfile() })
+    apply(payload)
+  },
+
   async updateProfile(nickname: string): Promise<User> {
     const updated = await api.updateProfile(nickname)
     state.user = updated

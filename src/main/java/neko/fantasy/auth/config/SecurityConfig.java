@@ -55,6 +55,7 @@ public class SecurityConfig {
                         .requestMatchers("/.well-known/**", "/oauth2/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/auth/register", "/api/auth/register/code",
+                                "/api/auth/register/phone", "/api/auth/register/phone/code",
                                 "/api/auth/register/captcha", "/api/auth/login",
                                 "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/shared-session", "/api/auth/shared-session/logout",

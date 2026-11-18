@@ -46,18 +46,18 @@ public class SettingSecretCipher {
             System.arraycopy(encrypted, 0, payload, iv.length, encrypted.length);
             return PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(payload);
         } catch (GeneralSecurityException exception) {
-            throw new IllegalStateException("无法加密 SMTP 密码", exception);
+            throw new IllegalStateException("无法加密设置密钥", exception);
         }
     }
 
     public String decrypt(String ciphertext) {
         if (ciphertext == null || !ciphertext.startsWith(PREFIX)) {
-            throw new IllegalStateException("SMTP 密码密文格式无效");
+            throw new IllegalStateException("设置密钥密文格式无效");
         }
         try {
             byte[] payload = Base64.getUrlDecoder().decode(ciphertext.substring(PREFIX.length()));
             if (payload.length <= IV_BYTES) {
-                throw new IllegalStateException("SMTP 密码密文长度无效");
+                throw new IllegalStateException("设置密钥密文长度无效");
             }
             byte[] iv = new byte[IV_BYTES];
             byte[] encrypted = new byte[payload.length - IV_BYTES];
@@ -67,7 +67,7 @@ public class SettingSecretCipher {
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, iv));
             return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
         } catch (GeneralSecurityException | IllegalArgumentException exception) {
-            throw new IllegalStateException("无法解密 SMTP 密码", exception);
+            throw new IllegalStateException("无法解密设置密钥", exception);
         }
     }
 }

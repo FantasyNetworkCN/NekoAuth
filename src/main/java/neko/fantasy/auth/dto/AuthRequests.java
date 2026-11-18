@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import neko.fantasy.auth.service.SmsRegistrationService;
 
 public final class AuthRequests {
 
@@ -50,6 +51,42 @@ public final class AuthRequests {
     ) {
     }
 
+    public record PhoneRegistrationCode(
+            @NotBlank(message = "请输入手机号")
+            @Pattern(regexp = SmsRegistrationService.PHONE_PATTERN, message = "请输入有效的中国大陆手机号")
+            String phone,
+
+            @NotBlank(message = "请先获取人机验证码")
+            @Size(max = 36, message = "人机验证码无效")
+            String captchaId,
+
+            @NotBlank(message = "请输入人机验证码")
+            @Pattern(regexp = "^[A-Za-z0-9]{5}$", message = "人机验证码需为 5 位字母或数字")
+            String captchaAnswer
+    ) {
+    }
+
+    public record PhoneRegister(
+            @NotBlank(message = "请输入手机号")
+            @Pattern(regexp = SmsRegistrationService.PHONE_PATTERN, message = "请输入有效的中国大陆手机号")
+            String phone,
+
+            @Size(max = 32, message = "昵称不能超过 32 个字符")
+            @Pattern(regexp = "^$|^[^\\p{Cntrl}]{1,32}$", message = "昵称不能包含控制字符")
+            String nickname,
+
+            @NotBlank(message = "密码不能为空")
+            @Size(min = 6, max = 30, message = "密码长度需为 6-30 个字符")
+            String password,
+
+            @NotBlank(message = "请输入短信验证码")
+            @Pattern(regexp = "^[0-9]{6}$", message = "短信验证码需为 6 位数字")
+            String verificationCode,
+
+            DeviceProfile device
+    ) {
+    }
+
     public record PasswordResetCode(
             @NotBlank(message = "邮箱不能为空")
             @Email(message = "邮箱格式不正确")
@@ -83,8 +120,8 @@ public final class AuthRequests {
     }
 
     public record Login(
-            @NotBlank(message = "请输入用户名或邮箱")
-            @Size(max = 254, message = "用户名或邮箱过长")
+            @NotBlank(message = "请输入用户名、邮箱或手机号")
+            @Size(max = 254, message = "登录账号过长")
             String identifier,
 
             @NotBlank(message = "请输入密码")

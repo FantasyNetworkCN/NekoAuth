@@ -11,6 +11,7 @@ import neko.fantasy.auth.service.AuthCookieService;
 import neko.fantasy.auth.service.AuthService;
 import neko.fantasy.auth.service.EmailVerificationService;
 import neko.fantasy.auth.service.RegistrationCaptchaService;
+import neko.fantasy.auth.service.SmsRegistrationService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,14 +35,33 @@ public class AuthController {
     private final AuthCookieService cookieService;
     private final EmailVerificationService emailVerificationService;
     private final RegistrationCaptchaService captchaService;
+    private final SmsRegistrationService smsRegistrationService;
 
     public AuthController(AuthService authService, AuthCookieService cookieService,
                           EmailVerificationService emailVerificationService,
-                          RegistrationCaptchaService captchaService) {
+                          RegistrationCaptchaService captchaService, SmsRegistrationService smsRegistrationService) {
         this.authService = authService;
         this.cookieService = cookieService;
         this.emailVerificationService = emailVerificationService;
         this.captchaService = captchaService;
+        this.smsRegistrationService = smsRegistrationService;
+    }
+
+    @PostMapping("/register/phone")
+    public ResponseEntity<ApiResponses.Auth> registerByPhone(
+            @Valid @RequestBody AuthRequests.PhoneRegister request,
+            HttpServletRequest servletRequest
+    ) {
+        return authResponse(HttpStatus.CREATED, authService.registerByPhone(request, servletRequest));
+    }
+
+    @PostMapping("/register/phone/code")
+    public ApiResponses.VerificationCodeSent phoneRegistrationCode(
+            @Valid @RequestBody AuthRequests.PhoneRegistrationCode request, HttpServletRequest servletRequest
+    ) {
+        smsRegistrationService.requireEnabled();
+        captchaService.verifyAndConsume(request.captchaId(), request.captchaAnswer());
+        return smsRegistrationService.send(request.phone(), servletRequest.getRemoteAddr());
     }
 
     @PostMapping("/register")
