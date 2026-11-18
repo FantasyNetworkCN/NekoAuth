@@ -17,6 +17,8 @@ public class SmsRegistrationChallenge {
     private String phone;
     @Column(name = "out_id", length = 36)
     private String outId;
+    @Column(name = "binding_user_id")
+    private Long bindingUserId;
     private Instant expiresAt;
     @Column(nullable = false)
     private Instant lastSentAt;
@@ -55,8 +57,13 @@ public class SmsRegistrationChallenge {
     }
 
     public void activate(String outId, Instant expiresAt) {
+        activate(outId, expiresAt, null);
+    }
+
+    public void activate(String outId, Instant expiresAt, Long bindingUserId) {
         this.outId = outId;
         this.expiresAt = expiresAt;
+        this.bindingUserId = bindingUserId;
         attempts = 0;
     }
 
@@ -68,6 +75,10 @@ public class SmsRegistrationChallenge {
         return outId;
     }
 
+    public Long getBindingUserId() {
+        return bindingUserId;
+    }
+
     public int recordFailedAttempt() {
         return ++attempts;
     }
@@ -75,5 +86,6 @@ public class SmsRegistrationChallenge {
     public void consume() {
         outId = null;
         expiresAt = null;
+        bindingUserId = null;
     }
 }

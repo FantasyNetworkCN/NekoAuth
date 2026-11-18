@@ -202,7 +202,19 @@ public class SettingsService {
 
     @Transactional(noRollbackFor = ApiException.class)
     public SmsConfig getSmsConfig() {
-        var sms = requireSmsSettings(loadOrCreate());
+        return readSmsConfig(requireSmsSettings(loadOrCreate()));
+    }
+
+    @Transactional(noRollbackFor = ApiException.class)
+    public SmsConfig getSmsBindingConfig() {
+        var sms = loadOrCreate().getSms();
+        if (!isSmsEnabled(sms)) {
+            throw ApiException.forbidden("SMS_BINDING_DISABLED", "短信验证服务尚未启用，请联系管理员");
+        }
+        return readSmsConfig(sms);
+    }
+
+    private SmsConfig readSmsConfig(SmsRegistrationSettings sms) {
         String secret;
         try {
             secret = secretCipher.decrypt(sms.accessKeySecretCiphertext);

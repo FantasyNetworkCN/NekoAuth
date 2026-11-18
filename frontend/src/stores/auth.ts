@@ -1,5 +1,6 @@
 import { computed, reactive } from 'vue'
 import { api, refreshAccessToken, setAccessToken, setSessionLostHandler, setSessionRefreshedHandler } from '@/lib/api'
+import type { ContactKind } from '@/lib/api'
 import { collectDeviceProfile } from '@/lib/device'
 import type { AuthPayload, User } from '@/types'
 
@@ -91,6 +92,11 @@ export const auth = {
     const updated = await api.updateProfile(nickname)
     state.user = updated
     return updated
+  },
+
+  async bindContact(kind: ContactKind, contact: string, verificationCode: string, currentPassword: string) {
+    const updated = await api.bindContact(kind, contact, verificationCode, currentPassword)
+    if (state.user?.id === updated.id) state.user = { ...state.user, [kind]: updated[kind] }
   },
 
   async uploadAvatar(file: File): Promise<User> {

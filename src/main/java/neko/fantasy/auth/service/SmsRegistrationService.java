@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -58,6 +59,16 @@ public class SmsRegistrationService {
         var config = settingsService.getSmsConfig();
         String phone = normalizePhone(rawPhone);
         requireAvailable(phone);
+        return send(phone, clientIp, config, null);
+    }
+
+    @Transactional(noRollbackFor = ApiException.class)
+    public ApiResponses.VerificationCodeSent sendBindingCode(String phone, String clientIp, Long userId) {
+        return send(phone, clientIp, settingsService.getSmsBindingConfig(), userId);
+    }
+
+    private ApiResponses.VerificationCodeSent send(String phone, String clientIp, SettingsService.SmsConfig config,
+                                                   Long bindingUserId) {
         Instant now = Instant.now();
         var stored = challenges.findForUpdate(phone);
         var challenge = stored.orElseGet(() -> new SmsRegistrationChallenge(phone, now));
@@ -77,18 +88,28 @@ public class SmsRegistrationService {
         challenges.flush();
         String outId = UUID.randomUUID().toString();
         smsClient.send(config, phone, outId);
-        challenge.activate(outId, now.plus(TTL));
+        challenge.activate(outId, now.plus(TTL), bindingUserId);
         return new ApiResponses.VerificationCodeSent("验证码已发送，请查收短信", TTL.toSeconds(), COOLDOWN.toSeconds());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public void verifyAndConsume(String phone, String code) {
+        verifyAndConsume(phone, code, null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
+    public void verifyBindingCode(String phone, String code, Long userId) {
+        verifyAndConsume(phone, code, userId);
+    }
+
+    private void verifyAndConsume(String phone, String code, Long bindingUserId) {
         var challenge = challenges.findForUpdate(phone).orElseThrow(SmsRegistrationService::invalidCode);
-        if (challenge.getOutId() == null) {
+        if (challenge.getOutId() == null || !Objects.equals(challenge.getBindingUserId(), bindingUserId)) {
             throw invalidCode();
         }
         requireUnexpired(challenge);
-        boolean verified = smsClient.verify(settingsService.getSmsConfig(), phone, challenge.getOutId(), code);
+        var config = bindingUserId == null ? settingsService.getSmsConfig() : settingsService.getSmsBindingConfig();
+        boolean verified = smsClient.verify(config, phone, challenge.getOutId(), code);
         requireUnexpired(challenge);
         if (verified) {
             challenge.consume();

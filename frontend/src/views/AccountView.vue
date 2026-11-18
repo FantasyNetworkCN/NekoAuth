@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AppLogo from '@/components/AppLogo.vue'
+import ContactBindingDialog from '@/components/ContactBindingDialog.vue'
 import accountNeko from '@/assets/local/account-neko.webp'
 import { ApiError, api } from '@/lib/api'
 import { deviceDetails, deviceLabel, formatDate, initials } from '@/lib/format'
@@ -15,6 +16,13 @@ const user = computed(() => auth.state.user)
 const displayName = computed(() => user.value?.displayName || user.value?.username || 'Neko')
 const avatarText = computed(() => initials(displayName.value))
 const roleLabel = computed(() => user.value?.role === 'ADMIN' ? '管理员' : '普通成员')
+const contactBinding = ref<InstanceType<typeof ContactBindingDialog> | null>(null)
+const contactFields = [{ kind: 'email', label: '邮箱' }, { kind: 'phone', label: '手机号' }] as const
+
+async function focusBoundContact(kind: typeof contactFields[number]['kind']) {
+  await nextTick()
+  document.getElementById(`bound-${kind}`)?.focus()
+}
 const avatarRevision = ref(0)
 const avatarBroken = ref(false)
 const avatarUploading = ref(false)
@@ -459,13 +467,15 @@ onMounted(() => {
             </header>
 
             <dl class="identity-list">
-              <div v-if="user.email">
-                <dt>邮箱</dt>
-                <dd>{{ user.email }}</dd>
-              </div>
-              <div v-if="user.phone">
-                <dt>手机号</dt>
-                <dd>{{ user.phone }}</dd>
+              <div v-for="{ kind, label } in contactFields" :key="kind" class="identity-contact">
+                <dt>{{ label }}</dt>
+                <dd v-if="user[kind]" :id="`bound-${kind}`" tabindex="-1">{{ user[kind] }}</dd>
+                <dd v-else>
+                  <span>未绑定</span>
+                  <button class="btn btn-secondary btn-small" type="button" @click="contactBinding?.open(kind)">
+                    绑定{{ label }}
+                  </button>
+                </dd>
               </div>
               <div>
                 <dt>用户名</dt>
@@ -491,7 +501,7 @@ onMounted(() => {
 
             <p class="readonly-note">
               <AppIcon name="lock" :size="14" />
-              邮箱与用户名暂不支持自助修改，请联系管理员。
+              更换已绑定的联系方式或修改用户名，请联系管理员。
             </p>
           </section>
 
@@ -570,6 +580,7 @@ onMounted(() => {
         <AppIcon name="shield" :size="14" />
         <span>Neko ID 会持续保护你的账户、密码与登录会话。</span>
       </footer>
+      <ContactBindingDialog ref="contactBinding" @bound="focusBoundContact" />
     </main>
   </div>
 </template>
@@ -1041,6 +1052,30 @@ onMounted(() => {
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.identity-list > .identity-contact {
+  align-items: center;
+}
+
+.identity-contact dd {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  max-width: 78%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.identity-contact dd:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.identity-contact .btn {
+  flex: none;
+  min-height: 44px;
 }
 
 .readonly-note {

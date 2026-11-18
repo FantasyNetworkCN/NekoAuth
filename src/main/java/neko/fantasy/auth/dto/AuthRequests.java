@@ -87,6 +87,37 @@ public final class AuthRequests {
     ) {
     }
 
+    public record BindEmail(
+            @NotBlank(message = "邮箱不能为空")
+            @Email(message = "邮箱格式不正确")
+            @Size(max = 100, message = "邮箱不能超过 100 个字符")
+            String email,
+
+            @NotBlank(message = "请输入邮箱验证码")
+            @Pattern(regexp = "^[0-9]{6}$", message = "邮箱验证码需为 6 位数字")
+            String verificationCode,
+
+            @NotBlank(message = "请输入当前密码")
+            @Size(max = 128, message = "当前密码过长")
+            String currentPassword
+    ) {
+    }
+
+    public record BindPhone(
+            @NotBlank(message = "请输入手机号")
+            @Pattern(regexp = SmsRegistrationService.PHONE_PATTERN, message = "请输入有效的中国大陆手机号")
+            String phone,
+
+            @NotBlank(message = "请输入短信验证码")
+            @Pattern(regexp = "^[0-9]{6}$", message = "短信验证码需为 6 位数字")
+            String verificationCode,
+
+            @NotBlank(message = "请输入当前密码")
+            @Size(max = 128, message = "当前密码过长")
+            String currentPassword
+    ) {
+    }
+
     public record PasswordResetCode(
             @NotBlank(message = "邮箱不能为空")
             @Email(message = "邮箱格式不正确")

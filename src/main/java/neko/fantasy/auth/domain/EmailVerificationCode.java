@@ -24,6 +24,9 @@ public class EmailVerificationCode {
     @Column(length = 24)
     private EmailVerificationPurpose purpose;
 
+    @Column(name = "binding_user_id")
+    private Long bindingUserId;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
@@ -55,6 +58,14 @@ public class EmailVerificationCode {
 
     public void setPurpose(EmailVerificationPurpose purpose) {
         this.purpose = purpose;
+    }
+
+    public Long getBindingUserId() {
+        return bindingUserId;
+    }
+
+    public void setBindingUserId(Long bindingUserId) {
+        this.bindingUserId = bindingUserId;
     }
 
     public Instant getExpiresAt() {

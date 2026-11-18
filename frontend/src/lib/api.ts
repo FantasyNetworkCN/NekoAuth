@@ -21,6 +21,8 @@ import type {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 
+export type ContactKind = 'email' | 'phone'
+
 let accessToken: string | null = null
 let refreshInFlight: Promise<AuthPayload | null> | null = null
 let sessionLostHandler: (() => void) | null = null
@@ -252,6 +254,20 @@ export const api = {
 
   me() {
     return request<User>('/auth/me')
+  },
+
+  sendContactCode(kind: ContactKind, contact: string, captchaId: string, captchaAnswer: string) {
+    return request<VerificationCodeSent>(`/auth/me/${kind}/code`, {
+      method: 'POST',
+      body: JSON.stringify({ [kind]: contact, captchaId, captchaAnswer }),
+    })
+  },
+
+  bindContact(kind: ContactKind, contact: string, verificationCode: string, currentPassword: string) {
+    return request<User>(`/auth/me/${kind}`, {
+      method: 'POST',
+      body: JSON.stringify({ [kind]: contact, verificationCode, currentPassword }),
+    })
   },
 
   updateProfile(nickname: string) {

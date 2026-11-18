@@ -491,13 +491,17 @@ docker compose down
 | `POST` | `/api/auth/register/phone` | 使用 `phone/password/verificationCode` 和可选的 `nickname` 注册并登录 |
 | `GET` | `/api/auth/registration-policy` | 公开查询注册开关、`smsRegistrationEnabled`、邮箱注册策略和邮箱验证码限额 |
 | `POST` | `/api/auth/web-entry/resolve` | 登录后校验第一方 Web 的绝对回跳地址；只接受已登记 OAuth 应用的 Origin |
-| `POST` | `/api/auth/login` | 用户名或邮箱登录 |
+| `POST` | `/api/auth/login` | 用户名、邮箱或手机号登录 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
 | `POST` | `/api/auth/logout` | 退出当前会话，同时撤销刷新令牌与父域共享会话，并清理相关 Cookie |
 | `POST` | `/api/auth/shared-session` | 第一方子域凭父域共享会话解析当前登录用户 |
 | `POST` | `/api/auth/shared-session/logout` | 第一方子域退出当前浏览器会话族并清理共享 Cookie |
 | `GET` | `/api/auth/me` | 当前用户 |
 | `PATCH` | `/api/auth/me` | 修改当前用户昵称；提交 `nickname` 并返回更新后的用户资料 |
+| `POST` | `/api/auth/me/email/code` | 登录后发送邮箱绑定验证码；提交 `email/captchaId/captchaAnswer`，需启用 SMTP |
+| `POST` | `/api/auth/me/phone/code` | 登录后发送手机绑定验证码；提交 `phone/captchaId/captchaAnswer`，需启用短信验证服务 |
+| `POST` | `/api/auth/me/email` | 绑定尚未设置的邮箱；提交 `email/verificationCode/currentPassword` 并返回更新后的用户资料 |
+| `POST` | `/api/auth/me/phone` | 绑定尚未设置的中国大陆手机号；提交 `phone/verificationCode/currentPassword` 并返回更新后的用户资料 |
 | `POST` | `/api/auth/avatar` | 登录后上传/替换头像；multipart 字段名为 `avatar`，支持 PNG/JPEG/GIF/WebP/BMP，最大 10MiB；服务端校验完整文件结构，拒绝 SVG、截断文件和尾随负载 |
 | `GET` | `/avatars/default` | 公开默认头像，内容为 Auth 站点当前 favicon |
 | `GET` | `/avatars/{id}` | 公开读取指定 Auth 用户头像；无头像或用户不存在时返回默认头像 |
