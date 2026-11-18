@@ -100,8 +100,9 @@ class DypnsSmsClient {
         return new RuntimeOptions().setAutoretry(false).setConnectTimeout(2000).setReadTimeout(3000);
     }
 
-    private static ApiException sendFailure(String code) {
-        if ("BUSINESS_LIMIT_CONTROL".equals(code) || "FREQUENCY_FAIL".equals(code)) {
+    static ApiException sendFailure(String code) {
+        if ("biz.FREQUENCY".equals(code) || "FREQUENCY_FAIL".equals(code)
+                || "isv.BUSINESS_LIMIT_CONTROL".equals(code) || "BUSINESS_LIMIT_CONTROL".equals(code)) {
             return ApiException.tooManyRequests("SMS_CODE_RATE_LIMIT", "短信发送过于频繁，请稍后再试");
         }
         if ("MOBILE_NUMBER_ILLEGAL".equals(code)) {
