@@ -12,6 +12,7 @@ import neko.fantasy.auth.service.AuthService;
 import neko.fantasy.auth.service.EmailVerificationService;
 import neko.fantasy.auth.service.RegistrationCaptchaService;
 import neko.fantasy.auth.service.SmsRegistrationService;
+import neko.fantasy.auth.settings.SettingsService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,15 +37,18 @@ public class AuthController {
     private final EmailVerificationService emailVerificationService;
     private final RegistrationCaptchaService captchaService;
     private final SmsRegistrationService smsRegistrationService;
+    private final SettingsService settingsService;
 
     public AuthController(AuthService authService, AuthCookieService cookieService,
                           EmailVerificationService emailVerificationService,
-                          RegistrationCaptchaService captchaService, SmsRegistrationService smsRegistrationService) {
+                          RegistrationCaptchaService captchaService, SmsRegistrationService smsRegistrationService,
+                          SettingsService settingsService) {
         this.authService = authService;
         this.cookieService = cookieService;
         this.emailVerificationService = emailVerificationService;
         this.captchaService = captchaService;
         this.smsRegistrationService = smsRegistrationService;
+        this.settingsService = settingsService;
     }
 
     @PostMapping("/register/phone")
@@ -158,11 +162,33 @@ public class AuthController {
                 delivery.message(), delivery.expiresInSeconds(), delivery.resendAfterSeconds());
     }
 
+    @GetMapping("/password/reset-options")
+    public ApiResponses.PasswordResetOptions passwordResetOptions() {
+        return new ApiResponses.PasswordResetOptions(settingsService.isSmsVerificationEnabled());
+    }
+
+    @PostMapping("/password/phone/reset-code")
+    public ApiResponses.VerificationCodeSent phonePasswordResetCode(
+            @Valid @RequestBody AuthRequests.PhoneRegistrationCode request, HttpServletRequest servletRequest) {
+        captchaService.verifyAndConsume(request.captchaId(), request.captchaAnswer());
+        return smsRegistrationService.sendPasswordResetCode(request.phone(), servletRequest.getRemoteAddr());
+    }
+
+    @PostMapping("/password/phone/reset")
+    public ResponseEntity<Void> resetPasswordByPhone(@Valid @RequestBody AuthRequests.ResetPhonePassword request) {
+        authService.resetPasswordByPhone(request);
+        return clearSessionCookies();
+    }
+
     @PostMapping("/password/reset")
     public ResponseEntity<Void> resetPassword(
             @Valid @RequestBody AuthRequests.ResetPassword request
     ) {
         authService.resetPassword(request);
+        return clearSessionCookies();
+    }
+
+    private ResponseEntity<Void> clearSessionCookies() {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookieService.clearHeaders().toArray(String[]::new))
                 .build();

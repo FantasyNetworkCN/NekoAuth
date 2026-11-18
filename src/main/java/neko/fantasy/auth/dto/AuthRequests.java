@@ -150,6 +150,21 @@ public final class AuthRequests {
     ) {
     }
 
+    public record ResetPhonePassword(
+            @NotBlank(message = "请输入手机号")
+            @Pattern(regexp = SmsRegistrationService.PHONE_PATTERN, message = "请输入有效的中国大陆手机号")
+            String phone,
+
+            @NotBlank(message = "请输入短信验证码")
+            @Pattern(regexp = "^[0-9]{6}$", message = "短信验证码需为 6 位数字")
+            String code,
+
+            @NotBlank(message = "请输入新密码")
+            @Size(min = 6, max = 30, message = "新密码长度需为 6-30 个字符")
+            String newPassword
+    ) {
+    }
+
     public record Login(
             @NotBlank(message = "请输入用户名、邮箱或手机号")
             @Size(max = 254, message = "登录账号过长")

@@ -59,8 +59,10 @@ public class SecurityConfig {
                                 "/api/auth/register/captcha", "/api/auth/login",
                                 "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/shared-session", "/api/auth/shared-session/logout",
-                                "/api/auth/password/reset-code", "/api/auth/password/reset").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/auth/registration-policy").permitAll()
+                                "/api/auth/password/reset-code", "/api/auth/password/reset",
+                                "/api/auth/password/phone/reset-code", "/api/auth/password/phone/reset").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/registration-policy",
+                                "/api/auth/password/reset-options").permitAll()
                         .requestMatchers(HttpMethod.GET, "/avatars/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/oauth/authorize").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

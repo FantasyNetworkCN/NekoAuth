@@ -232,18 +232,22 @@ export const api = {
     )
   },
 
-  requestPasswordResetCode(email: string, captchaId: string, captchaAnswer: string) {
+  passwordResetOptions() {
+    return request<{ smsEnabled: boolean }>('/auth/password/reset-options', {}, { auth: false, retry: false })
+  },
+
+  requestPasswordResetCode(kind: ContactKind, contact: string, captchaId: string, captchaAnswer: string) {
     return request<VerificationCodeSent>(
-      '/auth/password/reset-code',
-      { method: 'POST', body: JSON.stringify({ email, captchaId, captchaAnswer }) },
+      kind === 'phone' ? '/auth/password/phone/reset-code' : '/auth/password/reset-code',
+      { method: 'POST', body: JSON.stringify({ [kind]: contact, captchaId, captchaAnswer }) },
       { auth: false, retry: false },
     )
   },
 
-  resetPassword(email: string, code: string, newPassword: string) {
+  resetPassword(kind: ContactKind, contact: string, code: string, newPassword: string) {
     return request<void>(
-      '/auth/password/reset',
-      { method: 'POST', body: JSON.stringify({ email, code, newPassword }) },
+      kind === 'phone' ? '/auth/password/phone/reset' : '/auth/password/reset',
+      { method: 'POST', body: JSON.stringify({ [kind]: contact, code, newPassword }) },
       { auth: false, retry: false },
     )
   },

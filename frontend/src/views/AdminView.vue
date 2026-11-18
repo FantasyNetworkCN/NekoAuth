@@ -19,6 +19,7 @@ const result = ref<PageResponse<User>>({
 const loading = ref(true)
 const error = ref('')
 const busyId = ref<number | null>(null)
+const missingAvatars = ref(new Set<number>())
 
 const currentUserId = computed(() => auth.state.user?.id)
 const hasPrevious = computed(() => result.value.page > 0)
@@ -33,6 +34,7 @@ async function load(page = 0) {
   error.value = ''
   try {
     result.value = await api.users(query.value.trim(), page, result.value.size)
+    missingAvatars.value.clear()
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '无法加载用户列表'
   } finally {
@@ -121,7 +123,18 @@ onMounted(() => void load(0))
     <section v-else class="user-grid" aria-label="用户列表">
       <article v-for="user in result.content" :key="user.id" class="user-card" :class="{ 'is-self': user.id === currentUserId }">
         <div class="user-card-head">
-          <span class="user-card-avatar" :class="{ 'is-admin': user.role === 'ADMIN' }">{{ initials(accountName(user)) }}</span>
+          <span class="user-card-avatar" :class="{ 'is-admin': user.role === 'ADMIN' }" aria-hidden="true">
+            <img
+              v-if="user.avatarUrl && !missingAvatars.has(user.id)"
+              :src="user.avatarUrl"
+              alt=""
+              loading="lazy"
+              width="40"
+              height="40"
+              @error="missingAvatars.add(user.id)"
+            />
+            <template v-else>{{ initials(accountName(user)) }}</template>
+          </span>
           <div class="user-card-name">
             <div>
               <h2>{{ accountName(user) }}</h2>
@@ -134,7 +147,16 @@ onMounted(() => void load(0))
           </span>
         </div>
 
-        <p class="user-email"><AppIcon :name="user.email ? 'mail' : 'smartphone'" :size="14" /> {{ user.email || user.phone }}</p>
+        <dl class="user-contacts">
+          <div>
+            <dt><AppIcon name="mail" :size="14" /> 邮箱</dt>
+            <dd :class="{ 'is-unbound': !user.email }">{{ user.email || '未绑定' }}</dd>
+          </div>
+          <div>
+            <dt><AppIcon name="smartphone" :size="14" /> 手机号</dt>
+            <dd :class="{ 'is-unbound': !user.phone }">{{ user.phone || '未绑定' }}</dd>
+          </div>
+        </dl>
 
         <div class="user-facts">
           <span><small>加入时间</small><strong>{{ formatDate(user.createdAt) }}</strong></span>
@@ -284,6 +306,7 @@ onMounted(() => void load(0))
 .user-card-head { display: flex; align-items: center; gap: 0.7rem; }
 .user-card-avatar { display: grid; width: 40px; height: 40px; flex: none; place-items: center; border-radius: 12px; color: #cfd9ff; background: linear-gradient(145deg, #4d5ca9, #31396f); font-size: 0.72rem; font-weight: 750; }
 .user-card-avatar.is-admin { color: #c8f7ed; background: linear-gradient(145deg, #1b8274, #1c4b55); }
+.user-card-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .user-card-name { min-width: 0; flex: 1; }
 .user-card-name > div { display: flex; align-items: center; gap: 0.4rem; }
 .user-card-name h2 { overflow: hidden; color: var(--text-soft); font-size: 0.8rem; font-weight: 630; text-overflow: ellipsis; white-space: nowrap; }
@@ -297,7 +320,11 @@ onMounted(() => void load(0))
 .status-pill.is-offline { color: #7b849c; background: rgba(255, 255, 255, 0.045); }
 .status-pill.is-offline span { background: #7b849c; }
 
-.user-email { display: flex; align-items: center; gap: 0.35rem; overflow: hidden; margin-top: 0.7rem; color: #8490aa; font-size: 0.67rem; text-overflow: ellipsis; white-space: nowrap; }
+.user-contacts { display: grid; gap: 0.4rem; margin-top: 0.7rem; font-size: 0.67rem; }
+.user-contacts > div { display: grid; grid-template-columns: 5em minmax(0, 1fr); align-items: start; gap: 0.35rem; }
+.user-contacts dt { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); }
+.user-contacts dd { margin: 0; color: var(--body); overflow-wrap: anywhere; }
+.user-contacts dd.is-unbound { color: var(--muted); }
 .user-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.75rem; padding: 0.7rem 0; border-top: 1px solid rgba(255, 255, 255, 0.045); border-bottom: 1px solid rgba(255, 255, 255, 0.045); }
 .user-facts span { display: grid; gap: 0.18rem; }
 .user-facts small { color: #616c87; font-size: 0.58rem; }

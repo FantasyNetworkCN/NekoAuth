@@ -103,12 +103,14 @@ Compose 设置 `AUTH_SETUP_ENABLED=false`，因此 `/setup`、`/setup/**` 与 `/
 ### 开启手机号注册
 
 1. 在[阿里云号码认证控制台](https://dypns.console.aliyun.com/smsServiceOverview)开通短信认证服务，选择匹配的签名与验证码模板。为专用 RAM 身份授予调用 `dypns:SendSmsVerifyCode` 和 `dypns:CheckSmsVerifyCode` 的权限。
-2. 管理员登录后打开 `/admin/settings` 的「阿里云短信注册」，填写 AccessKey ID、AccessKey Secret、短信签名和模板 CODE。设置默认留空，功能默认关闭。认证方案名称留空使用默认方案。验证码变量名留空使用 `code`。如果模板含 `${min}` 等有效分钟数变量，请填写实际变量名。
-3. 开启「启用手机号注册」和「开放新用户注册」，点击「保存全部设置」。配置保存在数据库中，保存后立即生效。AccessKey Secret 加密存储，页面只显示是否已保存。更换 JWT 密钥后需要重新填写 AccessKey Secret。`/register` 在开放注册时显示两种注册方式，短信功能关闭时会把手机号注册标注为「暂未开放」。
+2. 管理员登录后打开 `/admin/settings` 的「阿里云短信注册」，填写 AccessKey ID、AccessKey Secret 和短信签名。设置默认留空，功能默认关闭。认证方案名称留空使用默认方案。验证码变量名留空使用 `code`。如果模板含 `${min}` 等有效分钟数变量，请填写实际变量名。
+3. 开启「启用短信验证」和「开放新用户注册」，点击「保存全部设置」。配置保存在数据库中，保存后立即生效。AccessKey Secret 加密存储，页面只显示是否已保存。更换 JWT 密钥后需要重新填写 AccessKey Secret。`/register` 在开放注册时显示两种注册方式，短信功能关闭时会把手机号注册标注为「暂未开放」。手机号绑定和找回密码只需启用短信验证，不受注册开关限制。
+
+短信模板 CODE 在代码中固定：登录／注册模板为 `100001`，首次绑定手机号为 `100005`，重置密码为 `100003`，`100002` 为手机号换绑预留。当前手机号登录使用密码，未开放短信验证码登录及自助换绑。
 
 从旧版本升级时，数据库会保留邮箱唯一约束并允许邮箱为空，应用数据库账号需要 `ALTER TABLE` 权限。
 
-仅支持中国大陆手机号（可带 `+86`）。发码前需完成一次性图形验证。短信验证码为 6 位数字，服务端从发码起固定计时 360 秒，到期立即失效，最多试错 5 次。每号码发送间隔至少 60 秒、24 小时最多请求 5 次。另有单实例的 IP 和全局频控，多实例请同时在网关和阿里云配置限额，反代必须覆盖来自客户端的转发头。手机号账户可用手机号或用户名加密码登录，无需邮箱。OAuth 不提供手机号。自助找回密码通过邮箱完成。
+仅支持中国大陆手机号（可带 `+86`）。发码前需完成一次性图形验证。短信验证码为 6 位数字，服务端从发码起固定计时 360 秒，到期立即失效，最多试错 5 次。每号码发送间隔至少 60 秒、24 小时最多请求 5 次。另有单实例的 IP 和全局频控，多实例请同时在网关和阿里云配置限额，反代必须覆盖来自客户端的转发头。手机号账户可用手机号或用户名加密码登录，无需邮箱。OAuth 不提供手机号。用户可通过已绑定的邮箱或手机号找回密码。
 
 ## 本地开发
 
@@ -508,7 +510,10 @@ docker compose down
 | `POST` | `/api/auth/password` | 登录后修改密码，撤销 Auth 登录会话与已签发的 OAuth refresh token |
 | `POST` | `/api/auth/password/reset-code` | 获取人机验证码后向邮箱发送找回密码验证码；提交 `email/captchaId/captchaAnswer` |
 | `POST` | `/api/auth/password/reset` | 使用 `email/code/newPassword` 重置密码，并撤销全部 Auth 登录会话与 OAuth refresh token |
-| `GET` | `/forgot-password` | 找回密码页面，支持图形人机验证码、邮箱验证码与新密码设置 |
+| `GET` | `/api/auth/password/reset-options` | 公开查询是否启用短信找回 |
+| `POST` | `/api/auth/password/phone/reset-code` | 通过人机验证后请求密码重置短信；提交 `phone/captchaId/captchaAnswer` |
+| `POST` | `/api/auth/password/phone/reset` | 使用 `phone/code/newPassword` 重置密码，并撤销全部 Auth 登录会话与 OAuth 授权会话 |
+| `GET` | `/forgot-password` | 用已绑定的邮箱或手机号验证后重置密码 |
 | `GET` | `/api/auth/sessions` | 活跃设备会话 |
 | `DELETE` | `/api/auth/sessions/{id}` | 撤销指定会话 |
 | `DELETE` | `/api/auth/sessions` | 撤销全部会话 |

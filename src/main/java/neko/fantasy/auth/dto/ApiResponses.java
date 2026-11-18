@@ -45,6 +45,9 @@ public final class ApiResponses {
     public record VerificationCodeSent(String message, long expiresInSeconds, long resendAfterSeconds) {
     }
 
+    public record PasswordResetOptions(boolean smsEnabled) {
+    }
+
     public record RegistrationCaptcha(String id, String image, long expiresInSeconds) {
     }
 

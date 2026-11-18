@@ -41,7 +41,7 @@ public final class SettingsRequests {
             @Size(max = 256, message = "AccessKey Secret 过长") String accessKeySecret,
             Boolean clearAccessKeySecret,
             @Size(max = 128, message = "短信签名过长") String signName,
-            @Size(max = 128, message = "短信模板 CODE 过长") String templateCode,
+            String templateCode, // 兼容旧客户端的设置请求；模板不再可配置。
             @Size(max = 20, message = "认证方案名称不能超过 20 个字符") String schemeName,
             @Size(max = 64, message = "验证码变量名过长") String codeParameter,
             @Size(max = 64, message = "有效分钟数变量名过长") String minutesParameter

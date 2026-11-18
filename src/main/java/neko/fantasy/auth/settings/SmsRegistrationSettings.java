@@ -19,9 +19,6 @@ class SmsRegistrationSettings {
     @Column(name = "sms_sign_name", length = 128)
     String signName;
 
-    @Column(name = "sms_template_code", length = 128)
-    String templateCode;
-
     @Column(name = "sms_scheme_name", length = 20)
     String schemeName;
 

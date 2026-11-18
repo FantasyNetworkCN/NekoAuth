@@ -361,14 +361,26 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> ApiException.badRequest(
                         "PASSWORD_RESET_INVALID", "邮箱或验证码不正确"));
-        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+        resetVerifiedPassword(user, request.newPassword());
+    }
+
+    @Transactional
+    public void resetPasswordByPhone(AuthRequests.ResetPhonePassword request) {
+        passwordPolicy.validate(request.newPassword());
+        String phone = SmsRegistrationService.normalizePhone(request.phone());
+        User user = userRepository.findByPhone(phone).filter(User::isEnabled)
+                .orElseThrow(() -> ApiException.badRequest(
+                        "SMS_CODE_INVALID", "短信验证码不正确或已过期"));
+        smsRegistrationService.verifyPasswordResetCode(phone, request.code(), user.getId());
+        resetVerifiedPassword(user, request.newPassword());
+    }
+
+    private void resetVerifiedPassword(User user, String newPassword) {
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
             throw ApiException.badRequest("PASSWORD_UNCHANGED", "新密码不能与当前密码相同");
         }
 
-        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        user.incrementTokenVersion();
-        userRepository.saveAndFlush(user);
-        revokeSessionsAndOAuthGrants(user.getId());
+        replacePassword(user, newPassword);
     }
 
     @Transactional(readOnly = true)

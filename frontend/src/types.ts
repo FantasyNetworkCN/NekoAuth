@@ -151,7 +151,7 @@ export interface SmsSettings {
   minutesParameter: string
 }
 
-export type SmsSettingsUpdate = Omit<SmsSettings, 'accessKeySecretConfigured'> & {
+export type SmsSettingsUpdate = Omit<SmsSettings, 'accessKeySecretConfigured' | 'templateCode'> & {
   accessKeySecret?: string
   clearAccessKeySecret: boolean
 }

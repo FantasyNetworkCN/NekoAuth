@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 @Service
 public class SettingsService {
 
+    public static final String LOGIN_REGISTRATION_SMS_TEMPLATE = "100001"; // 登录／注册验证码
     public static final List<String> DEFAULT_EMAIL_DOMAINS = List.of(
             "qq.com",
             "gmail.com",
@@ -165,7 +166,6 @@ public class SettingsService {
         ensureSingleLine(request.accessKeyId(), "AccessKey ID");
         ensureSingleLine(request.accessKeySecret(), "AccessKey Secret");
         ensureSingleLine(request.signName(), "短信签名");
-        ensureSingleLine(request.templateCode(), "短信模板 CODE");
         ensureSingleLine(request.schemeName(), "认证方案名称");
         ensureSingleLine(request.codeParameter(), "验证码变量名");
         ensureSingleLine(request.minutesParameter(), "有效分钟数变量名");
@@ -180,7 +180,6 @@ public class SettingsService {
         sms.enabled = request.enabled();
         sms.accessKeyId = trimToNull(request.accessKeyId());
         sms.signName = trimToNull(request.signName());
-        sms.templateCode = trimToNull(request.templateCode());
         sms.schemeName = trimToNull(request.schemeName());
         sms.codeParameter = trimToNull(request.codeParameter());
         sms.minutesParameter = trimToNull(request.minutesParameter());
@@ -193,9 +192,9 @@ public class SettingsService {
         } else if (!clearSecret && existing != null) {
             sms.accessKeySecretCiphertext = existing.accessKeySecretCiphertext;
         }
-        if (request.enabled() && (sms.accessKeyId == null || sms.signName == null || sms.templateCode == null
+        if (request.enabled() && (sms.accessKeyId == null || sms.signName == null
                 || !StringUtils.hasText(sms.accessKeySecretCiphertext))) {
-            throw ApiException.badRequest("SMS_SETTINGS_REQUIRED", "启用手机号注册前必须填写 AccessKey ID、AccessKey Secret、签名和模板 CODE");
+            throw ApiException.badRequest("SMS_SETTINGS_REQUIRED", "启用短信验证前必须填写 AccessKey ID、AccessKey Secret 和签名");
         }
         return sms;
     }
@@ -206,12 +205,17 @@ public class SettingsService {
     }
 
     @Transactional(noRollbackFor = ApiException.class)
-    public SmsConfig getSmsBindingConfig() {
+    public SmsConfig getSmsVerificationConfig() {
         var sms = loadOrCreate().getSms();
         if (!isSmsEnabled(sms)) {
-            throw ApiException.forbidden("SMS_BINDING_DISABLED", "短信验证服务尚未启用，请联系管理员");
+            throw ApiException.forbidden("SMS_VERIFICATION_DISABLED", "短信验证服务尚未启用，请联系管理员");
         }
         return readSmsConfig(sms);
+    }
+
+    @Transactional
+    public boolean isSmsVerificationEnabled() {
+        return isSmsEnabled(loadOrCreate().getSms());
     }
 
     private SmsConfig readSmsConfig(SmsRegistrationSettings sms) {
@@ -221,7 +225,7 @@ public class SettingsService {
         } catch (IllegalStateException exception) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "SMS_SERVICE_UNAVAILABLE", "短信服务暂不可用，请联系管理员");
         }
-        return new SmsConfig(sms.accessKeyId, secret, sms.signName, sms.templateCode, sms.schemeName,
+        return new SmsConfig(sms.accessKeyId, secret, sms.signName, sms.schemeName,
                 effectiveCodeParameter(sms), sms.minutesParameter);
     }
 
@@ -331,11 +335,11 @@ public class SettingsService {
 
     private static SettingsResponses.Sms toSmsResponse(SmsRegistrationSettings sms) {
         if (sms == null) {
-            return new SettingsResponses.Sms(false, "", false, "", "", "", "", "");
+            return new SettingsResponses.Sms(false, "", false, "", LOGIN_REGISTRATION_SMS_TEMPLATE, "", "", "");
         }
         return new SettingsResponses.Sms(isSmsEnabled(sms), trimToEmpty(sms.accessKeyId),
                 StringUtils.hasText(sms.accessKeySecretCiphertext), trimToEmpty(sms.signName),
-                trimToEmpty(sms.templateCode), trimToEmpty(sms.schemeName), trimToEmpty(sms.codeParameter),
+                LOGIN_REGISTRATION_SMS_TEMPLATE, trimToEmpty(sms.schemeName), trimToEmpty(sms.codeParameter),
                 trimToEmpty(sms.minutesParameter));
     }
 
@@ -406,7 +410,7 @@ public class SettingsService {
     ) {
     }
 
-    public record SmsConfig(String accessKeyId, String accessKeySecret, String signName, String templateCode,
+    public record SmsConfig(String accessKeyId, String accessKeySecret, String signName,
                             String schemeName, String codeParameter, String minutesParameter) {
         @Override
         public String toString() {

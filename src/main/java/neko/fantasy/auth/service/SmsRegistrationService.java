@@ -2,15 +2,20 @@ package neko.fantasy.auth.service;
 
 import jakarta.persistence.EntityManager;
 import neko.fantasy.auth.domain.SmsRegistrationChallenge;
+import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.dto.ApiResponses;
 import neko.fantasy.auth.exception.ApiException;
 import neko.fantasy.auth.repository.SmsRegistrationChallengeRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.settings.SettingsService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -23,9 +28,14 @@ import java.util.regex.Pattern;
 @Service
 public class SmsRegistrationService {
 
+    private static final Logger log = LoggerFactory.getLogger(SmsRegistrationService.class);
     static final Duration TTL = Duration.ofSeconds(360);
     static final Duration COOLDOWN = Duration.ofMinutes(1);
     private static final Duration SEND_WINDOW = Duration.ofDays(1);
+    // 阿里云号码认证模板按用途固定，不能混用。
+    private static final String PHONE_BINDING_TEMPLATE = "100005"; // 首次绑定手机号
+    private static final String PASSWORD_RESET_TEMPLATE = "100003"; // 短信重置密码
+    private static final String PHONE_REBINDING_TEMPLATE = "100002"; // 修改已绑定手机号，预留给换绑流程
     private static final int MAX_SENDS_PER_PHONE = 5;
     private static final int MAX_ATTEMPTS = 5;
     public static final String PHONE_PATTERN = "^(?:\\+86)?1[3-9][0-9]{9}$";
@@ -59,17 +69,54 @@ public class SmsRegistrationService {
         var config = settingsService.getSmsConfig();
         String phone = normalizePhone(rawPhone);
         requireAvailable(phone);
-        return send(phone, clientIp, config, null);
+        return send(phone, clientIp, config, SettingsService.LOGIN_REGISTRATION_SMS_TEMPLATE, null);
     }
 
     @Transactional(noRollbackFor = ApiException.class)
     public ApiResponses.VerificationCodeSent sendBindingCode(String phone, String clientIp, Long userId) {
-        return send(phone, clientIp, settingsService.getSmsBindingConfig(), userId);
+        return send(phone, clientIp, settingsService.getSmsVerificationConfig(), PHONE_BINDING_TEMPLATE, userId);
+    }
+
+    @Transactional
+    public ApiResponses.VerificationCodeSent sendPasswordResetCode(String rawPhone, String clientIp) {
+        var config = settingsService.getSmsVerificationConfig();
+        String phone = normalizePhone(rawPhone);
+        Instant now = Instant.now();
+        var challenge = reserveSend(phone, clientIp, now);
+        users.findByPhone(phone).filter(User::isEnabled).ifPresent(user -> {
+            String outId = UUID.randomUUID().toString();
+            challenge.activatePasswordReset(outId, now.plus(TTL), user.getId());
+            // Reserve the same quotas for every number; deliver only after commit and outside the HTTP response.
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    Thread.startVirtualThread(() -> {
+                        try {
+                            smsClient.send(config, phone, outId, PASSWORD_RESET_TEMPLATE);
+                        } catch (RuntimeException exception) {
+                            log.warn("找回密码短信发送失败: {}", exception.getClass().getSimpleName());
+                        }
+                    });
+                }
+            });
+        });
+        return new ApiResponses.VerificationCodeSent("如果该手机号已关联账户，验证码将通过短信发送",
+                TTL.toSeconds(), COOLDOWN.toSeconds());
     }
 
     private ApiResponses.VerificationCodeSent send(String phone, String clientIp, SettingsService.SmsConfig config,
-                                                   Long bindingUserId) {
+                                                   String templateCode, Long bindingUserId) {
         Instant now = Instant.now();
+        var challenge = reserveSend(phone, clientIp, now);
+        challenge.consume();
+        challenges.flush();
+        String outId = UUID.randomUUID().toString();
+        smsClient.send(config, phone, outId, templateCode);
+        challenge.activate(outId, now.plus(TTL), bindingUserId);
+        return new ApiResponses.VerificationCodeSent("验证码已发送，请查收短信", TTL.toSeconds(), COOLDOWN.toSeconds());
+    }
+
+    private SmsRegistrationChallenge reserveSend(String phone, String clientIp, Instant now) {
         var stored = challenges.findForUpdate(phone);
         var challenge = stored.orElseGet(() -> new SmsRegistrationChallenge(phone, now));
         if (challenge.coolingDown(now, COOLDOWN)) {
@@ -85,30 +132,34 @@ public class SmsRegistrationService {
             // Concurrent first requests must collide on INSERT, not merge over a fresh reservation.
             entityManager.persist(challenge);
         }
-        challenges.flush();
-        String outId = UUID.randomUUID().toString();
-        smsClient.send(config, phone, outId);
-        challenge.activate(outId, now.plus(TTL), bindingUserId);
-        return new ApiResponses.VerificationCodeSent("验证码已发送，请查收短信", TTL.toSeconds(), COOLDOWN.toSeconds());
+        return challenge;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public void verifyAndConsume(String phone, String code) {
-        verifyAndConsume(phone, code, null);
+        verifyAndConsume(phone, code, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public void verifyBindingCode(String phone, String code, Long userId) {
-        verifyAndConsume(phone, code, userId);
+        verifyAndConsume(phone, code, userId, null);
     }
 
-    private void verifyAndConsume(String phone, String code, Long bindingUserId) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
+    public void verifyPasswordResetCode(String phone, String code, Long userId) {
+        verifyAndConsume(phone, code, null, userId);
+    }
+
+    private void verifyAndConsume(String phone, String code, Long bindingUserId, Long passwordResetUserId) {
         var challenge = challenges.findForUpdate(phone).orElseThrow(SmsRegistrationService::invalidCode);
-        if (challenge.getOutId() == null || !Objects.equals(challenge.getBindingUserId(), bindingUserId)) {
+        if (challenge.getOutId() == null
+                || !Objects.equals(challenge.getBindingUserId(), bindingUserId)
+                || !Objects.equals(challenge.getPasswordResetUserId(), passwordResetUserId)) {
             throw invalidCode();
         }
         requireUnexpired(challenge);
-        var config = bindingUserId == null ? settingsService.getSmsConfig() : settingsService.getSmsBindingConfig();
+        var config = bindingUserId == null && passwordResetUserId == null
+                ? settingsService.getSmsConfig() : settingsService.getSmsVerificationConfig();
         boolean verified = smsClient.verify(config, phone, challenge.getOutId(), code);
         requireUnexpired(challenge);
         if (verified) {

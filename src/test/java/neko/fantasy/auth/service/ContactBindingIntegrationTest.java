@@ -123,7 +123,7 @@ class ContactBindingIntegrationTest {
         send(token, "phone", canonical, captchas.issue())
                 .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.code").value("SMS_CODE_COOLDOWN"));
         var outId = ArgumentCaptor.forClass(String.class);
-        verify(sms).send(any(SettingsService.SmsConfig.class), eq(canonical), outId.capture());
+        verify(sms).send(any(SettingsService.SmsConfig.class), eq(canonical), outId.capture(), eq("100005"));
 
         bind(otherToken, "phone", canonical, "123456", PASSWORD)
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("SMS_CODE_INVALID"));

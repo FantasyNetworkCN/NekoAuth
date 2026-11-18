@@ -10,7 +10,7 @@ interface SettingsForm {
   serviceName: string
   registrationEnabled: boolean
   emailDomains: string
-  sms: SettingsUpdate['sms'] & { accessKeySecret: string }
+  sms: SettingsUpdate['sms'] & { accessKeySecret: string; templateCode: string }
   smtp: {
     enabled: boolean
     host: string
@@ -156,11 +156,11 @@ function validate() {
   if (form.sms.accessKeySecret.trim() && form.sms.clearAccessKeySecret) return '不能同时设置和清除 AccessKey Secret'
   if ((form.sms.codeParameter.trim() || 'code') === form.sms.minutesParameter.trim()) return '验证码与有效分钟数不能使用同一个模板变量名'
   if (form.sms.enabled) {
-    if (!form.sms.accessKeyId.trim() || !form.sms.signName.trim() || !form.sms.templateCode.trim()) {
-      return '启用手机号注册前必须填写 AccessKey ID、签名和模板 CODE'
+    if (!form.sms.accessKeyId.trim() || !form.sms.signName.trim()) {
+      return '启用短信验证前必须填写 AccessKey ID 和签名'
     }
     if (form.sms.clearAccessKeySecret || (!smsSecretConfigured.value && !form.sms.accessKeySecret.trim())) {
-      return '启用手机号注册前必须填写或保留 AccessKey Secret'
+      return '启用短信验证前必须填写或保留 AccessKey Secret'
     }
   }
   return ''
@@ -177,7 +177,6 @@ function payload(): SettingsUpdate {
       accessKeySecret: form.sms.accessKeySecret.trim() || undefined,
       clearAccessKeySecret: form.sms.clearAccessKeySecret,
       signName: form.sms.signName.trim(),
-      templateCode: form.sms.templateCode.trim(),
       schemeName: form.sms.schemeName.trim(),
       codeParameter: form.sms.codeParameter.trim(),
       minutesParameter: form.sms.minutesParameter.trim(),
@@ -338,11 +337,11 @@ onMounted(() => void load())
           </div>
 
           <label class="toggle-row">
-            <input v-model="form.sms.enabled" type="checkbox" aria-label="启用手机号注册" />
+            <input v-model="form.sms.enabled" type="checkbox" aria-label="启用短信验证" />
             <span class="toggle-track"><span></span></span>
             <span class="toggle-copy">
-              <strong>启用手机号注册</strong>
-              <small>同时开启「开放新用户注册」后，用户才可获取短信验证码。</small>
+              <strong>启用短信验证</strong>
+              <small>用于手机号绑定和密码找回。手机号注册还需开启「开放新用户注册」。</small>
             </span>
             <span class="badge" :class="form.sms.enabled ? 'badge-accent' : 'badge-neutral'">
               {{ form.sms.enabled ? '已启用' : '未启用' }}
@@ -375,8 +374,8 @@ onMounted(() => void load())
               <span class="input-shell"><input v-model="form.sms.signName" name="smsSignName" maxlength="128" autocomplete="off" /></span>
             </label>
             <label class="field">
-              <span class="field-label">短信模板 CODE</span>
-              <span class="input-shell"><input v-model="form.sms.templateCode" name="smsTemplateCode" maxlength="128" autocomplete="off" /></span>
+              <span class="field-label">登录／注册模板 CODE（固定）</span>
+              <span class="input-shell"><input :value="form.sms.templateCode" readonly /></span>
             </label>
           </div>
 

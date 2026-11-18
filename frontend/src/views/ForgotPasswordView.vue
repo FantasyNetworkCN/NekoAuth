@@ -3,12 +3,18 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import AuthLayout from '@/components/AuthLayout.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import { ApiError, api } from '@/lib/api'
+import { ApiError, api, type ContactKind } from '@/lib/api'
 import { showToast } from '@/lib/toast'
 
 const router = useRouter()
+const method = ref<ContactKind>('email')
+const smsEnabled = ref(false)
+const isPhone = computed(() => method.value === 'phone')
+const contactLabel = computed(() => isPhone.value ? '手机号' : '邮箱')
+const codeLabel = computed(() => isPhone.value ? '短信验证码' : '邮箱验证码')
 const form = reactive({
   email: '',
+  phone: '',
   captchaAnswer: '',
   code: '',
   newPassword: '',
@@ -17,13 +23,15 @@ const form = reactive({
 const showPassword = ref(false)
 const loading = ref(false)
 const sendingCode = ref(false)
-const codeCooldown = ref(0)
+const resendAt = reactive({ email: 0, phone: 0 })
+const clock = ref(Date.now())
+const codeCooldown = computed(() => Math.max(0, Math.ceil((resendAt[method.value] - clock.value) / 1000)))
 const error = ref('')
+const sendNotice = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 const captcha = reactive({
   id: '',
   image: '',
-  expiresInSeconds: 300,
   loading: false,
 })
 let cooldownTimer: ReturnType<typeof setInterval> | undefined
@@ -38,18 +46,29 @@ const passwordStrength = computed(() => {
   return { score, label: labels[score] || '软乎乎' }
 })
 
-function emailValidationError() {
-  if (!/^\S+@\S+\.\S+$/.test(form.email)) return '请输入有效的邮箱'
-  if (form.email.trim().length > 100) return '邮箱不能超过 100 个字符'
+function contactValidationError() {
+  if (isPhone.value) return /^(?:\+86)?1[3-9][0-9]{9}$/.test(form.phone) ? '' : '请输入有效的中国大陆手机号'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return '请输入有效的邮箱'
+  if (form.email.length > 100) return '邮箱不能超过 100 个字符'
   return ''
 }
 
-function startCooldown(seconds: number) {
-  if (cooldownTimer) clearInterval(cooldownTimer)
-  codeCooldown.value = Math.max(1, Math.floor(seconds))
+function setMethod(next: ContactKind) {
+  if (method.value === next || loading.value || sendingCode.value) return
+  method.value = next
+  form.code = ''
+  sendNotice.value = ''
+  fieldErrors.value = {}
+  error.value = ''
+}
+
+function startCooldown(channel: ContactKind, seconds: number) {
+  clock.value = Date.now()
+  resendAt[channel] = clock.value + seconds * 1000
+  if (cooldownTimer) return
   cooldownTimer = setInterval(() => {
-    codeCooldown.value = Math.max(0, codeCooldown.value - 1)
-    if (codeCooldown.value === 0 && cooldownTimer) {
+    clock.value = Date.now()
+    if (clock.value >= Math.max(resendAt.email, resendAt.phone)) {
       clearInterval(cooldownTimer)
       cooldownTimer = undefined
     }
@@ -64,7 +83,6 @@ async function loadCaptcha() {
     const result = await api.registrationCaptcha()
     captcha.id = result.id
     captcha.image = result.image
-    captcha.expiresInSeconds = result.expiresInSeconds
     fieldErrors.value = { ...fieldErrors.value, captcha: '' }
   } catch {
     captcha.id = ''
@@ -76,10 +94,12 @@ async function loadCaptcha() {
 }
 
 async function sendCode() {
-  if (sendingCode.value || codeCooldown.value > 0) return
+  if (loading.value || sendingCode.value || captcha.loading || codeCooldown.value > 0) return
+  const channel = method.value
+  sendNotice.value = ''
   const errors: Record<string, string> = {}
-  const emailError = emailValidationError()
-  if (emailError) errors.email = emailError
+  const contactError = contactValidationError()
+  if (contactError) errors[channel] = contactError
   if (!captcha.id) errors.captcha = '人机验证尚未加载，请刷新后重试'
   else if (!/^[A-Za-z0-9]{5}$/.test(form.captchaAnswer.trim())) {
     errors.captcha = '请输入图中的 5 位人机验证码'
@@ -91,33 +111,33 @@ async function sendCode() {
   sendingCode.value = true
   try {
     const result = await api.requestPasswordResetCode(
-      form.email.trim(),
+      channel,
+      form[channel],
       captcha.id,
       form.captchaAnswer.trim().toUpperCase(),
     )
     form.code = ''
-    startCooldown(result.resendAfterSeconds)
-    showToast(result.message, 'success')
-    await loadCaptcha()
+    startCooldown(channel, result.resendAfterSeconds)
+    sendNotice.value = result.message
   } catch (caught) {
     if (caught instanceof ApiError) {
       error.value = caught.message
-      fieldErrors.value = caught.fields
+      fieldErrors.value = { ...caught.fields, captcha: caught.fields.captchaAnswer || caught.fields.captchaId || '' }
     } else {
       error.value = '验证码发送失败，请稍后重试'
     }
-    await loadCaptcha()
   } finally {
+    await loadCaptcha()
     sendingCode.value = false
   }
 }
 
 async function submit() {
-  if (loading.value) return
+  if (loading.value || sendingCode.value) return
   const errors: Record<string, string> = {}
-  const emailError = emailValidationError()
-  if (emailError) errors.email = emailError
-  if (!/^\d{6}$/.test(form.code.trim())) errors.code = '请输入 6 位邮箱验证码'
+  const contactError = contactValidationError()
+  if (contactError) errors[method.value] = contactError
+  if (!/^\d{6}$/.test(form.code.trim())) errors.code = `请输入 6 位${codeLabel.value}`
   if (form.newPassword.length < 6 || form.newPassword.length > 30) {
     errors.newPassword = '密码长度需为 6-30 个字符'
   }
@@ -128,7 +148,7 @@ async function submit() {
   loading.value = true
   error.value = ''
   try {
-    await api.resetPassword(form.email.trim(), form.code.trim(), form.newPassword)
+    await api.resetPassword(method.value, form[method.value], form.code.trim(), form.newPassword)
     showToast('密码已重置，请使用新密码登录', 'success')
     await router.replace({ name: 'login', query: { reason: 'password-reset' } })
   } catch (caught) {
@@ -143,7 +163,12 @@ async function submit() {
   }
 }
 
-onMounted(loadCaptcha)
+onMounted(() => {
+  void loadCaptcha()
+  void api.passwordResetOptions().then(options => {
+    smsEnabled.value = options.smsEnabled
+  }).catch(() => {})
+})
 onUnmounted(() => {
   if (cooldownTimer) clearInterval(cooldownTimer)
 })
@@ -153,47 +178,49 @@ onUnmounted(() => {
   <AuthLayout
     eyebrow="Neko Identity Recovery"
     title="把秘密咒语找回来"
-    subtitle="先完成人机验证并接收邮箱验证码，再设置新的通行证密码。重置成功后，所有旧会话都会失效。"
+    subtitle="验证已绑定的联系方式后，即可重置密码。重置后，所有旧会话都会失效。"
   >
     <div v-if="error" class="alert alert-error" role="alert">
       <AppIcon name="alert" :size="18" />
       <span>{{ error }}</span>
     </div>
 
-    <form class="auth-form" novalidate @submit.prevent="submit">
+    <form class="auth-form recovery-form" novalidate @submit.prevent="submit">
+      <div v-if="smsEnabled" class="recovery-methods" role="group" aria-label="找回方式">
+        <button type="button" :aria-pressed="!isPhone" :disabled="loading || sendingCode" @click="setMethod('email')">
+          <AppIcon name="mail" :size="16" /> 邮箱找回
+        </button>
+        <button type="button" :aria-pressed="isPhone" :disabled="loading || sendingCode" @click="setMethod('phone')">
+          <AppIcon name="smartphone" :size="16" /> 手机号找回
+        </button>
+      </div>
+
       <label class="field">
-        <span class="field-label">注册邮箱</span>
-        <span class="input-shell" :class="{ 'has-error': fieldErrors.email }">
-          <AppIcon name="mail" :size="18" />
+        <span class="field-label">已绑定{{ contactLabel }}</span>
+        <span class="input-shell" :class="{ 'has-error': fieldErrors[method] }">
+          <AppIcon :name="isPhone ? 'smartphone' : 'mail'" :size="18" />
           <input
-            v-model="form.email"
-            name="email"
-            type="email"
-            autocomplete="email"
-            placeholder="neko@example.com"
-            maxlength="100"
+            :key="method"
+            v-model.trim="form[method]"
+            :name="method"
+            :type="isPhone ? 'tel' : 'email'"
+            :autocomplete="isPhone ? 'tel' : 'email'"
+            :placeholder="isPhone ? '中国大陆手机号' : 'neko@example.com'"
+            :maxlength="isPhone ? 14 : 100"
+            :disabled="loading || sendingCode"
+            @input="form.code = ''; sendNotice = ''"
             required
           />
         </span>
-        <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
+        <span v-if="fieldErrors[method]" class="field-error">{{ fieldErrors[method] }}</span>
       </label>
 
       <div class="field captcha-field">
-        <span class="field-label">人机验证</span>
+        <label for="recovery-captcha" class="field-label">人机验证</label>
         <div class="captcha-row">
-          <button
-            class="captcha-visual"
-            type="button"
-            :disabled="captcha.loading"
-            aria-label="刷新人机验证码"
-            @click="loadCaptcha"
-          >
-            <img v-if="captcha.image" :src="captcha.image" alt="人机验证码图片，点击刷新" />
-            <span v-else>{{ captcha.loading ? '加载中…' : '点击加载' }}</span>
-          </button>
           <span class="input-shell captcha-input" :class="{ 'has-error': fieldErrors.captcha }">
-            <AppIcon name="shield-cat" :size="18" />
             <input
+              id="recovery-captcha"
               v-model="form.captchaAnswer"
               name="captchaAnswer"
               type="text"
@@ -201,44 +228,56 @@ onUnmounted(() => {
               autocapitalize="characters"
               spellcheck="false"
               placeholder="5 位字符"
+              :disabled="sendingCode"
               maxlength="5"
               pattern="[A-Za-z0-9]{5}"
               required
             />
           </span>
-          <button class="captcha-refresh" type="button" :disabled="captcha.loading" aria-label="换一张人机验证码" @click="loadCaptcha">
-            <AppIcon name="refresh" :size="16" />
+          <button
+            class="captcha-visual"
+            type="button"
+            :disabled="captcha.loading || sendingCode"
+            aria-label="刷新人机验证码"
+            title="刷新人机验证码"
+            @click="loadCaptcha"
+          >
+            <img v-if="captcha.image" :src="captcha.image" alt="" />
+            <span v-else>{{ captcha.loading ? '加载中…' : '点击加载' }}</span>
           </button>
         </div>
         <span v-if="fieldErrors.captcha" class="field-error">{{ fieldErrors.captcha }}</span>
       </div>
 
-      <label class="field">
-        <span class="field-label">邮箱验证码</span>
-        <span class="input-shell" :class="{ 'has-error': fieldErrors.code }">
-          <AppIcon name="shield-cat" :size="18" />
-          <input
-            v-model="form.code"
-            name="code"
-            type="text"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            placeholder="6 位数字验证码"
-            maxlength="6"
-            pattern="\d{6}"
-            required
-          />
+      <div class="field">
+        <label class="field-label" for="recovery-code">{{ codeLabel }}</label>
+        <div class="code-row">
+          <span class="input-shell" :class="{ 'has-error': fieldErrors.code }">
+            <input
+              id="recovery-code"
+              v-model="form.code"
+              name="code"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              placeholder="6 位数字"
+              maxlength="6"
+              pattern="[0-9]{6}"
+              required
+            />
+          </span>
           <button
-            class="input-action code-action"
+            class="btn btn-secondary code-action"
             type="button"
-            :disabled="sendingCode || codeCooldown > 0 || captcha.loading || !captcha.id"
+            :disabled="loading || sendingCode || codeCooldown > 0 || captcha.loading || !captcha.id"
             @click="sendCode"
           >
-            {{ sendingCode ? '发送中…' : codeCooldown > 0 ? `${codeCooldown}s 后重发` : '获取验证码' }}
+            {{ sendingCode ? '发送中…' : codeCooldown > 0 ? `${codeCooldown} 秒后重发` : '获取验证码' }}
           </button>
-        </span>
+        </div>
         <span v-if="fieldErrors.code" class="field-error">{{ fieldErrors.code }}</span>
-      </label>
+        <span v-if="sendNotice" class="send-notice" role="status">{{ sendNotice }}</span>
+      </div>
 
       <label class="field">
         <span class="field-row">
@@ -256,7 +295,7 @@ onUnmounted(() => {
             maxlength="30"
             required
           />
-          <button class="input-action" type="button" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
+          <button class="input-action" type="button" :aria-pressed="showPassword" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
             <AppIcon :name="showPassword ? 'eye-off' : 'eye'" :size="18" />
           </button>
         </span>
@@ -281,7 +320,7 @@ onUnmounted(() => {
         <span v-if="fieldErrors.confirmPassword" class="field-error">{{ fieldErrors.confirmPassword }}</span>
       </label>
 
-      <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
+      <button class="btn btn-primary btn-block" type="submit" :disabled="loading || sendingCode">
         <span v-if="loading" class="spinner"></span>
         <template v-else>
           <AppIcon name="key" :size="17" />
@@ -299,65 +338,109 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.form-links {
-  display: inline-flex;
-  gap: 12px;
-  align-items: center;
+.recovery-form,
+.recovery-form .field,
+.recovery-form .input-shell {
+  min-width: 0;
 }
 
-.captcha-field {
-  gap: 8px;
-}
-
-.captcha-row {
+.recovery-methods {
   display: grid;
-  grid-template-columns: 134px minmax(0, 1fr) 40px;
-  gap: 10px;
-  align-items: stretch;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-soft);
 }
 
-.captcha-visual,
-.captcha-refresh {
-  border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted, #a6a8c6);
+.recovery-methods button {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--body);
+  font: inherit;
+  font-size: 0.68rem;
   cursor: pointer;
+}
+
+.recovery-methods button[aria-pressed='true'] {
+  border-color: var(--line);
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.recovery-methods button:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.captcha-row,
+.code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, 38%);
+  gap: 0.5rem;
+  align-items: stretch;
 }
 
 .captcha-visual {
   display: grid;
+  min-width: 0;
+  min-height: 48px;
   place-items: center;
-  height: 48px;
-  padding: 0;
   overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: 0.65rem;
+  cursor: pointer;
 }
 
 .captcha-visual img {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: 46px;
+  object-fit: contain;
 }
 
-.captcha-input {
-  min-width: 0;
+.captcha-input input {
+  text-transform: uppercase;
 }
 
-.captcha-refresh {
-  display: grid;
-  place-items: center;
+.code-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 108px), 1fr));
+}
+
+.code-action.btn {
+  min-height: 48px;
+  padding-inline: 0.35rem;
+  font-size: 0.68rem;
+}
+
+.send-notice {
+  color: var(--body);
+  font-size: 0.68rem;
+}
+
+.captcha-visual:hover:not(:disabled) {
+  border-color: var(--accent);
 }
 
 .captcha-visual:disabled,
-.captcha-refresh:disabled {
-  cursor: wait;
+.recovery-methods button:disabled {
+  cursor: not-allowed;
   opacity: 0.6;
 }
 
-@media (max-width: 560px) {
-  .captcha-row {
-    grid-template-columns: 112px minmax(0, 1fr) 40px;
-  }
+.recovery-form button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 </style>

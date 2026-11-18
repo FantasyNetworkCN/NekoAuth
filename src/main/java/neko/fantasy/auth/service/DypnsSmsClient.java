@@ -26,12 +26,12 @@ class DypnsSmsClient {
         this.objectMapper = objectMapper;
     }
 
-    void send(SmsConfig config, String phone, String outId) {
+    void send(SmsConfig config, String phone, String outId, String templateCode) {
         var request = new SendSmsVerifyCodeRequest()
                 .setPhoneNumber(phone.substring(3))
                 .setCountryCode("86")
                 .setSignName(config.signName())
-                .setTemplateCode(config.templateCode())
+                .setTemplateCode(templateCode)
                 .setTemplateParam(templateParameters(config))
                 .setSchemeName(config.schemeName())
                 .setOutId(outId)

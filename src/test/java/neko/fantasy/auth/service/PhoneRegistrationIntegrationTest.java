@@ -80,8 +80,8 @@ class PhoneRegistrationIntegrationTest {
                 .andExpect(jsonPath("$.code").value("SMS_CODE_COOLDOWN"));
 
         var outId = ArgumentCaptor.forClass(String.class);
-        var config = new SmsConfig("test-key", "test-secret", "test-sign", "test-template", null, "code", "min");
-        verify(sms).send(eq(config), eq(canonical), outId.capture());
+        var config = new SmsConfig("test-key", "test-secret", "test-sign", null, "code", "min");
+        verify(sms).send(eq(config), eq(canonical), outId.capture(), eq("100001"));
         when(sms.verify(config, canonical, outId.getValue(), "123456")).thenReturn(true);
         register(canonical, "123456").andExpect(status().isCreated())
                 .andExpect(cookie().exists("refresh_token"))

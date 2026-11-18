@@ -86,13 +86,13 @@ class SettingsIntegrationTest {
                 .andExpect(jsonPath("$.sms.accessKeyId").value(""))
                 .andExpect(jsonPath("$.sms.accessKeySecretConfigured").value(false))
                 .andExpect(jsonPath("$.sms.signName").value(""))
-                .andExpect(jsonPath("$.sms.templateCode").value(""))
+                .andExpect(jsonPath("$.sms.templateCode").value("100001"))
                 .andExpect(jsonPath("$.sms.schemeName").value(""))
                 .andExpect(jsonPath("$.sms.codeParameter").value(""))
                 .andExpect(jsonPath("$.sms.minutesParameter").value(""));
 
         updateSms(token, true, """
-                {"enabled":true,"accessKeyId":"test-id","signName":"猫屋","templateCode":"100123"}
+                {"enabled":true,"accessKeyId":"test-id","signName":"猫屋"}
                 """).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("SMS_SETTINGS_REQUIRED"));
 
@@ -100,8 +100,9 @@ class SettingsIntegrationTest {
                 {"enabled":true,"accessKeyId":"test-id","accessKeySecret":"test-secret",
                  "signName":"猫屋","templateCode":"100123","schemeName":"猫屋注册","minutesParameter":"min"}
                 """;
-        updateSms(token, true, update).andExpect(status().isOk())
+        updateSms(token, true, update.replace("\"templateCode\":\"100123\",", "")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.sms.enabled").value(true))
+                .andExpect(jsonPath("$.sms.templateCode").value("100001"))
                 .andExpect(jsonPath("$.sms.accessKeySecretConfigured").value(true))
                 .andExpect(jsonPath("$.sms.accessKeySecret").doesNotExist());
 
@@ -117,6 +118,7 @@ class SettingsIntegrationTest {
 
         updateSms(token, false, update.replace("\"accessKeySecret\":\"test-secret\",", ""))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sms.templateCode").value("100001"))
                 .andExpect(jsonPath("$.sms.accessKeySecretConfigured").value(true));
         assertThat(jdbc.queryForObject("select sms_access_key_secret_ciphertext from application_settings where id = 1", String.class))
                 .isEqualTo(ciphertext);
