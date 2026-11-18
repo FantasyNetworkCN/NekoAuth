@@ -88,7 +88,10 @@ public class OAuthAuthorizationService {
         OAuthConsent consent = consentRepository
                 .findByUserIdAndClientId(userId, validated.client().getId())
                 .orElse(null);
-        boolean previouslyApproved = consent != null && grantedScopes(consent).containsAll(validated.scopes());
+        Set<String> granted = consent == null ? Set.of() : grantedScopes(consent);
+        boolean previouslyApproved = granted.containsAll(validated.scopes());
+        boolean canAutoApprove = isFirstPartyRedirect(validated.redirectUri())
+                && (!validated.scopes().contains(OAuthScopes.PHONE) || granted.contains(OAuthScopes.PHONE));
 
         if (validated.prompts().contains("none")) {
             if (reauthRequired || !matchesLoginHint(validated.loginHint(), user)) {
@@ -97,7 +100,7 @@ public class OAuthAuthorizationService {
                         false, loginHint);
             }
             if (!previouslyApproved) {
-                if (!isFirstPartyRedirect(validated.redirectUri())) {
+                if (!canAutoApprove) {
                     return view(user, validated, false,
                             errorRedirect(validated, "consent_required", "当前没有可用于完成授权的登录同意记录"),
                             false, loginHint);
@@ -115,7 +118,7 @@ public class OAuthAuthorizationService {
         }
 
         boolean forceConsent = validated.prompts().contains("consent");
-        if (!forceConsent && isFirstPartyRedirect(validated.redirectUri())) {
+        if (!forceConsent && canAutoApprove) {
             if (!previouslyApproved) {
                 saveConsent(user, validated.client(), validated.scopes(), consent);
             }
@@ -161,10 +164,7 @@ public class OAuthAuthorizationService {
         consentRepository.save(consent);
     }
 
-    /**
-     * 同一父域下的已登记应用视为第一方 Web。只有 {@code prompt=none} 才会静默补建同意记录，
-     * 正常交互式授权仍会展示同意页。
-     */
+    /** 同一父域下使用 HTTPS 的已登记回调视为第一方 Web。 */
     private boolean isFirstPartyRedirect(String redirectUri) {
         String configuredDomain = authProperties == null || authProperties.cookie() == null
                 ? "" : authProperties.cookie().domain();

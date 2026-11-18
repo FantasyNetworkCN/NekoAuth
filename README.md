@@ -110,7 +110,7 @@ Compose 设置 `AUTH_SETUP_ENABLED=false`，因此 `/setup`、`/setup/**` 与 `/
 
 从旧版本升级时，数据库会保留邮箱唯一约束并允许邮箱为空，应用数据库账号需要 `ALTER TABLE` 权限。
 
-仅支持中国大陆手机号（可带 `+86`）。发码前需完成一次性图形验证。短信验证码为 6 位数字，服务端从发码起固定计时 360 秒，到期立即失效，最多试错 5 次。每号码发送间隔至少 60 秒、24 小时最多请求 5 次。另有单实例的 IP 和全局频控，多实例请同时在网关和阿里云配置限额，反代必须覆盖来自客户端的转发头。手机号账户可用手机号或用户名加密码登录，无需邮箱。OAuth 不提供手机号。用户可通过已绑定的邮箱或手机号找回密码。
+仅支持中国大陆手机号（可带 `+86`）。发码前需完成一次性图形验证。短信验证码为 6 位数字，服务端从发码起固定计时 360 秒，到期立即失效，最多试错 5 次。每号码发送间隔至少 60 秒、24 小时最多请求 5 次。另有单实例的 IP 和全局频控，多实例请同时在网关和阿里云配置限额，反代必须覆盖来自客户端的转发头。手机号账户可用手机号或用户名加密码登录，无需邮箱。用户可通过已绑定的邮箱或手机号找回密码。
 
 ## 本地开发
 
@@ -274,8 +274,11 @@ NekoAuth 按 scope 最小化返回声明。UserInfo 无论如何都会返回 `su
 | `openid` | `sub`、`client_id` | `sub`、`iss`、`aud`、`azp`、`exp`、`iat`、`auth_time`、`at_hash` | 签发 ID Token；访问令牌仍会正常签发 |
 | `profile` | `preferred_username`、`name`、`picture`、`updated_at` | `preferred_username`、`name`、`picture` | 用户名、昵称、头像地址与更新时间 |
 | `email` | `email` | `email` | 邮箱地址；注册时的验证码校验仍按当前注册策略执行 |
+| `phone` | `phone_number`、`phone_number_verified` | 不增加字段 | 默认不授予；仅在应用获准申请、用户明确授权并绑定手机号时返回 |
 | `roles` | `role` | `role` | 用户角色；访问令牌中也包含 `role` |
 | `offline_access` | 不增加 UserInfo 字段 | 不增加字段 | 授权码交换时额外签发 refresh token |
+
+需要手机号的应用须先由管理员在 `/admin/clients` 勾选「手机号」，再请求 `scope=openid phone` 并取得用户同意。已授权令牌通过 `/oauth2/userinfo` 读取手机号（如 `+8613800138000`）和 `phone_number_verified: true`。未绑定、未授权或管理员已关闭该应用的手机号权限时，两项字段都省略。
 
 `user:email` 是 GitHub 风格的兼容别名，会规范化为 `email`，不会同时启用 `profile`。因此只请求 `user:email` 时，UserInfo 只有：
 

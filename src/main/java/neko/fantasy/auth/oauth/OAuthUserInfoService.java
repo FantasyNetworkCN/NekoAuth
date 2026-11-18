@@ -80,6 +80,12 @@ public class OAuthUserInfoService {
         if (scopes.contains(OAuthScopes.EMAIL) && user.getEmail() != null) {
             response.put("email", user.getEmail());
         }
+        if (scopes.contains(OAuthScopes.PHONE) && client.getScopes().contains(OAuthScopes.PHONE)
+                && user.getPhone() != null) {
+            // Registration and binding only persist phone numbers after SMS verification.
+            response.put("phone_number", user.getPhone());
+            response.put("phone_number_verified", true);
+        }
         if (scopes.contains(OAuthScopes.ROLES)) {
             response.put("role", user.getRole().name());
         }

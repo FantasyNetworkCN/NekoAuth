@@ -3,6 +3,7 @@ package neko.fantasy.auth;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import neko.fantasy.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -41,6 +43,100 @@ class OAuthFlowIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private UserRepository users;
+
+    @Test
+    void phoneScopeRequiresClientOptInAndExplicitUserConsent() throws Exception {
+        String adminToken = login("admin", "AdminPass123");
+        ClientCredentials client = createClient(adminToken, true);
+        String username = "phone_" + UUID.randomUUID().toString().substring(0, 8);
+        String userToken = register(username);
+        String verifier = randomUrlToken(48);
+        String challenge = base64UrlSha256(verifier);
+        String phone = "+8613900000451";
+        var user = users.findByUsername(username).orElseThrow();
+        user.setPhone(phone);
+        users.saveAndFlush(user);
+
+        mockMvc.perform(get("/.well-known/openid-configuration"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scopes_supported").value(hasItem("phone")))
+                .andExpect(jsonPath("$.claims_supported").value(hasItem("phone_number")))
+                .andExpect(jsonPath("$.claims_supported").value(hasItem("phone_number_verified")));
+        mockMvc.perform(get("/api/admin/oauth-clients/scopes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].name").value(hasItem("phone")));
+
+        var authorize = get("/api/oauth/authorize")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .param("client_id", client.clientId())
+                .param("redirect_uri", REDIRECT_URI)
+                .param("response_type", "code")
+                .param("scope", "openid phone")
+                .param("code_challenge", challenge)
+                .param("code_challenge_method", "S256");
+        mockMvc.perform(authorize)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_scope"));
+
+        String oldCode = codeFor(userToken, client.clientId(), "openid profile", challenge);
+        String oldAccessToken = JsonPath.read(exchangeCode(client.clientId(), oldCode, verifier)
+                .getResponse().getContentAsString(), "$.access_token");
+        mockMvc.perform(patch("/api/admin/oauth-clients/{id}", client.id())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scopes\":[\"openid\",\"profile\",\"phone\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scopes").value(hasItem("phone")));
+        mockMvc.perform(get("/oauth2/userinfo").header(HttpHeaders.AUTHORIZATION, "Bearer " + oldAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phone_number").doesNotExist())
+                .andExpect(jsonPath("$.phone_number_verified").doesNotExist());
+
+        mockMvc.perform(authorize)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previouslyApproved").value(false))
+                .andExpect(jsonPath("$.redirectUrl").doesNotExist())
+                .andExpect(jsonPath("$.scopeDetails[1].name").value("phone"));
+        var silent = mockMvc.perform(authorize.param("prompt", "none"))
+                .andExpect(status().isOk()).andReturn();
+        String redirect = JsonPath.read(silent.getResponse().getContentAsString(), "$.redirectUrl");
+        assertThat(queryParameters(redirect)).containsEntry("error", "consent_required").doesNotContainKey("code");
+
+        String code = codeFor(userToken, client.clientId(), "openid phone", challenge);
+        String tokenJson = exchangeCode(client.clientId(), code, verifier).getResponse().getContentAsString();
+        String accessToken = JsonPath.read(tokenJson, "$.access_token");
+        String idToken = JsonPath.read(tokenJson, "$.id_token");
+        assertThat(jwtClaims(accessToken)).doesNotContainKeys("phone", "phone_number", "phone_number_verified");
+        assertThat(jwtClaims(idToken)).doesNotContainKeys("phone", "phone_number", "phone_number_verified");
+        var userInfo = get("/oauth2/userinfo").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+        mockMvc.perform(userInfo)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phone_number").value(phone))
+                .andExpect(jsonPath("$.phone_number_verified").value(true));
+
+        user.setPhone(null);
+        users.saveAndFlush(user);
+        mockMvc.perform(userInfo)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phone_number").doesNotExist())
+                .andExpect(jsonPath("$.phone_number_verified").doesNotExist());
+
+        user.setPhone(phone);
+        users.saveAndFlush(user);
+        mockMvc.perform(patch("/api/admin/oauth-clients/{id}", client.id())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scopes\":[\"openid\",\"profile\"]}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(userInfo)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phone_number").doesNotExist())
+                .andExpect(jsonPath("$.phone_number_verified").doesNotExist());
+    }
 
     @Test
     void acceptsGithubEmailScopeAlias() throws Exception {

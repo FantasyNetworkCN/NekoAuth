@@ -20,6 +20,7 @@ const scopeIcons: Record<string, string> = {
   openid: 'shield-cat',
   profile: 'user',
   email: 'mail',
+  phone: 'smartphone',
   roles: 'users',
   offline_access: 'refresh',
 }

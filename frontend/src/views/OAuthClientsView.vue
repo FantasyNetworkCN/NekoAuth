@@ -285,6 +285,7 @@ onMounted(() => void load())
                 :key="scope.name"
                 class="scope-choice"
                 :class="{ active: form.scopes.includes(scope.name) }"
+                :aria-pressed="form.scopes.includes(scope.name)"
                 type="button"
                 @click="toggleScope(scope.name)"
               >
@@ -438,6 +439,7 @@ onMounted(() => void load())
                   :key="scope.name"
                   class="scope-choice"
                   :class="{ active: editForm.scopes.includes(scope.name) }"
+                  :aria-pressed="editForm.scopes.includes(scope.name)"
                   type="button"
                   @click="toggleEditScope(scope.name)"
                 >
@@ -567,11 +569,12 @@ onMounted(() => void load())
 .atelier-textarea:focus { border-color: rgba(255, 158, 216, 0.47); box-shadow: 0 0 0 3px rgba(255, 145, 210, 0.06); }
 .atelier-textarea::placeholder { color: #5f4f72; }
 
-.scope-pills { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.4rem; }
+.scope-pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
 
 .scope-choice {
   display: flex;
   min-width: 0;
+  min-height: 44px;
   align-items: center;
   gap: 0.34rem;
   padding: 0.48rem 0.5rem;
@@ -584,9 +587,10 @@ onMounted(() => void load())
 }
 
 .scope-choice.active { border-color: rgba(255, 172, 224, 0.24); color: #f4a9d8; background: rgba(255, 147, 211, 0.07); }
+.scope-choice > svg { flex: none; }
 .scope-choice span { display: grid; min-width: 0; }
-.scope-choice strong { color: #c9b7d0; font-size: 0.55rem; white-space: nowrap; }
-.scope-choice small { overflow: hidden; color: #6c5b7e; font-size: 0.45rem; text-overflow: ellipsis; white-space: nowrap; }
+.scope-choice strong { color: #c9b7d0; font-size: 0.55rem; }
+.scope-choice small { color: var(--muted); font-size: 0.45rem; overflow-wrap: anywhere; }
 .scope-choice.active small { color: #9d7fa7; }
 
 .client-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -693,7 +697,6 @@ onMounted(() => void load())
   .client-overview { grid-template-columns: repeat(3, 1fr); }
   .overview-neko { display: none; }
   .create-panel { grid-template-columns: 1fr; }
-  .scope-pills { grid-template-columns: repeat(3, 1fr); }
   .client-grid { grid-template-columns: 1fr; }
 }
 
