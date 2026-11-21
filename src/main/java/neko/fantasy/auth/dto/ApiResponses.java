@@ -39,13 +39,56 @@ public final class ApiResponses {
     public record Page<T>(List<T> content, int page, int size, long totalElements, int totalPages) {
     }
 
-    public record AuditLog(Long id, Long actorId, String actorUsername, String action,
-                           Long targetId, String targetUsername, String details,
-                           String ipAddress, Instant createdAt) {
+    public record AuditLog(Instant occurredAt, String operatorName, String targetName,
+                           String actionLabel, String summary, String sourceAddress) {
         public static AuditLog from(neko.fantasy.auth.domain.AuditLog log) {
-            return new AuditLog(log.getId(), log.getActorId(), log.getActorUsername(), log.getAction(),
-                    log.getTargetId(), log.getTargetUsername(), log.getDetails(), log.getIpAddress(),
-                    log.getCreatedAt());
+            return new AuditLog(log.getCreatedAt(), log.getActorUsername(), log.getTargetUsername(),
+                    readableAction(log.getAction()), readableDetails(log.getDetails()), log.getIpAddress());
+        }
+
+        private static String readableAction(String action) {
+            return switch (action) {
+                case "USER_UPDATED", "账户设置变更" -> "账户设置变更";
+                default -> action == null || action.isBlank() ? "后台操作" : action;
+            };
+        }
+
+        private static String readableDetails(String details) {
+            if (details == null || details.isBlank()) return "账户信息已更新";
+            if (!details.contains("role:") && !details.contains("enabled:")) return details;
+
+            return java.util.Arrays.stream(details.split(",\\s*"))
+                    .map(ApiResponses.AuditLog::readableChange)
+                    .collect(java.util.stream.Collectors.joining("；"));
+        }
+
+        private static String readableChange(String change) {
+            if (change.startsWith("role:")) {
+                String[] values = change.substring("role:".length()).trim().split("\\s*->\\s*");
+                return values.length == 2
+                        ? "角色从" + roleLabel(values[0]) + "调整为" + roleLabel(values[1])
+                        : change;
+            }
+            if (change.startsWith("enabled:")) {
+                String[] values = change.substring("enabled:".length()).trim().split("\\s*->\\s*");
+                return values.length == 2
+                        ? "账户状态从" + enabledLabel(values[0]) + "改为" + enabledLabel(values[1])
+                        : change;
+            }
+            return change;
+        }
+
+        private static String roleLabel(String role) {
+            return switch (role.trim()) {
+                case "SUPER_ADMIN", "超管" -> "超管";
+                case "ADMIN", "管理员" -> "管理员";
+                case "USER", "普通成员" -> "普通成员";
+                default -> role.trim();
+            };
+        }
+
+        private static String enabledLabel(String enabled) {
+            return "true".equalsIgnoreCase(enabled.trim()) || "启用".equals(enabled.trim()) ? "启用" : "停用";
         }
     }
 

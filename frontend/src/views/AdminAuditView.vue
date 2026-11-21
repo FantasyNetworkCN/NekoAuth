@@ -24,10 +24,9 @@ async function load(page = 0) {
 }
 
 function search() { void load(0) }
-function actionLabel(action: string) { return action === 'USER_UPDATED' ? '更新用户账户' : action }
-function copyIp(ip: string | null) {
-  if (!ip) return
-  void navigator.clipboard?.writeText(ip).then(() => showToast('IP 地址已复制', 'success'))
+function copyAddress(address: string | null) {
+  if (!address) return
+  void navigator.clipboard?.writeText(address).then(() => showToast('来源地址已复制', 'success'))
 }
 
 onMounted(() => void load())
@@ -45,7 +44,7 @@ onMounted(() => void load())
     </header>
 
     <section class="admin-toolbar">
-      <form class="search-box" @submit.prevent="search">
+      <form class="search-box audit-search-box" @submit.prevent="search">
         <AppIcon name="search" :size="18" />
         <input v-model="query" type="search" placeholder="搜索操作者、目标账户或动作" autocomplete="off" />
         <button class="btn btn-secondary btn-small" type="submit" :disabled="loading">搜索</button>
@@ -59,20 +58,30 @@ onMounted(() => void load())
     <div v-if="loading" class="admin-loading"><span class="spinner"></span>正在读取审查记录…</div>
     <div v-else-if="result.content.length === 0" class="empty-state panel"><span class="empty-icon"><AppIcon name="history" :size="28" /></span><h2>暂无审查记录</h2><p>后台账户变更会显示在这里。</p></div>
 
-    <section v-else class="audit-table-wrap" aria-label="审查日志列表">
-      <table class="audit-table">
-        <thead><tr><th>时间</th><th>操作者</th><th>动作</th><th>目标账户</th><th>变更内容</th><th>来源 IP</th></tr></thead>
-        <tbody>
-          <tr v-for="log in result.content" :key="log.id">
-            <td class="muted-cell">{{ formatDate(log.createdAt) }}</td>
-            <td><strong>{{ log.actorUsername }}</strong><small>#{{ log.actorId }}</small></td>
-            <td><span class="action-pill">{{ actionLabel(log.action) }}</span></td>
-            <td>{{ log.targetUsername || '系统' }}<small v-if="log.targetId">#{{ log.targetId }}</small></td>
-            <td class="details-cell">{{ log.details }}</td>
-            <td><button v-if="log.ipAddress" class="ip-button" type="button" @click="copyIp(log.ipAddress)">{{ log.ipAddress }}</button><span v-else>未知</span></td>
-          </tr>
-        </tbody>
-      </table>
+    <section v-else class="audit-feed" aria-label="审查日志列表">
+      <article v-for="(log, index) in result.content" :key="index" class="audit-entry">
+        <div class="audit-entry-time">
+          <AppIcon name="clock" :size="15" />
+          <time>{{ formatDate(log.occurredAt) }}</time>
+        </div>
+        <div class="audit-entry-marker" aria-hidden="true"><AppIcon name="edit" :size="16" /></div>
+        <div class="audit-entry-body">
+          <div class="audit-entry-head">
+            <div class="audit-entry-title">
+              <span class="action-pill"><AppIcon name="shield-cat" :size="13" />{{ log.actionLabel }}</span>
+              <strong>{{ log.operatorName }}</strong>
+              <span class="entry-word">操作了</span>
+              <strong>{{ log.targetName || '未指定账户' }}</strong>
+            </div>
+          </div>
+          <p class="audit-summary">{{ log.summary }}</p>
+          <div class="audit-entry-meta">
+            <span><AppIcon name="globe" :size="13" /> 来源地址</span>
+            <button v-if="log.sourceAddress" class="ip-button" type="button" @click="copyAddress(log.sourceAddress)">{{ log.sourceAddress }}</button>
+            <span v-else class="unknown-value">未知</span>
+          </div>
+        </div>
+      </article>
     </section>
 
     <nav v-if="result.totalPages > 1" class="pagination" aria-label="审查日志分页">
@@ -85,15 +94,35 @@ onMounted(() => void load())
 
 <style scoped>
 .audit-total { color: var(--muted); font-size: .75rem; font-weight: 700; }
-.audit-table-wrap { overflow-x: auto; border: 1px solid var(--border); background: rgba(10, 15, 30, .56); }
-.audit-table { width: 100%; border-collapse: collapse; min-width: 860px; font-size: .72rem; }
-.audit-table th, .audit-table td { padding: .85rem .9rem; border-bottom: 1px solid rgba(126, 143, 184, .12); text-align: left; vertical-align: top; }
-.audit-table th { color: var(--muted); font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.audit-table td strong, .audit-table td small { display: block; }
-.audit-table td small { margin-top: .18rem; color: var(--muted); font-size: .62rem; }
-.muted-cell { color: var(--muted); white-space: nowrap; }
-.details-cell { color: #c7d0e5; min-width: 260px; }
-.action-pill, .protected-label { display: inline-flex; align-items: center; padding: .28rem .5rem; border: 1px solid rgba(121, 219, 196, .24); border-radius: 999px; color: #9fe7d1; background: rgba(64, 177, 151, .09); font-size: .62rem; white-space: nowrap; }
+.audit-search-box { min-height: 46px; border-radius: 999px !important; overflow: hidden; }
+.audit-search-box .btn { border-radius: 999px; }
+.audit-feed { position: relative; display: grid; gap: .8rem; }
+.audit-feed::before { content: ''; position: absolute; top: 1rem; bottom: 1rem; left: 207px; width: 1px; background: linear-gradient(180deg, rgba(112, 226, 197, .4), rgba(112, 226, 197, .08)); }
+.audit-entry { position: relative; display: grid; grid-template-columns: 185px 44px minmax(0, 1fr); min-height: 128px; border: 1px solid rgba(126, 143, 184, .16); background: linear-gradient(110deg, rgba(20, 30, 54, .82), rgba(12, 18, 35, .88)); }
+.audit-entry-time { display: flex; align-items: flex-start; gap: .42rem; padding: 1.1rem 1rem; color: var(--muted); font-size: .66rem; line-height: 1.5; }
+.audit-entry-time svg { flex: none; color: #85d9c1; margin-top: .08rem; }
+.audit-entry-marker { z-index: 1; display: grid; place-items: center; width: 30px; height: 30px; margin: 1rem auto 0; border: 1px solid rgba(133, 217, 193, .5); border-radius: 50%; color: #a7ebd8; background: #16253b; box-shadow: 0 0 0 5px rgba(10, 16, 31, .8); }
+.audit-entry-body { min-width: 0; padding: 1rem 1.15rem 1rem .35rem; }
+.audit-entry-title { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; color: #e8edf8; font-size: .78rem; }
+.audit-entry-title strong { font-weight: 750; }
+.entry-word { color: var(--muted); }
+.action-pill { display: inline-flex; align-items: center; gap: .32rem; padding: .3rem .55rem; border: 1px solid rgba(121, 219, 196, .24); border-radius: 999px; color: #9fe7d1; background: rgba(64, 177, 151, .09); font-size: .62rem; white-space: nowrap; }
+.audit-summary { margin: .75rem 0 .8rem; color: #fff; font-size: .92rem; font-weight: 700; line-height: 1.55; }
+.audit-entry-meta { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; color: var(--muted); font-size: .65rem; }
+.audit-entry-meta span:first-child { display: inline-flex; align-items: center; gap: .28rem; }
+.audit-entry-meta span:first-child svg { color: #88a9d7; }
 .ip-button { padding: 0; border: 0; color: #b8c8e8; background: transparent; font: inherit; cursor: pointer; }
 .ip-button:hover { color: #fff; }
+.unknown-value { color: #66738d; }
+
+@media (max-width: 760px) {
+  .audit-feed::before { left: 22px; top: 1.25rem; bottom: 1.25rem; }
+  .audit-entry { grid-template-columns: 44px minmax(0, 1fr); }
+  .audit-entry-time { grid-column: 2; grid-row: 1; padding: 1rem 1rem 0 .35rem; font-size: .62rem; }
+  .audit-entry-time svg { display: none; }
+  .audit-entry-marker { grid-column: 1; grid-row: 1 / span 2; margin: 1rem auto 0; }
+  .audit-entry-body { grid-column: 2; grid-row: 2; padding: .55rem 1rem 1rem .35rem; }
+  .audit-entry-title { gap: .35rem; }
+  .audit-summary { margin-top: .6rem; font-size: .84rem; }
+}
 </style>

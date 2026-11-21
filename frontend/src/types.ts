@@ -70,15 +70,12 @@ export interface PageResponse<T> {
 }
 
 export interface AuditLog {
-  id: number
-  actorId: number
-  actorUsername: string
-  action: string
-  targetId: number | null
-  targetUsername: string | null
-  details: string
-  ipAddress: string | null
-  createdAt: string
+  occurredAt: string
+  operatorName: string
+  targetName: string | null
+  actionLabel: string
+  summary: string
+  sourceAddress: string | null
 }
 
 export interface ApiErrorBody {

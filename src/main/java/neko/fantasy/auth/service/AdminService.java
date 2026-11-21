@@ -99,16 +99,37 @@ public class AdminService {
             userRepository.saveAndFlush(user);
             refreshTokenRepository.revokeAllForUser(user.getId(), Instant.now());
             ApiResponses.User response = ApiResponses.User.from(user);
-            auditLogService.record(actorId, actorUsername, "USER_UPDATED", user.getId(), user.getUsername(),
-                    "role: " + oldRole + " -> " + user.getRole() + ", enabled: " + oldEnabled + " -> " + user.isEnabled(),
+            auditLogService.record(actorId, actorUsername, "账户设置变更", user.getId(), user.getUsername(),
+                    changeSummary(oldRole, user.getRole(), oldEnabled, user.isEnabled()),
                     ipAddress);
             return response;
         }
 
         ApiResponses.User response = ApiResponses.User.from(userRepository.save(user));
-        auditLogService.record(actorId, actorUsername, "USER_UPDATED", user.getId(), user.getUsername(),
-                "role: " + oldRole + " -> " + user.getRole() + ", enabled: " + oldEnabled + " -> " + user.isEnabled(),
+        auditLogService.record(actorId, actorUsername, "账户设置变更", user.getId(), user.getUsername(),
+                changeSummary(oldRole, user.getRole(), oldEnabled, user.isEnabled()),
                 ipAddress);
         return response;
+    }
+
+    private static String changeSummary(Role oldRole, Role newRole, boolean oldEnabled, boolean newEnabled) {
+        StringBuilder summary = new StringBuilder();
+        if (oldRole != newRole) {
+            summary.append("角色从").append(roleLabel(oldRole)).append("调整为").append(roleLabel(newRole));
+        }
+        if (oldEnabled != newEnabled) {
+            if (!summary.isEmpty()) summary.append("；");
+            summary.append("账户状态从").append(oldEnabled ? "启用" : "停用")
+                    .append("改为").append(newEnabled ? "启用" : "停用");
+        }
+        return summary.isEmpty() ? "账户设置已确认" : summary.toString();
+    }
+
+    private static String roleLabel(Role role) {
+        return switch (role) {
+            case SUPER_ADMIN -> "超管";
+            case ADMIN -> "管理员";
+            case USER -> "普通成员";
+        };
     }
 }
