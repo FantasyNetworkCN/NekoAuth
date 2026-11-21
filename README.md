@@ -11,7 +11,7 @@ NekoAuth 是 FantasyNetwork 梦幻网络的账户与 OAuth 2.0 / OpenID Connect 
 - 修改密码后立即失效所有旧访问令牌与刷新会话
 - 通过邮箱验证码找回密码，成功后同样立即失效旧访问令牌与刷新会话
 - 用户登录后可通过 `/account` 修改昵称、查看账户资料、修改密码、管理登录设备与退出全部会话
-- 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态、OAuth 应用与运行设置
+- 管理员通过 `/admin` 网页或 `/api/admin/**` 管理用户、角色、账户状态、OAuth 应用与运行设置；唯一超管账户由初始化管理员配置确定
 - 注册邮箱默认只允许 `qq.com`、`gmail.com`、`163.com`、`139.com`、`126.com`、`outlook.com`、`hotmail.com`、`icloud.com`，可在 `/admin/settings` 修改
 - `/admin/settings` 可维护注册开关、邮箱域名白名单、阿里云短信和 SMTP 发件设置
 - 用户密码使用 Argon2i（10 次、64 MiB、并行度 1）
@@ -72,6 +72,7 @@ sudo docker compose logs -f --tail=200 auth
 - `/admin`：用户名册、角色调整与账户启停
 - `/admin/clients`：OAuth 应用、回调地址、scope 与客户端密钥管理
 - `/admin/settings`：注册开关、邮箱域名白名单、阿里云短信、SMTP 与测试邮件
+- `/admin/audit`：后台用户账户变更记录
 
 生产环境也可以直接调用 `/api/admin/**` 完成同样操作。根路径 `/` 返回 SPA，并根据有效登录状态跳转到 `/account` 或 `/login`；已移除的 `/app/**` 路由仍返回 404。
 

@@ -18,11 +18,13 @@ const navItems = [
   { name: 'admin', to: '/admin', label: '用户名册', icon: 'users', note: 'MEMBERS' },
   { name: 'oauth-clients', to: '/admin/clients', label: 'OAuth 应用', icon: 'apps', note: 'CLIENTS' },
   { name: 'admin-settings', to: '/admin/settings', label: '系统设置', icon: 'sliders', note: 'SYSTEM' },
+  { name: 'admin-audit', to: '/admin/audit', label: '审查日志', icon: 'history', note: 'AUDIT' },
 ]
 
 const pageTitle = computed(() => {
   if (route.name === 'oauth-clients') return 'OAuth 应用'
   if (route.name === 'admin-settings') return '系统设置'
+  if (route.name === 'admin-audit') return '审查日志'
   return '用户名册'
 })
 const displayName = computed(() => auth.state.user?.displayName || auth.state.user?.username || '访客')
@@ -124,7 +126,7 @@ async function logout() {
         <span v-else class="user-avatar">{{ avatarText }}</span>
         <span class="user-meta">
           <strong>{{ displayName }}</strong>
-          <small>{{ auth.state.user?.role === 'ADMIN' ? '管理员' : '@' + auth.state.user?.username }}</small>
+          <small>{{ auth.state.user?.role === 'SUPER_ADMIN' ? '超管' : auth.state.user?.role === 'ADMIN' ? '管理员' : '@' + auth.state.user?.username }}</small>
         </span>
         <button class="icon-button" type="button" aria-label="退出登录" :disabled="loggingOut" @click="logout">
           <AppIcon name="logout" :size="18" />

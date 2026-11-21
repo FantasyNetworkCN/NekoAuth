@@ -1,4 +1,4 @@
-export type Role = 'USER' | 'ADMIN'
+export type Role = 'USER' | 'ADMIN' | 'SUPER_ADMIN'
 
 export interface User {
   id: number
@@ -67,6 +67,18 @@ export interface PageResponse<T> {
   size: number
   totalElements: number
   totalPages: number
+}
+
+export interface AuditLog {
+  id: number
+  actorId: number
+  actorUsername: string
+  action: string
+  targetId: number | null
+  targetUsername: string | null
+  details: string
+  ipAddress: string | null
+  createdAt: string
 }
 
 export interface ApiErrorBody {

@@ -39,6 +39,7 @@ const paths: Record<string, string> = {
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5Z',
   info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 11v6M12 7h.01',
   sliders: 'M4 6h8M16 6h4M4 12h4M12 12h8M4 18h11M19 18h1M12 3v6M8 9v6M15 15v6',
+  history: 'M3 12a9 9 0 1 0 3-6.7M3 4v8h8M12 7v5l3 2',
 }
 </script>
 

@@ -75,16 +75,26 @@ public class AdminBootstrap implements ApplicationRunner {
 
         User existing = usernameUser.or(() -> emailUser).orElse(null);
         if (existing != null && !applyInstallationCredentials) {
-            log.info("管理员初始化跳过：用户名或邮箱已存在，不会覆盖现有密码");
+            if (userRepository.findFirstByRoleOrderByIdAsc(Role.SUPER_ADMIN).isEmpty()
+                    && existing.getRole() == Role.ADMIN) {
+                existing.setRole(Role.SUPER_ADMIN);
+                userRepository.saveAndFlush(existing);
+                log.info("已将配置的初始管理员 {} 提升为唯一超管", normalizedUsername);
+            } else {
+                log.info("管理员初始化跳过：用户名或邮箱已存在，不会覆盖现有密码");
+            }
             return;
         }
 
         User user = existing == null ? new User() : existing;
+        userRepository.findAllByRole(Role.SUPER_ADMIN).stream()
+                .filter(superAdmin -> !superAdmin.getId().equals(user.getId()))
+                .forEach(superAdmin -> superAdmin.setRole(Role.ADMIN));
         user.setUsername(normalizedUsername);
         user.setEmail(normalizedEmail);
         user.setDisplayName(normalizedUsername);
         user.setPasswordHash(passwordEncoder.encode(password));
-        user.setRole(Role.ADMIN);
+        user.setRole(Role.SUPER_ADMIN);
         user.setEnabled(true);
         userRepository.saveAndFlush(user);
 

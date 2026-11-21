@@ -1,6 +1,7 @@
 import type {
   ApiErrorBody,
   AdminSettings,
+  AuditLog,
   AuthPayload,
   DeviceProfile,
   CreatedOAuthClient,
@@ -318,11 +319,16 @@ export const api = {
     return request<PageResponse<User>>(`/admin/users?${params}`)
   },
 
-  updateUser(id: number, patch: { enabled?: boolean; role?: 'USER' | 'ADMIN' }) {
+  updateUser(id: number, patch: { enabled?: boolean; role?: 'USER' | 'ADMIN' | 'SUPER_ADMIN' }) {
     return request<User>(`/admin/users/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     })
+  },
+
+  auditLogs(query = '', page = 0, size = 30) {
+    const params = new URLSearchParams({ query, page: String(page), size: String(size) })
+    return request<PageResponse<AuditLog>>(`/admin/audit-logs?${params}`)
   },
 
   settings() {

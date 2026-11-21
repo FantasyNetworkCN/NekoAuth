@@ -55,7 +55,7 @@ class AdminBootstrapTest {
         assertThat(saved.getValue().getUsername()).isEqualTo("admin");
         assertThat(saved.getValue().getEmail()).isEqualTo("support@nekocore.cn");
         assertThat(saved.getValue().getDisplayName()).isEqualTo("admin");
-        assertThat(saved.getValue().getRole()).isEqualTo(Role.ADMIN);
+        assertThat(saved.getValue().getRole()).isEqualTo(Role.SUPER_ADMIN);
         assertThat(saved.getValue().isEnabled()).isTrue();
         assertThat(passwordEncoder.matches("NewPass123", saved.getValue().getPasswordHash())).isTrue();
         assertThat(pendingMarker).doesNotExist();
@@ -105,7 +105,7 @@ class AdminBootstrapTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).saveAndFlush(saved.capture());
-        assertThat(saved.getValue().getRole()).isEqualTo(Role.ADMIN);
+        assertThat(saved.getValue().getRole()).isEqualTo(Role.SUPER_ADMIN);
         assertThat(passwordEncoder.matches("NewPass123", saved.getValue().getPasswordHash())).isTrue();
         assertThat(pendingMarker).doesNotExist();
     }

@@ -22,11 +22,19 @@ const busyId = ref<number | null>(null)
 const missingAvatars = ref(new Set<number>())
 
 const currentUserId = computed(() => auth.state.user?.id)
+const isSuperAdmin = computed(() => auth.isSuperAdmin.value)
 const hasPrevious = computed(() => result.value.page > 0)
 const hasNext = computed(() => result.value.page + 1 < result.value.totalPages)
 
 function accountName(user: User) {
   return user.displayName || user.username
+}
+
+function canEdit(user: User) {
+  if (user.role === 'SUPER_ADMIN') return false
+  if (user.id === currentUserId.value) return false
+  if (!isSuperAdmin.value && user.role === 'ADMIN') return false
+  return true
 }
 
 async function load(page = 0) {
@@ -123,7 +131,7 @@ onMounted(() => void load(0))
     <section v-else class="user-grid" aria-label="用户列表">
       <article v-for="user in result.content" :key="user.id" class="user-card" :class="{ 'is-self': user.id === currentUserId }">
         <div class="user-card-head">
-          <span class="user-card-avatar" :class="{ 'is-admin': user.role === 'ADMIN' }" aria-hidden="true">
+          <span class="user-card-avatar" :class="{ 'is-admin': user.role !== 'USER' }" aria-hidden="true">
             <img
               v-if="user.avatarUrl && !missingAvatars.has(user.id)"
               :src="user.avatarUrl"
@@ -166,9 +174,10 @@ onMounted(() => void load(0))
         <div class="user-controls">
           <label class="role-select">
             <span>角色</span>
-            <select :value="user.role" :disabled="user.id === currentUserId || busyId !== null" @change="onRoleChange(user, $event)">
+            <select :value="user.role" :disabled="!canEdit(user) || busyId !== null" @change="onRoleChange(user, $event)">
               <option value="USER">普通成员</option>
               <option value="ADMIN">管理员</option>
+              <option v-if="user.role === 'SUPER_ADMIN'" value="SUPER_ADMIN">超管</option>
             </select>
           </label>
 
@@ -176,7 +185,7 @@ onMounted(() => void load(0))
             class="btn btn-small"
             :class="user.enabled ? 'btn-ghost-danger' : 'btn-success'"
             type="button"
-            :disabled="user.id === currentUserId || busyId !== null"
+            :disabled="!canEdit(user) || busyId !== null"
             @click="toggleEnabled(user)"
           >
             <span v-if="busyId === user.id" class="spinner"></span>
@@ -185,6 +194,8 @@ onMounted(() => void load(0))
               {{ user.enabled ? '停用' : '启用' }}
             </template>
           </button>
+          <span v-if="user.role === 'SUPER_ADMIN'" class="protected-label">唯一超管</span>
+          <span v-else-if="!isSuperAdmin && user.role === 'ADMIN'" class="protected-label">受保护</span>
         </div>
       </article>
     </section>

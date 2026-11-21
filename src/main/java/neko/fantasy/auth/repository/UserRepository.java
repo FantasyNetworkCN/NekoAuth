@@ -19,6 +19,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByPhone(String phone);
 
+    Optional<User> findFirstByRoleOrderByIdAsc(neko.fantasy.auth.domain.Role role);
+
+    java.util.List<User> findAllByRole(neko.fantasy.auth.domain.Role role);
+
     boolean existsByUsername(String username);
 
     boolean existsByEmail(String email);

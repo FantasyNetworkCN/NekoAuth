@@ -60,7 +60,8 @@ setSessionLostHandler(() => {
 export const auth = {
   state,
   isAuthenticated: computed(() => state.user !== null),
-  isAdmin: computed(() => state.user?.role === 'ADMIN'),
+  isAdmin: computed(() => state.user?.role === 'ADMIN' || state.user?.role === 'SUPER_ADMIN'),
+  isSuperAdmin: computed(() => state.user?.role === 'SUPER_ADMIN'),
 
   setExpiredHandler(handler: () => void) {
     expiredHandler = handler

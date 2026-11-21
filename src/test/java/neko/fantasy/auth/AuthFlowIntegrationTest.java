@@ -454,7 +454,7 @@ class AuthFlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"identifier\":\"admin\",\"password\":\"AdminPass123\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.user.role").value("ADMIN"))
+                .andExpect(jsonPath("$.user.role").value("SUPER_ADMIN"))
                 .andReturn();
 
         String accessToken = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");

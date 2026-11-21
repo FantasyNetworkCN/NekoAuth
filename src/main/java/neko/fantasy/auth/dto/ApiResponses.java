@@ -39,6 +39,16 @@ public final class ApiResponses {
     public record Page<T>(List<T> content, int page, int size, long totalElements, int totalPages) {
     }
 
+    public record AuditLog(Long id, Long actorId, String actorUsername, String action,
+                           Long targetId, String targetUsername, String details,
+                           String ipAddress, Instant createdAt) {
+        public static AuditLog from(neko.fantasy.auth.domain.AuditLog log) {
+            return new AuditLog(log.getId(), log.getActorId(), log.getActorUsername(), log.getAction(),
+                    log.getTargetId(), log.getTargetUsername(), log.getDetails(), log.getIpAddress(),
+                    log.getCreatedAt());
+        }
+    }
+
     public record Message(String message) {
     }
 

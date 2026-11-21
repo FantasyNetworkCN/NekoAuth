@@ -7,6 +7,7 @@ import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
 import AdminView from '@/views/AdminView.vue'
 import OAuthClientsView from '@/views/OAuthClientsView.vue'
 import AdminSettingsView from '@/views/AdminSettingsView.vue'
+import AdminAuditView from '@/views/AdminAuditView.vue'
 import OAuthConsentView from '@/views/OAuthConsentView.vue'
 import LogoutConfirmView from '@/views/LogoutConfirmView.vue'
 import NotFoundView from '@/views/NotFoundView.vue'
@@ -70,6 +71,7 @@ const router = createRouter({
         { path: '', name: 'admin', component: AdminView },
         { path: 'clients', name: 'oauth-clients', component: OAuthClientsView },
         { path: 'settings', name: 'admin-settings', component: AdminSettingsView },
+        { path: 'audit', name: 'admin-audit', component: AdminAuditView },
       ],
     },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },

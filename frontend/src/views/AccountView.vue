@@ -15,7 +15,7 @@ const router = useRouter()
 const user = computed(() => auth.state.user)
 const displayName = computed(() => user.value?.displayName || user.value?.username || 'Neko')
 const avatarText = computed(() => initials(displayName.value))
-const roleLabel = computed(() => user.value?.role === 'ADMIN' ? '管理员' : '普通成员')
+const roleLabel = computed(() => user.value?.role === 'SUPER_ADMIN' ? '超管' : user.value?.role === 'ADMIN' ? '管理员' : '普通成员')
 const contactBinding = ref<InstanceType<typeof ContactBindingDialog> | null>(null)
 const contactFields = [{ kind: 'email', label: '邮箱' }, { kind: 'phone', label: '手机号' }] as const
 

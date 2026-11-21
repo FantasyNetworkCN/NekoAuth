@@ -14,10 +14,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/admin/users")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
 public class AdminController {
 
     private final AdminService adminService;
@@ -38,9 +39,10 @@ public class AdminController {
     @PatchMapping("/{id}")
     public ApiResponses.User updateUser(
             @AuthenticationPrincipal UserPrincipal principal,
+            HttpServletRequest servletRequest,
             @PathVariable Long id,
             @Valid @RequestBody AuthRequests.AdminUpdateUser request
     ) {
-        return adminService.updateUser(principal.id(), id, request);
+        return adminService.updateUser(principal.id(), principal.username(), servletRequest.getRemoteAddr(), id, request);
     }
 }

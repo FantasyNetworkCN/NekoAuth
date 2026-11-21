@@ -65,7 +65,7 @@ public class SecurityConfig {
                                 "/api/auth/password/reset-options").permitAll()
                         .requestMatchers(HttpMethod.GET, "/avatars/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/oauth/authorize").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll())
                 .headers(headers -> headers

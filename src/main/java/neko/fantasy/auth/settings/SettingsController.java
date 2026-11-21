@@ -27,19 +27,19 @@ public class SettingsController {
     }
 
     @GetMapping("/api/admin/settings")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public SettingsResponses.Settings settings() {
         return settingsService.getSettings();
     }
 
     @PutMapping("/api/admin/settings")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public SettingsResponses.Settings update(@Valid @RequestBody SettingsRequests.Update request) {
         return settingsService.update(request);
     }
 
     @PostMapping("/api/admin/settings/mail/test")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public SettingsResponses.MailTestResult testMail(
             @Valid @RequestBody SettingsRequests.MailTest request
     ) {
