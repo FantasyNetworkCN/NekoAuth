@@ -62,6 +62,10 @@ public class AdminService {
                 && (user.getRole() == Role.ADMIN || user.getRole() == Role.SUPER_ADMIN)) {
             throw ApiException.forbidden("ADMIN_ACCOUNT_PROTECTED", "普通管理员不能编辑超管或其他管理员账户");
         }
+        if (actor.getRole() == Role.ADMIN && request.role() == Role.ADMIN
+                && user.getRole() != Role.ADMIN) {
+            throw ApiException.forbidden("ADMIN_CANNOT_GRANT_ADMIN", "普通管理员不能授予管理员权限");
+        }
         if (actor.getRole() != Role.SUPER_ADMIN && request.role() == Role.SUPER_ADMIN) {
             throw ApiException.forbidden("SUPER_ADMIN_REQUIRED", "只有超管可以设置超管角色");
         }

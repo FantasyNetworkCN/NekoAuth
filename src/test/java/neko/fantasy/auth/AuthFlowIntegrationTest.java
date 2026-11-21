@@ -2,6 +2,7 @@ package neko.fantasy.auth;
 
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
+import neko.fantasy.auth.domain.Role;
 import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -472,6 +473,42 @@ class AuthFlowIntegrationTest {
                         .content("{\"enabled\":false}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CANNOT_DISABLE_SELF"));
+    }
+
+    @Test
+    void regularAdminCannotGrantAdminRoleToAnotherUser() throws Exception {
+        String adminUsername = "limited_admin_" + UUID.randomUUID().toString().substring(0, 8);
+        MvcResult adminRegistration = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","email":"%s@gmail.com","password":"Password123"}
+                                """.formatted(adminUsername, adminUsername)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String adminToken = JsonPath.read(adminRegistration.getResponse().getContentAsString(), "$.accessToken");
+        User admin = userRepository.findByUsername(adminUsername).orElseThrow();
+        admin.setRole(Role.ADMIN);
+        userRepository.saveAndFlush(admin);
+
+        String targetUsername = "role_target_" + UUID.randomUUID().toString().substring(0, 8);
+        MvcResult targetRegistration = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","email":"%s@gmail.com","password":"Password123"}
+                                """.formatted(targetUsername, targetUsername)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Number targetId = JsonPath.read(targetRegistration.getResponse().getContentAsString(), "$.user.id");
+
+        mockMvc.perform(patch("/api/admin/users/{id}", targetId.longValue())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ADMIN_CANNOT_GRANT_ADMIN"));
+
+        assertThat(userRepository.findById(targetId.longValue()).orElseThrow().getRole())
+                .isEqualTo(Role.USER);
     }
 
     @Test

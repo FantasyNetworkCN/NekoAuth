@@ -176,7 +176,7 @@ onMounted(() => void load(0))
             <span>角色</span>
             <select :value="user.role" :disabled="!canEdit(user) || busyId !== null" @change="onRoleChange(user, $event)">
               <option value="USER">普通成员</option>
-              <option value="ADMIN">管理员</option>
+              <option v-if="isSuperAdmin || user.role === 'ADMIN'" value="ADMIN">管理员</option>
               <option v-if="user.role === 'SUPER_ADMIN'" value="SUPER_ADMIN">超管</option>
             </select>
           </label>
