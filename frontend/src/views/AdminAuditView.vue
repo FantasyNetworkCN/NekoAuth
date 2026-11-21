@@ -40,15 +40,18 @@ onMounted(() => void load())
         <h1>审查日志</h1>
         <p>记录后台账户变更，保留操作者、目标账户、变更内容与来源地址。</p>
       </div>
-      <strong class="audit-total">{{ result.totalElements }} 条记录</strong>
     </header>
 
     <section class="admin-toolbar">
-      <form class="search-box audit-search-box" @submit.prevent="search">
+      <form class="search-box" @submit.prevent="search">
         <AppIcon name="search" :size="18" />
         <input v-model="query" type="search" placeholder="搜索操作者、目标账户或动作" autocomplete="off" />
         <button class="btn btn-secondary btn-small" type="submit" :disabled="loading">搜索</button>
       </form>
+      <div class="user-count">
+        <strong>{{ result.totalElements }}</strong>
+        <span>条日志</span>
+      </div>
       <button class="icon-button" type="button" aria-label="刷新审查日志" :disabled="loading" @click="load(result.page)">
         <AppIcon name="refresh" :size="18" />
       </button>
@@ -93,9 +96,55 @@ onMounted(() => void load())
 </template>
 
 <style scoped>
-.audit-total { color: var(--muted); font-size: .75rem; font-weight: 700; }
-.audit-search-box { min-height: 46px; border-radius: 999px !important; overflow: hidden; }
-.audit-search-box .btn { border-radius: 999px; }
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1.7rem;
+}
+
+.search-box {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.search-box:focus-within {
+  border-color: rgba(124, 157, 255, 0.48);
+  box-shadow: 0 0 0 3px rgba(124, 157, 255, 0.08);
+}
+
+.search-box input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.search-box input::placeholder { color: #56617b; }
+.search-box input::-webkit-search-cancel-button { filter: invert(1); opacity: 0.4; }
+
+.user-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0 0.4rem;
+}
+
+.user-count strong { color: var(--text); font-size: 1.1rem; font-weight: 700; }
+.user-count span { color: var(--muted); font-size: 0.66rem; }
+
 .audit-feed { position: relative; display: grid; gap: .8rem; }
 .audit-feed::before { content: ''; position: absolute; top: 1rem; bottom: 1rem; left: 207px; width: 1px; background: linear-gradient(180deg, rgba(112, 226, 197, .4), rgba(112, 226, 197, .08)); }
 .audit-entry { position: relative; display: grid; grid-template-columns: 185px 44px minmax(0, 1fr); min-height: 128px; border: 1px solid rgba(126, 143, 184, .16); background: linear-gradient(110deg, rgba(20, 30, 54, .82), rgba(12, 18, 35, .88)); }
@@ -116,6 +165,8 @@ onMounted(() => void load())
 .unknown-value { color: #66738d; }
 
 @media (max-width: 760px) {
+  .admin-toolbar { flex-wrap: wrap; }
+  .search-box { flex-basis: 100%; }
   .audit-feed::before { left: 22px; top: 1.25rem; bottom: 1.25rem; }
   .audit-entry { grid-template-columns: 44px minmax(0, 1fr); }
   .audit-entry-time { grid-column: 2; grid-row: 1; padding: 1rem 1rem 0 .35rem; font-size: .62rem; }
