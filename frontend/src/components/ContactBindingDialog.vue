@@ -130,7 +130,7 @@ async function sendCode() {
 }
 
 async function confirmBinding() {
-  if (sending.value || binding.value || !sent.value) return
+  if (sending.value || binding.value) return
   error.value = ''
   if (!/^[0-9]{6}$/.test(form.verificationCode.trim())) {
     error.value = '请输入收到的 6 位验证码'
@@ -239,39 +239,37 @@ async function confirmBinding() {
       </button>
       <p v-if="feedback" class="contact-feedback" role="status">{{ feedback }}</p>
 
-      <template v-if="sent">
-        <label class="field">
-          <span class="field-label">{{ kind === 'email' ? '邮箱' : '短信' }}验证码</span>
-          <span class="input-shell">
-            <input
-              ref="codeInput"
-              v-model="form.verificationCode"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              maxlength="6"
-              :disabled="binding || sending"
-              required
-            />
-          </span>
-        </label>
-        <label class="field">
-          <span class="field-label">当前密码</span>
-          <span class="input-shell">
-            <AppIcon name="lock" :size="17" />
-            <input
-              v-model="form.currentPassword"
-              type="password"
-              autocomplete="current-password"
-              maxlength="128"
-              :disabled="binding || sending"
-              required
-            />
-          </span>
-        </label>
-      </template>
+      <label class="field">
+        <span class="field-label">{{ kind === 'email' ? '邮箱' : '短信' }}验证码</span>
+        <span class="input-shell">
+          <input
+            ref="codeInput"
+            v-model="form.verificationCode"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            :disabled="binding || sending"
+            required
+          />
+        </span>
+      </label>
+      <label class="field">
+        <span class="field-label">当前密码</span>
+        <span class="input-shell">
+          <AppIcon name="lock" :size="17" />
+          <input
+            v-model="form.currentPassword"
+            type="password"
+            autocomplete="current-password"
+            maxlength="128"
+            :disabled="binding || sending"
+            required
+          />
+        </span>
+      </label>
 
       <p v-if="error" class="alert alert-error" role="alert">{{ error }}</p>
-      <button v-if="sent" class="btn btn-primary" type="submit" :disabled="binding || sending">
+      <button class="btn btn-primary" type="submit" :disabled="binding || sending">
         {{ binding ? '绑定中…' : '确认绑定' }}
       </button>
     </form>
