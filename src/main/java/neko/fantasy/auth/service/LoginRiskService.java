@@ -107,8 +107,10 @@ public class LoginRiskService {
         var latest = refreshTokens.findFirstByUserIdOrderByCreatedAtDesc(user.getId()).orElse(null);
         boolean impossibleTravel = false;
         boolean recentCountryChange = false;
-        if (latest != null && latest.getLoginCountryCode() != null) {
-            IpGeoService.IpLocation previousLocation = new IpGeoService.IpLocation(
+        if (latest != null) {
+            IpGeoService.IpLocation previousLocation = latest.getLoginCountryCode() == null
+                    ? ipGeo.resolve(latest.getIpAddress())
+                    : new IpGeoService.IpLocation(
                     latest.getLoginCountryCode(), latest.getLoginCountryName(), latest.getLoginRegion(),
                     latest.getLoginCity(), latest.getLoginLatitude(), latest.getLoginLongitude(),
                     latest.getLoginAsn(), latest.getLoginAsnOrganization(), "history");
