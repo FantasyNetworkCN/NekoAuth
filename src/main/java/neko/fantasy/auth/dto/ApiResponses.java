@@ -31,7 +31,7 @@ public final class ApiResponses {
                               long resendAfterSeconds) {
     }
 
-    public record Session(Long id, String ipAddress, String userAgent, SessionDevice device,
+    public record Session(Long id, String location, String ipAddress, String userAgent, SessionDevice device,
                           Instant createdAt, Instant lastUsedAt, Instant expiresAt, boolean current) {
     }
 

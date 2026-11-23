@@ -42,6 +42,7 @@ export interface VerificationCodeSent {
 
 export interface Session {
   id: number
+  location: string | null
   ipAddress: string | null
   userAgent: string | null
   device: SessionDevice | null

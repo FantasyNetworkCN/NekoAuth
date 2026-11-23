@@ -142,6 +142,7 @@ class AuthFlowIntegrationTest {
                         .cookie(refreshCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].current").value(true))
+                .andExpect(jsonPath("$[0].location").value("本地"))
                 .andExpect(jsonPath("$[0].device.type").value("mobile"))
                 .andExpect(jsonPath("$[0].device.platform").value("Android"))
                 .andExpect(jsonPath("$[0].device.platformVersion").value("15"))

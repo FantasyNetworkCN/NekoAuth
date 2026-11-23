@@ -559,7 +559,14 @@ onMounted(() => {
                   <strong>{{ deviceLabel(session) }}</strong>
                   <span v-if="session.current" class="current-badge">当前设备</span>
                 </div>
-                <p>{{ session.ipAddress || '未知 IP' }} · 最近活动 {{ formatDate(session.lastUsedAt || session.createdAt) }}</p>
+                <p>
+                  <span class="session-location">
+                    <AppIcon name="globe" :size="13" />
+                    {{ session.location || '未知位置' }}
+                  </span>
+                  · {{ session.ipAddress || '未知 IP' }}
+                  · 最近活动 {{ formatDate(session.lastUsedAt || session.createdAt) }}
+                </p>
                 <small>登录于 {{ formatDate(session.createdAt) }} · 有效至 {{ formatDate(session.expiresAt) }}</small>
               </div>
               <button
@@ -1224,6 +1231,13 @@ onMounted(() => {
 
 .session-copy small {
   font-size: 0.5rem;
+}
+
+.session-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--body);
 }
 
 .session-revoke {

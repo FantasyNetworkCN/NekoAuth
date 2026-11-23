@@ -452,11 +452,25 @@ public class AuthService {
                 .map(token -> {
                     ApiResponses.DeviceInfo device = deviceProfiles.fromJson(token.getDeviceInfo());
                     return new ApiResponses.Session(
-                            token.getId(), token.getIpAddress(), token.getUserAgent(),
+                            token.getId(), sessionLocation(token), token.getIpAddress(), token.getUserAgent(),
                             device == null ? null : device.summary(), token.getCreatedAt(),
                             token.getLastUsedAt(), token.getExpiresAt(), token.getTokenHash().equals(currentHash));
                 })
                 .toList();
+    }
+
+    private String sessionLocation(RefreshToken token) {
+        String country = token.getLoginCountryName();
+        String region = token.getLoginRegion();
+        if (country == null || country.isBlank()) {
+            IpGeoService.IpLocation resolved = ipGeo.resolve(token.getIpAddress());
+            country = resolved.countryName();
+            region = resolved.region();
+        }
+        if ("本地".equals(country)) return "本地";
+        if (country == null || country.isBlank()) return "未知位置";
+        if (region == null || region.isBlank() || country.contains(region)) return country;
+        return country + " · " + region;
     }
 
     /**
