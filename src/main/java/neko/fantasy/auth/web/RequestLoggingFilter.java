@@ -22,6 +22,10 @@ import java.util.regex.Pattern;
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
+    private static final String ACCEPT_CLIENT_HINTS = String.join(", ",
+            "Sec-CH-UA-Platform-Version", "Sec-CH-UA-Model", "Sec-CH-UA-Form-Factors",
+            "Sec-CH-UA-Arch", "Sec-CH-UA-Bitness", "Sec-CH-UA-Full-Version-List",
+            "Sec-CH-UA-WoW64");
 
     private static final Logger log = LoggerFactory.getLogger(RequestLoggingFilter.class);
     private static final Pattern SAFE_REQUEST_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{7,63}");
@@ -33,6 +37,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         long startedAt = System.nanoTime();
         MDC.put("requestId", requestId);
         response.setHeader(REQUEST_ID_HEADER, requestId);
+        // 让支持 Client Hints 的浏览器在后续登录请求中附带高熵设备字段，供服务端交叉校验。
+        response.setHeader("Accept-CH", ACCEPT_CLIENT_HINTS);
         try {
             filterChain.doFilter(request, response);
         } finally {

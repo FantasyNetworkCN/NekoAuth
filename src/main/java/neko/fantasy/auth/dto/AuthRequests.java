@@ -178,18 +178,51 @@ public final class AuthRequests {
     ) {
     }
 
-    /** 浏览器尽力提供的设备画像；仅用于展示与风险提示，不作为身份认证凭证。 */
+    /** 浏览器尽力提供的设备画像；仅用于服务端会话展示与风险判断，不作为身份认证凭证。 */
     public record DeviceProfile(
             String type,
+            String typeConfidence,
+            String formFactor,
             String platform,
             String platformVersion,
+            String platformConfidence,
             String architecture,
+            String architectureClaim,
+            String bitness,
             String model,
+            String modelSource,
             String browser,
             String browserVersion,
             String screen,
+            String screenCss,
+            String screenAvailable,
+            String viewport,
+            String orientation,
+            Integer colorDepth,
+            Double pixelRatio,
+            Integer refreshRate,
+            Boolean multipleScreens,
+            String displayMode,
             String timezone,
+            String languages,
             Boolean touch,
+            Integer maxTouchPoints,
+            String pointer,
+            Boolean hover,
+            Double deviceMemory,
+            Integer hardwareConcurrency,
+            String gpuVendor,
+            String gpuRenderer,
+            Double batteryLevel,
+            Boolean batteryCharging,
+            String connectionType,
+            String effectiveType,
+            Double downlinkMbps,
+            Integer rttMs,
+            Boolean saveData,
+            Boolean webdriver,
+            String typeEvidence,
+            String platformEvidence,
             String source
     ) {
     }

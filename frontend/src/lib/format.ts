@@ -51,24 +51,10 @@ export function browserName(userAgent: string | null): string {
 export function deviceLabel(session: Session): string {
   const device = session.device
   if (!device) return browserName(session.userAgent)
-  const type = {
-    desktop: '电脑',
-    mobile: '手机',
-    tablet: '平板',
-    unknown: '设备',
-  }[device.type] || '设备'
+  const type = device.type === 'unknown'
+    ? null
+    : { desktop: '电脑', mobile: '手机', tablet: '平板' }[device.type]
   const platform = [device.platform, device.platformVersion].filter(Boolean).join(' ')
   const browser = [device.browser, device.browserVersion].filter(Boolean).join(' ')
-  return [type, platform, browser].filter(Boolean).join(' · ')
-}
-
-export function deviceDetails(session: Session): string {
-  const device = session.device
-  if (!device) return ''
-  return [
-    device.model,
-    device.architecture ? `${device.architecture} 架构` : null,
-    device.screen,
-    device.timezone,
-  ].filter(Boolean).join(' · ')
+  return [type, platform, browser].filter(Boolean).join(' · ') || '浏览器会话'
 }

@@ -6,7 +6,7 @@ import AppLogo from '@/components/AppLogo.vue'
 import ContactBindingDialog from '@/components/ContactBindingDialog.vue'
 import accountNeko from '@/assets/local/account-neko.webp'
 import { ApiError, api } from '@/lib/api'
-import { deviceDetails, deviceLabel, formatDate, initials } from '@/lib/format'
+import { deviceLabel, formatDate, initials } from '@/lib/format'
 import { showToast } from '@/lib/toast'
 import { auth } from '@/stores/auth'
 import type { Session } from '@/types'
@@ -560,7 +560,6 @@ onMounted(() => {
                   <span v-if="session.current" class="current-badge">当前设备</span>
                 </div>
                 <p>{{ session.ipAddress || '未知 IP' }} · 最近活动 {{ formatDate(session.lastUsedAt || session.createdAt) }}</p>
-                <small v-if="deviceDetails(session)">{{ deviceDetails(session) }}</small>
                 <small>登录于 {{ formatDate(session.createdAt) }} · 有效至 {{ formatDate(session.expiresAt) }}</small>
               </div>
               <button

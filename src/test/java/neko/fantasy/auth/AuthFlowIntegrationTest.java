@@ -2,8 +2,10 @@ package neko.fantasy.auth;
 
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
+import neko.fantasy.auth.domain.RefreshToken;
 import neko.fantasy.auth.domain.Role;
 import neko.fantasy.auth.domain.User;
+import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +42,9 @@ class AuthFlowIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
     @Test
     void productionOriginCanSubmitLoginRequest() throws Exception {
         mockMvc.perform(post("/api/auth/login")
@@ -56,6 +62,14 @@ class AuthFlowIntegrationTest {
     void structuredDeviceProfileIsStoredAndReturnedWithSessions() throws Exception {
         String username = "device_" + UUID.randomUUID().toString().substring(0, 8);
         MvcResult registration = mockMvc.perform(post("/api/auth/register")
+                        .header("Sec-CH-UA-Platform", "\"Android\"")
+                        .header("Sec-CH-UA-Platform-Version", "\"15.0.0\"")
+                        .header("Sec-CH-UA-Model", "\"Pixel 9\"")
+                        .header("Sec-CH-UA-Form-Factors", "\"Mobile\"")
+                        .header("Sec-CH-UA-Arch", "\"arm64\"")
+                        .header("Sec-CH-UA-Bitness", "\"64\"")
+                        .header("Accept-Language", "zh-CN,zh;q=0.9")
+                        .header("Via", "1.1 test-proxy")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -64,22 +78,60 @@ class AuthFlowIntegrationTest {
                                   "password":"Password123",
                                   "device":{
                                     "type":"mobile",
+                                    "typeConfidence":"high",
+                                    "formFactor":"Mobile",
                                     "platform":"Android",
                                     "platformVersion":"15",
+                                    "platformConfidence":"high",
                                     "architecture":"arm64",
+                                    "bitness":"64",
                                     "model":"Pixel 9",
+                                    "modelSource":"client_hint",
                                     "browser":"Chrome",
                                     "browserVersion":"141.0",
-                                    "screen":"1080×2400 @2.63x",
+                                    "screen":"1080×2400 px",
+                                    "screenCss":"360×800",
+                                    "screenAvailable":"360×780",
+                                    "viewport":"360×760",
+                                    "orientation":"portrait-primary",
+                                    "colorDepth":24,
+                                    "pixelRatio":3,
+                                    "refreshRate":120,
+                                    "multipleScreens":false,
+                                    "displayMode":"browser",
                                     "timezone":"Asia/Shanghai",
+                                    "languages":"zh-CN, en-US",
                                     "touch":true,
-                                    "source":"client_hints"
+                                    "maxTouchPoints":5,
+                                    "pointer":"coarse",
+                                    "hover":false,
+                                    "deviceMemory":8,
+                                    "hardwareConcurrency":8,
+                                    "gpuVendor":"Qualcomm",
+                                    "gpuRenderer":"Adreno 750",
+                                    "batteryLevel":0.73,
+                                    "batteryCharging":false,
+                                    "connectionType":"cellular",
+                                    "effectiveType":"4g",
+                                    "downlinkMbps":30.5,
+                                    "rttMs":50,
+                                    "saveData":false,
+                                    "webdriver":false,
+                                    "typeEvidence":"android_mobile",
+                                    "platformEvidence":"client_hints",
+                                    "source":"client_hints+capabilities"
                                   }
                                 }
                                 """.formatted(username, username)))
                 .andExpect(status().isCreated())
+                .andExpect(header().string("Accept-CH",
+                        "Sec-CH-UA-Platform-Version, Sec-CH-UA-Model, Sec-CH-UA-Form-Factors, "
+                                + "Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Full-Version-List, "
+                                + "Sec-CH-UA-WoW64"))
                 .andReturn();
 
+        Long userId = ((Number) JsonPath.read(
+                registration.getResponse().getContentAsString(), "$.user.id")).longValue();
         String accessToken = JsonPath.read(
                 registration.getResponse().getContentAsString(), "$.accessToken");
         Cookie refreshCookie = registration.getResponse().getCookie("refresh_token");
@@ -93,11 +145,21 @@ class AuthFlowIntegrationTest {
                 .andExpect(jsonPath("$[0].device.type").value("mobile"))
                 .andExpect(jsonPath("$[0].device.platform").value("Android"))
                 .andExpect(jsonPath("$[0].device.platformVersion").value("15"))
-                .andExpect(jsonPath("$[0].device.architecture").value("arm64"))
-                .andExpect(jsonPath("$[0].device.model").value("Pixel 9"))
                 .andExpect(jsonPath("$[0].device.browser").value("Chrome"))
-                .andExpect(jsonPath("$[0].device.timezone").value("Asia/Shanghai"))
-                .andExpect(jsonPath("$[0].device.touch").value(true));
+                .andExpect(jsonPath("$[0].device.model").doesNotExist())
+                .andExpect(jsonPath("$[0].device.architecture").doesNotExist())
+                .andExpect(jsonPath("$[0].device.screen").doesNotExist())
+                .andExpect(jsonPath("$[0].device.timezone").doesNotExist())
+                .andExpect(jsonPath("$[0].device.gpuRenderer").doesNotExist());
+
+        RefreshToken stored = refreshTokenRepository
+                .findAllByUserIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(userId, Instant.now())
+                .getFirst();
+        assertThat(stored.getDeviceInfo())
+                .contains("\"gpuRenderer\":\"Adreno 750\"")
+                .contains("\"clientHintPlatform\":\"Android\"")
+                .contains("\"hintMismatch\":false")
+                .contains("\"via\":true");
     }
 
     @Test

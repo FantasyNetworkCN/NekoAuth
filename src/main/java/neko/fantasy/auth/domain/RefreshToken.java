@@ -56,7 +56,7 @@ public class RefreshToken {
     @Column(name = "user_agent", length = 512)
     private String userAgent;
 
-    @Column(name = "device_info", length = 2000)
+    @Column(name = "device_info", length = 8000)
     private String deviceInfo;
 
     @Column(name = "family_id", length = 64)

@@ -26,14 +26,44 @@ public final class ApiResponses {
     public record Auth(String accessToken, String tokenType, long expiresIn, User user) {
     }
 
-    public record Session(Long id, String ipAddress, String userAgent, DeviceInfo device,
+    public record Session(Long id, String ipAddress, String userAgent, SessionDevice device,
                           Instant createdAt, Instant lastUsedAt, Instant expiresAt, boolean current) {
     }
 
-    public record DeviceInfo(String type, String platform, String platformVersion,
-                             String architecture, String model, String browser,
-                             String browserVersion, String screen, String timezone,
-                             Boolean touch, String source) {
+    public record SessionDevice(String type, String platform, String platformVersion,
+                                String browser, String browserVersion) {
+    }
+
+    public record DeviceInfo(String type, String typeConfidence, String formFactor,
+                             String platform, String platformVersion, String platformConfidence,
+                             String architecture, String architectureClaim, String bitness,
+                             String model, String modelSource, String browser,
+                             String browserVersion, String screen, String screenCss,
+                             String screenAvailable, String viewport, String orientation,
+                             Integer colorDepth, Double pixelRatio, Integer refreshRate,
+                             Boolean multipleScreens, String displayMode, String timezone,
+                             String languages, Boolean touch, Integer maxTouchPoints,
+                             String pointer, Boolean hover, Double deviceMemory,
+                             Integer hardwareConcurrency, String gpuVendor, String gpuRenderer,
+                             Double batteryLevel, Boolean batteryCharging, String connectionType,
+                             String effectiveType, Double downlinkMbps, Integer rttMs,
+                             Boolean saveData, Boolean webdriver, String typeEvidence,
+                             String platformEvidence, String source, RequestSignals request) {
+
+        public SessionDevice summary() {
+            return new SessionDevice(type, platform, platformVersion, browser, browserVersion);
+        }
+    }
+
+    /** 服务端从本次请求头读取的信号，用于和客户端上报值交叉校验。 */
+    public record RequestSignals(String clientHintPlatform, String clientHintPlatformVersion,
+                                 String clientHintModel, String clientHintFormFactors,
+                                 String clientHintArchitecture, String clientHintBitness,
+                                 String clientHintMobile, String clientHintUa,
+                                 String clientHintFullVersionList, String clientHintWow64,
+                                 String acceptLanguage,
+                                 Boolean dnt, Boolean gpc, Boolean via, Boolean forwarded,
+                                 Boolean hintMismatch) {
     }
 
     public record Page<T>(List<T> content, int page, int size, long totalElements, int totalPages) {

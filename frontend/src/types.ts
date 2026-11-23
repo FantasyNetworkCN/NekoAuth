@@ -32,7 +32,7 @@ export interface Session {
   id: number
   ipAddress: string | null
   userAgent: string | null
-  device: DeviceProfile | null
+  device: SessionDevice | null
   createdAt: string
   lastUsedAt: string | null
   expiresAt: string
@@ -40,19 +40,62 @@ export interface Session {
 }
 
 export type DeviceType = 'desktop' | 'mobile' | 'tablet' | 'unknown'
+export type RecognitionConfidence = 'high' | 'medium' | 'low'
+export type PointerType = 'fine' | 'coarse' | 'none' | 'unknown'
 
-export interface DeviceProfile {
+export interface SessionDevice {
   type: DeviceType
   platform: string | null
   platformVersion: string | null
-  architecture: string | null
-  model: string | null
   browser: string | null
   browserVersion: string | null
-  screen: string | null
-  timezone: string | null
-  touch: boolean | null
-  source: string | null
+}
+
+export interface DeviceProfile {
+  type: DeviceType
+  typeConfidence?: RecognitionConfidence | null
+  formFactor?: string | null
+  platform?: string | null
+  platformVersion?: string | null
+  platformConfidence?: RecognitionConfidence | null
+  architecture?: string | null
+  architectureClaim?: string | null
+  bitness?: string | null
+  model?: string | null
+  modelSource?: string | null
+  browser?: string | null
+  browserVersion?: string | null
+  screen?: string | null
+  screenCss?: string | null
+  screenAvailable?: string | null
+  viewport?: string | null
+  orientation?: string | null
+  colorDepth?: number | null
+  pixelRatio?: number | null
+  refreshRate?: number | null
+  multipleScreens?: boolean | null
+  displayMode?: string | null
+  timezone?: string | null
+  languages?: string | null
+  touch?: boolean | null
+  maxTouchPoints?: number | null
+  pointer?: PointerType | null
+  hover?: boolean | null
+  deviceMemory?: number | null
+  hardwareConcurrency?: number | null
+  gpuVendor?: string | null
+  gpuRenderer?: string | null
+  batteryLevel?: number | null
+  batteryCharging?: boolean | null
+  connectionType?: string | null
+  effectiveType?: string | null
+  downlinkMbps?: number | null
+  rttMs?: number | null
+  saveData?: boolean | null
+  webdriver?: boolean | null
+  typeEvidence?: string | null
+  platformEvidence?: string | null
+  source?: string | null
 }
 
 export interface RegistrationCaptcha {
