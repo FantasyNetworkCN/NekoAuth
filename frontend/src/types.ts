@@ -22,6 +22,18 @@ export interface AuthPayload {
   user: User
 }
 
+export type LoginVerificationMethod = 'email' | 'sms'
+
+export interface LoginStepUp {
+  status: 'STEP_UP_REQUIRED'
+  challengeId: string
+  methods: LoginVerificationMethod[]
+  method: LoginVerificationMethod
+  maskedTarget: string
+  expiresInSeconds: number
+  resendAfterSeconds: number
+}
+
 export interface VerificationCodeSent {
   message: string
   expiresInSeconds: number

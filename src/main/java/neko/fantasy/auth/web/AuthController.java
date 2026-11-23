@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -95,11 +96,32 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponses.Auth> login(
+    public ResponseEntity<?> login(
             @Valid @RequestBody AuthRequests.Login request,
             HttpServletRequest servletRequest
     ) {
-        return authResponse(HttpStatus.OK, authService.login(request, servletRequest));
+        AuthService.LoginOutcome outcome = authService.login(request, servletRequest);
+        if (outcome.stepUp() != null) {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(outcome.stepUp());
+        }
+        return authResponse(HttpStatus.OK, outcome.auth());
+    }
+
+    @PostMapping("/login/challenge/verify")
+    public ResponseEntity<ApiResponses.Auth> verifyLoginChallenge(
+            @Valid @RequestBody AuthRequests.LoginStepUpVerify request,
+            HttpServletRequest servletRequest
+    ) {
+        return authResponse(HttpStatus.OK,
+                authService.completeLoginChallenge(request, servletRequest));
+    }
+
+    @PostMapping("/login/challenge/resend")
+    public ApiResponses.LoginStepUp resendLoginChallenge(
+            @Valid @RequestBody AuthRequests.LoginStepUpResend request,
+            HttpServletRequest servletRequest
+    ) {
+        return authService.resendLoginChallenge(request, servletRequest);
     }
 
     @PostMapping("/refresh")
@@ -228,10 +250,14 @@ public class AuthController {
 
     private ResponseEntity<ApiResponses.Auth> authResponse(
             HttpStatus status, AuthService.AuthResult result) {
+        List<String> cookies = new ArrayList<>(
+                cookieService.createHeaders(result.refreshToken(), result.sessionId()));
+        if (result.deviceToken() != null && !result.deviceToken().isBlank()) {
+            cookies.add(cookieService.createDevice(result.deviceToken()).toString());
+        }
         return ResponseEntity.status(status)
                 .header(HttpHeaders.SET_COOKIE,
-                        cookieService.createHeaders(
-                                result.refreshToken(), result.sessionId()).toArray(String[]::new))
+                        cookies.toArray(String[]::new))
                 .body(result.auth());
     }
 }

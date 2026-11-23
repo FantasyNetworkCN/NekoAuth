@@ -2,7 +2,7 @@ import { computed, reactive } from 'vue'
 import { api, refreshAccessToken, setAccessToken, setSessionLostHandler, setSessionRefreshedHandler } from '@/lib/api'
 import type { ContactKind } from '@/lib/api'
 import { collectDeviceProfile } from '@/lib/device'
-import type { AuthPayload, User } from '@/types'
+import type { AuthPayload, LoginStepUp, User } from '@/types'
 
 interface AuthState {
   user: User | null
@@ -75,8 +75,21 @@ export const auth = {
   },
 
   async login(identifier: string, password: string) {
-    const payload = await api.login(identifier, password, await collectDeviceProfile())
+    const result = await api.login(identifier, password, await collectDeviceProfile())
+    if ('accessToken' in result) {
+      apply(result)
+      return null
+    }
+    return result
+  },
+
+  async verifyLoginStepUp(challengeId: string, code: string) {
+    const payload = await api.verifyLoginStepUp(challengeId, code)
     apply(payload)
+  },
+
+  async resendLoginStepUp(challengeId: string, method?: 'email' | 'sms'): Promise<LoginStepUp> {
+    return api.resendLoginStepUp(challengeId, method)
   },
 
   async register(input: { nickname?: string; email: string; password: string; verificationCode: string }) {

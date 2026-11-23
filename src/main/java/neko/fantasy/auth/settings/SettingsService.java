@@ -218,6 +218,16 @@ public class SettingsService {
         return isSmsEnabled(loadOrCreate().getSms());
     }
 
+    @Transactional
+    public boolean isSmtpAvailable() {
+        ApplicationSettings settings = loadOrCreate();
+        return settings.isSmtpEnabled()
+                && StringUtils.hasText(settings.getSmtpHost())
+                && StringUtils.hasText(settings.getMailFromEmail())
+                && (!settings.isSmtpAuthEnabled()
+                || StringUtils.hasText(settings.getSmtpPasswordCiphertext()));
+    }
+
     private SmsConfig readSmsConfig(SmsRegistrationSettings sms) {
         String secret;
         try {

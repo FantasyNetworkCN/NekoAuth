@@ -27,6 +27,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     boolean existsByFamilyIdAndRevokedAtIsNullAndExpiresAtAfter(String familyId, Instant now);
 
+    boolean existsByUserIdAndIpAddressAndCreatedAtAfter(Long userId, String ipAddress, Instant cutoff);
+
+    boolean existsByUserId(Long userId);
+
     List<RefreshToken> findAllByUserIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
             Long userId, Instant now);
 

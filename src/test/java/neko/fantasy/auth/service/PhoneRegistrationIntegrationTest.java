@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,6 +23,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -46,6 +48,8 @@ class PhoneRegistrationIntegrationTest {
     @Autowired SmsRegistrationChallengeRepository challenges;
     @Autowired RegistrationCaptchaService captchas;
     @Autowired SettingsService settings;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired SmsRegistrationService smsVerification;
     @MockitoBean DypnsSmsClient sms;
 
     @BeforeEach
@@ -77,7 +81,7 @@ class PhoneRegistrationIntegrationTest {
         send("13900000102", captcha).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CAPTCHA_INVALID"));
         send(canonical, captchas.issue()).andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("SMS_CODE_COOLDOWN"));
+                .andExpect(jsonPath("$.code").value("SMS_CODE_RATE_LIMIT"));
 
         var outId = ArgumentCaptor.forClass(String.class);
         var config = new SmsConfig("test-key", "test-secret", "test-sign", null, "code", "min");
@@ -144,6 +148,25 @@ class PhoneRegistrationIntegrationTest {
         verify(sms, never()).verify(any(SmsConfig.class), anyString(), anyString(), anyString());
         assertThat(challenges.findById(phone).orElseThrow().getOutId()).isNull();
         assertThat(users.findByPhone(phone)).isEmpty();
+    }
+
+    @Test
+    void smsSendsAreLimitedToFivePerHourWithGenericFrequentError() {
+        String phone = "+8613900000106";
+        for (int index = 0; index < 5; index++) {
+            smsVerification.sendLoginStepUpCode(phone, "198.51.100.1", "challenge-" + index);
+            jdbc.update("update sms_registration_challenges set last_sent_at = ? where phone = ?",
+                    Instant.now().minusSeconds(120), phone);
+        }
+
+        assertThatThrownBy(() -> smsVerification.sendLoginStepUpCode(phone, "198.51.100.1", "challenge-6"))
+                .isInstanceOf(neko.fantasy.auth.exception.ApiException.class)
+                .satisfies(exception -> {
+                    var api = (neko.fantasy.auth.exception.ApiException) exception;
+                    assertThat(api.getStatus().value()).isEqualTo(429);
+                    assertThat(api.getCode()).isEqualTo("SMS_CODE_RATE_LIMIT");
+                    assertThat(api.getMessage()).isEqualTo("短信发送过于频繁，请稍后再试");
+                });
     }
 
     private ResultActions send(String phone, RegistrationCaptchaService.IssuedCaptcha captcha) throws Exception {

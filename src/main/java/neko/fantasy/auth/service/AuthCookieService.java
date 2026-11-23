@@ -21,8 +21,10 @@ public class AuthCookieService {
 
     public static final String SESSION_HINT_COOKIE = "nekoauth_session_hint";
     public static final String SSO_SESSION_COOKIE = "nekoauth_sso_session";
+    public static final String DEVICE_COOKIE = "nekoauth_device";
     private static final String COOKIE_PATH = "/";
     private static final String LEGACY_COOKIE_PATH = "/api/auth";
+    private static final Duration DEVICE_COOKIE_TTL = Duration.ofDays(365);
 
     private final AuthProperties properties;
 
@@ -88,6 +90,28 @@ public class AuthCookieService {
                 .map(Cookie::getValue)
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst();
+    }
+
+    public Optional<String> readDevice(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return Optional.empty();
+        }
+        return Arrays.stream(cookies)
+                .filter(cookie -> DEVICE_COOKIE.equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst();
+    }
+
+    public ResponseCookie createDevice(String value) {
+        return ResponseCookie.from(DEVICE_COOKIE, value)
+                .httpOnly(true)
+                .secure(properties.cookie().secure())
+                .sameSite(properties.cookie().sameSite())
+                .path(COOKIE_PATH)
+                .maxAge(DEVICE_COOKIE_TTL)
+                .build();
     }
 
     private ResponseCookie build(String value, Duration maxAge, String path) {

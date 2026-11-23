@@ -21,6 +21,8 @@ public class SmsRegistrationChallenge {
     private Long bindingUserId;
     @Column(name = "password_reset_user_id")
     private Long passwordResetUserId;
+    @Column(name = "login_challenge_id", length = 36)
+    private String loginChallengeId;
     private Instant expiresAt;
     @Column(nullable = false)
     private Instant lastSentAt;
@@ -66,12 +68,18 @@ public class SmsRegistrationChallenge {
         this.expiresAt = expiresAt;
         this.bindingUserId = bindingUserId;
         passwordResetUserId = null;
+        loginChallengeId = null;
         attempts = 0;
     }
 
     public void activatePasswordReset(String outId, Instant expiresAt, Long userId) {
         activate(outId, expiresAt);
         passwordResetUserId = userId;
+    }
+
+    public void activateLoginStepUp(String outId, Instant expiresAt, String challengeId) {
+        activate(outId, expiresAt);
+        loginChallengeId = challengeId;
     }
 
     public boolean isActive(Instant now) {
@@ -90,6 +98,10 @@ public class SmsRegistrationChallenge {
         return passwordResetUserId;
     }
 
+    public String getLoginChallengeId() {
+        return loginChallengeId;
+    }
+
     public int recordFailedAttempt() {
         return ++attempts;
     }
@@ -99,5 +111,6 @@ public class SmsRegistrationChallenge {
         expiresAt = null;
         bindingUserId = null;
         passwordResetUserId = null;
+        loginChallengeId = null;
     }
 }

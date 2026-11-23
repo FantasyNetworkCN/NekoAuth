@@ -3,6 +3,7 @@ package neko.fantasy.auth.service;
 import jakarta.servlet.http.HttpServletRequest;
 import neko.fantasy.auth.config.AuthProperties;
 import neko.fantasy.auth.domain.EmailVerificationPurpose;
+import neko.fantasy.auth.domain.KnownDevice;
 import neko.fantasy.auth.domain.RefreshToken;
 import neko.fantasy.auth.domain.Role;
 import neko.fantasy.auth.domain.User;
@@ -18,9 +19,6 @@ import neko.fantasy.auth.util.NicknameValidator;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -51,7 +49,11 @@ public class AuthService {
     private final SettingsService settingsService;
     private final EmailVerificationService emailVerificationService;
     private final SmsRegistrationService smsRegistrationService;
-    private final ObjectMapper objectMapper;
+    private final DeviceProfileService deviceProfiles;
+    private final DeviceTrustService deviceTrust;
+    private final LoginRiskService loginRisk;
+    private final LoginChallengeService loginChallenges;
+    private final AuthCookieService cookies;
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
@@ -60,7 +62,9 @@ public class AuthService {
                        JwtService jwtService, AuthProperties properties,
                        LoginRateLimiter rateLimiter, SettingsService settingsService,
                        EmailVerificationService emailVerificationService, SmsRegistrationService smsRegistrationService,
-                       ObjectMapper objectMapper) {
+                       DeviceProfileService deviceProfiles, DeviceTrustService deviceTrust,
+                       LoginRiskService loginRisk, LoginChallengeService loginChallenges,
+                       AuthCookieService cookies) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.oauthRefreshTokenRepository = oauthRefreshTokenRepository;
@@ -72,14 +76,18 @@ public class AuthService {
         this.settingsService = settingsService;
         this.emailVerificationService = emailVerificationService;
         this.smsRegistrationService = smsRegistrationService;
-        this.objectMapper = objectMapper;
+        this.deviceProfiles = deviceProfiles;
+        this.deviceTrust = deviceTrust;
+        this.loginRisk = loginRisk;
+        this.loginChallenges = loginChallenges;
+        this.cookies = cookies;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-42");
     }
 
     @Transactional
     public AuthResult register(AuthRequests.Register request, HttpServletRequest servletRequest) {
         User user = registerAccount(request);
-        return createSession(user, servletRequest, user.getLastLoginAt(), request.device());
+        return createSession(user, servletRequest, user.getLastLoginAt(), request.device(), null, false);
     }
 
     @Transactional
@@ -94,7 +102,7 @@ public class AuthService {
         smsRegistrationService.requireAvailable(phone);
         smsRegistrationService.verifyAndConsume(phone, request.verificationCode());
         User user = persistAccount(username, displayName, null, phone, request.password());
-        return createSession(user, servletRequest, user.getLastLoginAt(), request.device());
+        return createSession(user, servletRequest, user.getLastLoginAt(), request.device(), null, false);
     }
 
     /**
@@ -158,7 +166,7 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResult login(AuthRequests.Login request, HttpServletRequest servletRequest) {
+    public LoginOutcome login(AuthRequests.Login request, HttpServletRequest servletRequest) {
         String clientKey = clientKey(servletRequest);
         rateLimiter.check(clientKey);
 
@@ -170,8 +178,48 @@ public class AuthService {
             throw exception;
         }
 
+        int recentFailures = rateLimiter.failures(clientKey);
+        ApiResponses.DeviceInfo device = deviceProfiles.capture(request.device(), servletRequest);
+        boolean deviceTokenPresent = cookies.readDevice(servletRequest).isPresent();
+        KnownDevice knownDevice = deviceTrust.find(user, servletRequest);
+        LoginRiskService.RiskEvaluation risk = loginRisk.evaluate(
+                user, device, deviceTokenPresent, knownDevice, recentFailures, servletRequest);
         rateLimiter.recordSuccess(clientKey);
-        return createSession(user, servletRequest, user.getLastLoginAt(), request.device());
+
+        if (risk.blocked()) {
+            throw ApiException.forbidden("LOGIN_RISK_BLOCKED", "当前登录环境存在风险，请稍后再试");
+        }
+        String deviceInfoJson = deviceProfiles.toJson(device);
+        if (risk.stepUpRequired()) {
+            LoginChallengeService.CreatedChallenge challenge = loginChallenges.create(
+                    user, user.getLastLoginAt(), risk, deviceInfoJson, servletRequest);
+            return new LoginOutcome(null, challenge.view());
+        }
+        AuthResult result = createSession(
+                user, servletRequest, user.getLastLoginAt(), deviceInfoJson, risk, false);
+        return new LoginOutcome(result, null);
+    }
+
+    @Transactional(noRollbackFor = ApiException.class)
+    public ApiResponses.LoginStepUp resendLoginChallenge(
+            AuthRequests.LoginStepUpResend request, HttpServletRequest servletRequest) {
+        return loginChallenges.resend(request.challengeId(), request.method(), servletRequest);
+    }
+
+    @Transactional
+    public AuthResult completeLoginChallenge(
+            AuthRequests.LoginStepUpVerify request, HttpServletRequest servletRequest) {
+        LoginChallengeService.VerifiedLogin verified = loginChallenges.verifyAndConsume(
+                request.challengeId(), request.code());
+        User user = userRepository.findById(verified.userId())
+                .filter(User::isEnabled)
+                .orElseThrow(() -> ApiException.unauthorized(
+                        "USER_NOT_FOUND", "用户不存在或已停用"));
+        LoginRiskService.RiskEvaluation risk = new LoginRiskService.RiskEvaluation(
+                verified.riskScore(), verified.riskLevel(), splitReasons(verified.riskReasons()),
+                false, false);
+        return createSession(user, servletRequest, verified.authenticatedAt(),
+                verified.deviceInfoJson(), risk, true);
     }
 
     /**
@@ -243,7 +291,7 @@ public class AuthService {
                 : stored.getAuthTime();
         String newRawToken = randomToken();
         String familyId = stored.getFamilyId() == null ? stored.getTokenHash() : stored.getFamilyId();
-        refreshTokenRepository.save(new RefreshToken(
+        RefreshToken refreshed = new RefreshToken(
                 user,
                 hashToken(newRawToken),
                 authenticatedAt,
@@ -252,9 +300,11 @@ public class AuthService {
                 truncate(servletRequest.getHeader("User-Agent"), 512),
                 stored.getDeviceInfo(),
                 familyId
-        ));
+        );
+        refreshed.setRisk(stored.getRiskScore(), stored.getRiskLevel(), stored.getRiskReasons());
+        refreshTokenRepository.save(refreshed);
 
-        return authResult(user, newRawToken, authenticatedAt, familyId);
+        return authResult(user, newRawToken, authenticatedAt, familyId, null);
     }
 
     @Transactional
@@ -345,6 +395,7 @@ public class AuthService {
         user.incrementTokenVersion();
         userRepository.saveAndFlush(user);
         revokeSessionsAndOAuthGrants(user.getId());
+        deviceTrust.revokeTrust(user.getId());
     }
 
     public EmailVerificationService.CodeDelivery sendPasswordResetCode(String email) {
@@ -391,7 +442,7 @@ public class AuthService {
                 .findAllByUserIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(userId, Instant.now())
                 .stream()
                 .map(token -> {
-                    ApiResponses.DeviceInfo device = readDeviceInfo(token.getDeviceInfo());
+                    ApiResponses.DeviceInfo device = deviceProfiles.fromJson(token.getDeviceInfo());
                     return new ApiResponses.Session(
                             token.getId(), token.getIpAddress(), token.getUserAgent(),
                             device == null ? null : device.summary(), token.getCreatedAt(),
@@ -461,9 +512,21 @@ public class AuthService {
     }
 
     private AuthResult createSession(User user, HttpServletRequest request, Instant authenticatedAt,
-                                     AuthRequests.DeviceProfile device) {
+                                     AuthRequests.DeviceProfile device,
+                                     LoginRiskService.RiskEvaluation risk, boolean verifiedByStepUp) {
+        ApiResponses.DeviceInfo captured = deviceProfiles.capture(device, request);
+        return createSession(user, request, authenticatedAt, deviceProfiles.toJson(captured),
+                risk, verifiedByStepUp);
+    }
+
+    private AuthResult createSession(User user, HttpServletRequest request, Instant authenticatedAt,
+                                     String deviceInfoJson, LoginRiskService.RiskEvaluation risk,
+                                     boolean verifiedByStepUp) {
         String rawToken = randomToken();
         String familyId = UUID.randomUUID().toString();
+        ApiResponses.DeviceInfo device = deviceProfiles.fromJson(deviceInfoJson);
+        DeviceTrustService.DeviceResolution deviceResolution = deviceTrust.record(
+                user, request, device, verifiedByStepUp);
         RefreshToken refreshToken = new RefreshToken(
                 user,
                 hashToken(rawToken),
@@ -471,264 +534,28 @@ public class AuthService {
                 Instant.now().plus(properties.jwt().refreshTtl()),
                 clientIp(request),
                 truncate(request.getHeader("User-Agent"), 512),
-                writeDeviceInfo(device, request),
+                deviceInfoJson,
                 familyId
         );
+        if (risk != null) {
+            refreshToken.setRisk(risk.score(), risk.level(), risk.reasonText());
+        }
         refreshTokenRepository.save(refreshToken);
-        return authResult(user, rawToken, authenticatedAt, familyId);
+        return authResult(user, rawToken, authenticatedAt, familyId, deviceResolution.newToken());
     }
 
     private AuthResult authResult(User user, String rawRefreshToken, Instant authenticatedAt,
-                                  String sessionId) {
+                                  String sessionId, String deviceToken) {
         JwtService.IssuedToken accessToken = jwtService.issue(user, authenticatedAt, sessionId);
         long expiresIn = Math.max(0, Duration.between(Instant.now(), accessToken.expiresAt()).toSeconds());
         ApiResponses.Auth auth = new ApiResponses.Auth(
                 accessToken.value(), "Bearer", expiresIn, ApiResponses.User.from(user));
-        return new AuthResult(auth, rawRefreshToken, sessionId);
+        return new AuthResult(auth, rawRefreshToken, sessionId, deviceToken);
     }
 
     private User requireUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.unauthorized("USER_NOT_FOUND", "用户不存在"));
-    }
-
-    private String writeDeviceInfo(AuthRequests.DeviceProfile device, HttpServletRequest request) {
-        if (device == null) {
-            return null;
-        }
-        ApiResponses.DeviceInfo sanitized = new ApiResponses.DeviceInfo(
-                deviceType(device.type()),
-                confidence(device.typeConfidence()),
-                clean(device.formFactor(), 64),
-                clean(device.platform(), 40),
-                clean(device.platformVersion(), 40),
-                confidence(device.platformConfidence()),
-                clean(device.architecture(), 24),
-                clean(device.architectureClaim(), 24),
-                clean(device.bitness(), 16),
-                clean(device.model(), 80),
-                clean(device.modelSource(), 32),
-                clean(device.browser(), 40),
-                clean(device.browserVersion(), 40),
-                clean(device.screen(), 80),
-                clean(device.screenCss(), 40),
-                clean(device.screenAvailable(), 40),
-                clean(device.viewport(), 40),
-                clean(device.orientation(), 24),
-                integer(device.colorDepth(), 1, 64),
-                decimal(device.pixelRatio(), 0.1, 16),
-                integer(device.refreshRate(), 1, 1000),
-                device.multipleScreens(),
-                clean(device.displayMode(), 32),
-                clean(device.timezone(), 64),
-                clean(device.languages(), 160),
-                device.touch(),
-                integer(device.maxTouchPoints(), 0, 100),
-                pointerType(device.pointer()),
-                device.hover(),
-                decimal(device.deviceMemory(), 0.1, 1024),
-                integer(device.hardwareConcurrency(), 1, 1024),
-                clean(device.gpuVendor(), 120),
-                clean(device.gpuRenderer(), 160),
-                decimal(device.batteryLevel(), 0, 1),
-                device.batteryCharging(),
-                clean(device.connectionType(), 24),
-                clean(device.effectiveType(), 16),
-                decimal(device.downlinkMbps(), 0, 100000),
-                integer(device.rttMs(), 0, 600000),
-                device.saveData(),
-                device.webdriver(),
-                clean(device.typeEvidence(), 40),
-                clean(device.platformEvidence(), 40),
-                clean(device.source(), 40),
-                requestSignals(device, request)
-        );
-        if (sanitized.type() == null && sanitized.platform() == null
-                && sanitized.browser() == null && sanitized.model() == null) {
-            return null;
-        }
-        try {
-            return objectMapper.writeValueAsString(sanitized);
-        } catch (JacksonException exception) {
-            return null;
-        }
-    }
-
-    private static ApiResponses.RequestSignals requestSignals(AuthRequests.DeviceProfile device,
-                                                              HttpServletRequest request) {
-        String hintPlatform = header(request, "Sec-CH-UA-Platform");
-        String hintPlatformVersion = header(request, "Sec-CH-UA-Platform-Version");
-        String hintModel = header(request, "Sec-CH-UA-Model");
-        String hintFormFactors = header(request, "Sec-CH-UA-Form-Factors");
-        String hintArchitecture = header(request, "Sec-CH-UA-Arch");
-        String hintBitness = header(request, "Sec-CH-UA-Bitness");
-        String hintMobile = header(request, "Sec-CH-UA-Mobile");
-        String hintUa = header(request, "Sec-CH-UA");
-        String hintFullVersionList = header(request, "Sec-CH-UA-Full-Version-List");
-        String hintWow64 = header(request, "Sec-CH-UA-WoW64");
-        String acceptLanguage = header(request, "Accept-Language");
-
-        boolean compared = false;
-        boolean mismatch = false;
-        if (hintPlatform != null && device.platform() != null) {
-            compared = true;
-            mismatch = differs(hintPlatform, device.platform());
-        }
-        if (hintPlatformVersion != null && device.platformVersion() != null) {
-            compared = true;
-            mismatch = mismatch || versionDiffers(hintPlatformVersion, device.platformVersion());
-        }
-        if (hintModel != null && device.model() != null) {
-            compared = true;
-            mismatch = mismatch || differs(hintModel, device.model());
-        }
-        if (hintFormFactors != null && device.formFactor() != null) {
-            compared = true;
-            mismatch = mismatch || factorsDiffer(hintFormFactors, device.formFactor());
-        }
-        if (hintArchitecture != null && device.architecture() != null) {
-            compared = true;
-            mismatch = mismatch || differs(hintArchitecture, device.architecture());
-        }
-        if (hintBitness != null && device.bitness() != null) {
-            compared = true;
-            mismatch = mismatch || differs(hintBitness, device.bitness());
-        }
-
-        return new ApiResponses.RequestSignals(
-                clean(hintPlatform, 40),
-                clean(hintPlatformVersion, 40),
-                clean(hintModel, 80),
-                clean(hintFormFactors, 64),
-                clean(hintArchitecture, 24),
-                clean(hintBitness, 16),
-                clean(hintMobile, 8),
-                clean(hintUa, 512),
-                clean(hintFullVersionList, 512),
-                clean(hintWow64, 8),
-                clean(acceptLanguage, 160),
-                flag(header(request, "DNT")),
-                flag(header(request, "Sec-GPC")),
-                present(request.getHeader("Via")),
-                present(request.getHeader("Forwarded")),
-                compared ? mismatch : null
-        );
-    }
-
-    private static String header(HttpServletRequest request, String name) {
-        String value = request.getHeader(name);
-        if (value == null || value.isBlank()) return null;
-        String normalized = value.trim();
-        if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
-            normalized = normalized.substring(1, normalized.length() - 1).trim();
-        }
-        return normalized.isEmpty() ? null : normalized;
-    }
-
-    private static Boolean present(String value) {
-        return value != null && !value.isBlank();
-    }
-
-    private static Boolean flag(String value) {
-        if ("1".equals(value)) return true;
-        if ("0".equals(value)) return false;
-        return null;
-    }
-
-    private static boolean differs(String serverValue, String clientValue) {
-        return !serverValue.equalsIgnoreCase(clientValue);
-    }
-
-    private static boolean versionDiffers(String serverValue, String clientValue) {
-        if (serverValue == null || clientValue == null) return false;
-        String serverMajor = firstSegment(serverValue);
-        String clientMajor = firstSegment(clientValue);
-        return !serverMajor.isEmpty() && !clientMajor.isEmpty() && !serverMajor.equals(clientMajor);
-    }
-
-    private static String firstSegment(String value) {
-        int separator = value.indexOf('.');
-        return (separator < 0 ? value : value.substring(0, separator)).trim();
-    }
-
-    private static boolean factorsDiffer(String serverValue, String clientValue) {
-        if (serverValue == null || clientValue == null) return false;
-        String server = normalizedFactors(serverValue);
-        String client = normalizedFactors(clientValue);
-        return !server.isEmpty() && !client.isEmpty() && !server.equals(client);
-    }
-
-    private static String normalizedFactors(String value) {
-        return java.util.Arrays.stream(value.split(","))
-                .map(String::trim)
-                .map(part -> part.startsWith("\"") && part.endsWith("\"") && part.length() >= 2
-                        ? part.substring(1, part.length() - 1) : part)
-                .filter(part -> !part.isEmpty())
-                .map(part -> part.toLowerCase(Locale.ROOT))
-                .sorted()
-                .reduce((left, right) -> left + "," + right)
-                .orElse("");
-    }
-
-    private static String confidence(String value) {
-        String normalized = clean(value, 16);
-        if (normalized == null) return null;
-        return switch (normalized.toLowerCase(Locale.ROOT)) {
-            case "high", "medium", "low" -> normalized.toLowerCase(Locale.ROOT);
-            default -> null;
-        };
-    }
-
-    private static String pointerType(String value) {
-        String normalized = clean(value, 16);
-        if (normalized == null) return null;
-        return switch (normalized.toLowerCase(Locale.ROOT)) {
-            case "fine", "coarse", "none", "unknown" -> normalized.toLowerCase(Locale.ROOT);
-            default -> null;
-        };
-    }
-
-    private static Integer integer(Integer value, int min, int max) {
-        if (value == null || value < min || value > max) return null;
-        return value;
-    }
-
-    private static Double decimal(Double value, double min, double max) {
-        if (value == null || !Double.isFinite(value) || value < min || value > max) return null;
-        return value;
-    }
-
-    private ApiResponses.DeviceInfo readDeviceInfo(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(value, ApiResponses.DeviceInfo.class);
-        } catch (JacksonException exception) {
-            return null;
-        }
-    }
-
-    private static String deviceType(String value) {
-        String type = clean(value, 16);
-        if (type == null) {
-            return null;
-        }
-        return switch (type.toLowerCase(Locale.ROOT)) {
-            case "desktop", "mobile", "tablet" -> type.toLowerCase(Locale.ROOT);
-            default -> "unknown";
-        };
-    }
-
-    private static String clean(String value, int maxLength) {
-        if (value == null) {
-            return null;
-        }
-        String normalized = value.replaceAll("\\p{Cntrl}", "").trim();
-        if (normalized.isEmpty()) {
-            return null;
-        }
-        return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
     }
 
     private static String normalizeEmail(String email) {
@@ -774,6 +601,14 @@ public class AuthService {
         }
     }
 
+    private static List<String> splitReasons(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        return java.util.Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(reason -> !reason.isEmpty())
+                .toList();
+    }
+
     private static String randomToken() {
         byte[] bytes = new byte[32];
         SECURE_RANDOM.nextBytes(bytes);
@@ -804,7 +639,14 @@ public class AuthService {
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 
-    public record AuthResult(ApiResponses.Auth auth, String refreshToken, String sessionId) {
+    public record AuthResult(ApiResponses.Auth auth, String refreshToken, String sessionId,
+                             String deviceToken) {
+        public AuthResult(ApiResponses.Auth auth, String refreshToken, String sessionId) {
+            this(auth, refreshToken, sessionId, null);
+        }
+    }
+
+    public record LoginOutcome(AuthResult auth, ApiResponses.LoginStepUp stepUp) {
     }
 
     public record ActiveSession(Long userId, Instant authenticatedAt, Long sessionId) {

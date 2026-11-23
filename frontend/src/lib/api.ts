@@ -4,6 +4,7 @@ import type {
   AuditLog,
   AuthPayload,
   DeviceProfile,
+  LoginStepUp,
   CreatedOAuthClient,
   OAuthAuthorizeView,
   OAuthClient,
@@ -167,9 +168,25 @@ export const api = {
   },
 
   login(identifier: string, password: string, device?: DeviceProfile | null) {
-    return request<AuthPayload>(
+    return request<AuthPayload | LoginStepUp>(
       '/auth/login',
       { method: 'POST', body: JSON.stringify({ identifier, password, device: device || undefined }) },
+      { auth: false, retry: false },
+    )
+  },
+
+  verifyLoginStepUp(challengeId: string, code: string) {
+    return request<AuthPayload>(
+      '/auth/login/challenge/verify',
+      { method: 'POST', body: JSON.stringify({ challengeId, code }) },
+      { auth: false, retry: false },
+    )
+  },
+
+  resendLoginStepUp(challengeId: string, method?: 'email' | 'sms') {
+    return request<LoginStepUp>(
+      '/auth/login/challenge/resend',
+      { method: 'POST', body: JSON.stringify({ challengeId, method }) },
       { auth: false, retry: false },
     )
   },

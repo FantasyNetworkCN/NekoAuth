@@ -57,6 +57,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/register/code",
                                 "/api/auth/register/phone", "/api/auth/register/phone/code",
                                 "/api/auth/register/captcha", "/api/auth/login",
+                                "/api/auth/login/challenge/verify", "/api/auth/login/challenge/resend",
                                 "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/shared-session", "/api/auth/shared-session/logout",
                                 "/api/auth/password/reset-code", "/api/auth/password/reset",

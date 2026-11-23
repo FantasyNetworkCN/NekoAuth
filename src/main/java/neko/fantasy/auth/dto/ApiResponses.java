@@ -26,6 +26,11 @@ public final class ApiResponses {
     public record Auth(String accessToken, String tokenType, long expiresIn, User user) {
     }
 
+    public record LoginStepUp(String status, String challengeId, List<String> methods,
+                              String method, String maskedTarget, long expiresInSeconds,
+                              long resendAfterSeconds) {
+    }
+
     public record Session(Long id, String ipAddress, String userAgent, SessionDevice device,
                           Instant createdAt, Instant lastUsedAt, Instant expiresAt, boolean current) {
     }

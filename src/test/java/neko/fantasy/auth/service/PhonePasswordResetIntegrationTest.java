@@ -80,7 +80,7 @@ class PhonePasswordResetIntegrationTest {
         send(canonical, captcha).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CAPTCHA_INVALID"));
         send(canonical, captchas.issue()).andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("SMS_CODE_COOLDOWN"));
+                .andExpect(jsonPath("$.code").value("SMS_CODE_RATE_LIMIT"));
 
         var outId = ArgumentCaptor.forClass(String.class);
         verify(sms, timeout(2000)).send(any(), eq(canonical), outId.capture(), eq("100003"));
@@ -127,7 +127,7 @@ class PhonePasswordResetIntegrationTest {
             send(phone, captchas.issue()).andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value(GENERIC_RESPONSE));
             send(phone, captchas.issue()).andExpect(status().isTooManyRequests())
-                    .andExpect(jsonPath("$.code").value("SMS_CODE_COOLDOWN"));
+                    .andExpect(jsonPath("$.code").value("SMS_CODE_RATE_LIMIT"));
             reset(phone, "123456").andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("SMS_CODE_INVALID"));
         }

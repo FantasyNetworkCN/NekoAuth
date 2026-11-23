@@ -121,7 +121,7 @@ class ContactBindingIntegrationTest {
         send(token, "phone", phone, captchas.issue())
                 .andExpect(status().isOk()).andExpect(jsonPath("$.resendAfterSeconds").value(60));
         send(token, "phone", canonical, captchas.issue())
-                .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.code").value("SMS_CODE_COOLDOWN"));
+                .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.code").value("SMS_CODE_RATE_LIMIT"));
         var outId = ArgumentCaptor.forClass(String.class);
         verify(sms).send(any(SettingsService.SmsConfig.class), eq(canonical), outId.capture(), eq("100005"));
 

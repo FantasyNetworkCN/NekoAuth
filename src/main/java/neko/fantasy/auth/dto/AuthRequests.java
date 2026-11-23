@@ -178,6 +178,27 @@ public final class AuthRequests {
     ) {
     }
 
+    public record LoginStepUpVerify(
+            @NotBlank(message = "登录验证已失效，请重新登录")
+            @Size(max = 36, message = "登录验证已失效，请重新登录")
+            String challengeId,
+
+            @NotBlank(message = "请输入验证码")
+            @Pattern(regexp = "^[0-9]{6}$", message = "验证码需为 6 位数字")
+            String code
+    ) {
+    }
+
+    public record LoginStepUpResend(
+            @NotBlank(message = "登录验证已失效，请重新登录")
+            @Size(max = 36, message = "登录验证已失效，请重新登录")
+            String challengeId,
+
+            @Pattern(regexp = "^(email|sms)$", message = "不支持的验证方式")
+            String method
+    ) {
+    }
+
     /** 浏览器尽力提供的设备画像；仅用于服务端会话展示与风险判断，不作为身份认证凭证。 */
     public record DeviceProfile(
             String type,

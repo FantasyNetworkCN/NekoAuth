@@ -111,7 +111,7 @@ Compose 设置 `AUTH_SETUP_ENABLED=false`，因此 `/setup`、`/setup/**` 与 `/
 
 从旧版本升级时，数据库会保留邮箱唯一约束并允许邮箱为空，应用数据库账号需要 `ALTER TABLE` 权限。
 
-仅支持中国大陆手机号（可带 `+86`）。发码前需完成一次性图形验证。短信验证码为 6 位数字，服务端从发码起固定计时 360 秒，到期立即失效，最多试错 5 次。每号码发送间隔至少 60 秒、24 小时最多请求 5 次。另有单实例的 IP 和全局频控，多实例请同时在网关和阿里云配置限额，反代必须覆盖来自客户端的转发头。手机号账户可用手机号或用户名加密码登录，无需邮箱。用户可通过已绑定的邮箱或手机号找回密码。
+仅支持中国大陆手机号（可带 `+86`）。发码前需完成一次性图形验证。短信验证码为 6 位数字，服务端从发码起固定计时 360 秒，到期立即失效，最多试错 5 次。每号码发送间隔至少 60 秒、滚动 1 小时最多请求 5 次；所有发送频率限制统一返回 `SMS_CODE_RATE_LIMIT` 和“短信发送过于频繁，请稍后再试”，不暴露剩余次数或窗口细节。另有单实例的 IP 和全局频控，多实例请同时在网关和阿里云配置限额，反代必须覆盖来自客户端的转发头。手机号账户可用手机号或用户名加密码登录，无需邮箱。用户可通过已绑定的邮箱或手机号找回密码。
 
 ## 本地开发
 
@@ -464,6 +464,12 @@ docker compose down
 | `auth.cors.allowed-origins` | `http://localhost:5173`, `https://auth.nekocore.cn` | 认证站点的浏览器 Origin；OIDC/OAuth 端点还会自动允许已启用客户端回调地址的 Origin |
 | `auth.rate-limit.attempts` | `20` | 单 IP 限流窗口内失败次数 |
 | `auth.rate-limit.window` | `5m` | 登录限流窗口 |
+| `auth.risk.step-up-threshold` | `50` | 登录风险分达到该值时要求邮箱或短信验证码二次确认 |
+| `auth.risk.deny-threshold` | `90` | 登录风险分达到该值时直接拒绝登录 |
+| `auth.risk.history-window` | `90d` | 判断登录 IP 是否为常用网络的历史窗口 |
+| `auth.risk.trust-ttl` | `30d` | 完成验证码升级验证后，浏览器环境的可信有效期 |
+| `auth.risk.challenge-ttl` | `10m` | 登录升级验证挑战的有效期 |
+| `auth.risk.challenge-attempts` | `5` | 单个登录挑战允许的最大验证码错误次数 |
 | `auth.registration.require-email-verification` | `true` | 注册是否必须通过邮箱验证码；生产保持开启 |
 | `auth.registration.email-code-ttl` | `10m` | 注册邮箱验证码有效期；同时通过公开注册策略接口返回 |
 | `auth.registration.email-code-cooldown` | `60s` | 同一邮箱两次发送注册验证码的最小间隔，由服务端强制 |
@@ -497,7 +503,9 @@ docker compose down
 | `POST` | `/api/auth/register/phone` | 使用 `phone/password/verificationCode` 和可选的 `nickname` 注册并登录 |
 | `GET` | `/api/auth/registration-policy` | 公开查询注册开关、`smsRegistrationEnabled`、邮箱注册策略和邮箱验证码限额 |
 | `POST` | `/api/auth/web-entry/resolve` | 登录后校验第一方 Web 的绝对回跳地址；只接受已登记 OAuth 应用的 Origin |
-| `POST` | `/api/auth/login` | 用户名、邮箱或手机号登录 |
+| `POST` | `/api/auth/login` | 用户名、邮箱或手机号登录；低风险直接返回会话，中高风险返回 `202 STEP_UP_REQUIRED` 挑战 |
+| `POST` | `/api/auth/login/challenge/verify` | 使用 `challengeId/code` 完成邮箱或短信升级验证，成功后签发会话 |
+| `POST` | `/api/auth/login/challenge/resend` | 重发登录升级验证码；可传 `method=email|sms` 切换验证方式 |
 | `POST` | `/api/auth/refresh` | 轮换刷新令牌并签发新访问令牌 |
 | `POST` | `/api/auth/logout` | 退出当前会话，同时撤销刷新令牌与父域共享会话，并清理相关 Cookie |
 | `POST` | `/api/auth/shared-session` | 第一方子域凭父域共享会话解析当前登录用户 |
@@ -530,6 +538,22 @@ docker compose down
 | `GET` | `/api/admin/settings` | 管理员读取注册策略、SMTP 与短信设置，密钥字段仅返回配置状态 |
 | `PUT` | `/api/admin/settings` | 管理员更新注册策略、SMTP 与短信设置，省略 `sms` 时保留已有短信设置 |
 | `POST` | `/api/admin/settings/mail/test` | 使用已保存的 SMTP 配置发送测试邮件 |
+
+登录风险达到升级验证阈值时，`POST /api/auth/login` 返回 `202 Accepted`，不设置 refresh token：
+
+```json
+{
+  "status": "STEP_UP_REQUIRED",
+  "challengeId": "…",
+  "methods": ["sms", "email"],
+  "method": "sms",
+  "maskedTarget": "138****1234",
+  "expiresInSeconds": 600,
+  "resendAfterSeconds": 60
+}
+```
+
+客户端随后调用 `/api/auth/login/challenge/verify`；验证成功后才会签发 access token、refresh token 和设备识别 Cookie。风险分、命中的规则和完整设备画像只保存在服务端。
 
 错误响应统一为：
 
@@ -593,10 +617,11 @@ docker compose down
 - 首次启动可由 `data/nekoauth-setup.yml`（或 `config/application.yml`）创建 ADMIN，密码只保存 Argon2i 哈希，后续重启不会覆盖已有账户；安装向导通过一次性标记让安装页密码在首次重启中生效，并在同步成功后删除标记。
 - 用户密码使用 Argon2i 参数 `t=10`、`m=65536 KiB`、`p=1`；密码长度 6-30 个字符。
 - 注册人机验证使用服务端生成的图形挑战，答案只保存带服务端密钥的 HMAC-SHA256 摘要；挑战一次性消费，5 分钟过期，错误 3 次后删除。
-- 注册与找回密码验证码使用 `SecureRandom` 生成，数据库只保存带服务端密钥的 HMAC-SHA256 摘要，并记录用途防止跨流程复用；验证码 10 分钟过期、最多 5 次尝试，成功或失败次数耗尽后立即删除。发送限流使用独立记录，60 秒冷却与滚动 24 小时 5 次上限不随验证码删除而重置。
+- 注册与找回密码验证码使用 `SecureRandom` 生成，数据库只保存带服务端密钥的 HMAC-SHA256 摘要，并记录用途防止跨流程复用；验证码 10 分钟过期、最多 5 次尝试，成功或失败次数耗尽后立即删除。发送限流使用独立记录，60 秒冷却与滚动 1 小时 5 次上限不随验证码删除而重置；命中冷却、手机号上限、IP 上限或供应商频率限制时统一返回 `429 SMS_CODE_RATE_LIMIT` 和“短信发送过于频繁，请稍后再试”。
 - 新用户 ID 从 `1000000` 开始；OAuth 客户端密钥使用 BCrypt cost 12。
 - JWT 仅存 JS 内存。刷新令牌不暴露给 JavaScript，数据库只保存其 SHA-256 哈希。
 - 登录设备画像是客户端“尽力提供”的信息，只用于服务端风控判断，不是不可伪造的身份凭证。服务端同时记录本次请求实际收到的 Client Hints、语言、DNT/GPC 与代理头是否存在，并与客户端上报值做冲突标记；需要强设备认证时应叠加 WebAuthn/Passkey 或原生应用设备密钥。
+- 服务端签发 host-only `nekoauth_device` 随机 Cookie，数据库只保存其 SHA-256 摘要，并按账号维护设备画像摘要、首次/最近出现时间和可信期限。风险评分综合未知设备、网络变化、近期密码失败、Client Hints 冲突、WebDriver 与代理头等信号；达到阈值时先校验密码，再通过已绑定邮箱或手机号完成升级验证，只有验证成功后才签发 refresh token。验证成功后的设备默认可信 30 天，修改密码会撤销全部设备信任。
 - 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，只撤销该设备对应的刷新令牌链，不影响同一用户的其他设备或 OAuth 客户端。
 - Web 端刷新通过 Web Locks 串行化同一浏览器的多个标签页，避免并发轮换被误判为令牌重放。
 - 用户 `tokenVersion` 使密码修改、密码重置、角色变化或停用立即让旧 JWT 失效；修改或重置密码还会撤销全部 Auth refresh token 与 OAuth refresh token。

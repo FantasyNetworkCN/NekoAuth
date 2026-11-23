@@ -101,7 +101,7 @@ public class EmailVerificationService {
         }
 
         SettingsService.SmtpConfig smtp = settingsService.getSmtpConfig();
-        String code = reserveCode(email, EmailVerificationPurpose.REGISTRATION, null);
+        String code = reserveCode(email, EmailVerificationPurpose.REGISTRATION, null, null);
         mailService.sendRegistrationCode(email, smtp, code, codeTtl);
         return new CodeDelivery(
                 "验证码已发送，请查收邮件",
@@ -116,7 +116,7 @@ public class EmailVerificationService {
     public CodeDelivery sendPasswordResetCode(String rawEmail) {
         String email = normalizeEmail(rawEmail);
         SettingsService.SmtpConfig smtp = settingsService.getSmtpConfig();
-        String code = reserveCode(email, EmailVerificationPurpose.PASSWORD_RESET, null);
+        String code = reserveCode(email, EmailVerificationPurpose.PASSWORD_RESET, null, null);
         if (userRepository.existsByEmail(email)) {
             Thread.startVirtualThread(() -> {
                 try {
@@ -135,18 +135,27 @@ public class EmailVerificationService {
     public CodeDelivery sendBindingCode(String email, Long userId) {
         SettingsService.SmtpConfig smtp = settingsService.getSmtpConfig();
         // The account marker distinguishes binding without changing the legacy purpose constraint.
-        String code = reserveCode(email, null, userId);
+        String code = reserveCode(email, null, userId, null);
         mailService.sendBindingCode(email, smtp, code, codeTtl);
         return new CodeDelivery("验证码已发送，请查收邮件", codeTtl.toSeconds(), resendCooldown.toSeconds());
     }
 
-    private String reserveCode(String email, EmailVerificationPurpose purpose, Long bindingUserId) {
+    public CodeDelivery sendLoginStepUpCode(String email, String challengeId) {
+        SettingsService.SmtpConfig smtp = settingsService.getSmtpConfig();
+        String code = reserveCode(email, EmailVerificationPurpose.LOGIN_STEP_UP, null, challengeId);
+        mailService.sendLoginStepUpCode(email, smtp, code, codeTtl);
+        return new CodeDelivery("验证码已发送，请查收邮件", codeTtl.toSeconds(), resendCooldown.toSeconds());
+    }
+
+    private String reserveCode(String email, EmailVerificationPurpose purpose,
+                               Long bindingUserId, String challengeId) {
         String code = generateCode();
         ReentrantLock lock = lockFor(email);
         lock.lock();
         try {
             Instant now = Instant.now();
-            transactionTemplate.executeWithoutResult(status -> reserveSend(email, code, purpose, bindingUserId, now));
+            transactionTemplate.executeWithoutResult(status ->
+                    reserveSend(email, code, purpose, bindingUserId, challengeId, now));
         } finally {
             lock.unlock();
         }
@@ -155,15 +164,21 @@ public class EmailVerificationService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public void verifyAndConsume(String rawEmail, String code, EmailVerificationPurpose purpose) {
-        verifyAndConsume(normalizeEmail(rawEmail), code, purpose, null);
+        verifyAndConsume(normalizeEmail(rawEmail), code, purpose, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public void verifyBindingCode(String email, String code, Long userId) {
-        verifyAndConsume(email, code, null, userId);
+        verifyAndConsume(email, code, null, userId, null);
     }
 
-    private void verifyAndConsume(String email, String code, EmailVerificationPurpose purpose, Long bindingUserId) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
+    public void verifyLoginStepUpCode(String email, String code, String challengeId) {
+        verifyAndConsume(email, code, EmailVerificationPurpose.LOGIN_STEP_UP, null, challengeId);
+    }
+
+    private void verifyAndConsume(String email, String code, EmailVerificationPurpose purpose,
+                                  Long bindingUserId, String challengeId) {
         if (!StringUtils.hasText(code)) {
             throw ApiException.badRequest("EMAIL_VERIFICATION_REQUIRED", "请先获取邮箱验证码");
         }
@@ -172,6 +187,7 @@ public class EmailVerificationService {
                 .orElseThrow(() -> ApiException.badRequest(
                         "EMAIL_VERIFICATION_INVALID", "邮箱验证码无效或已过期，请重新获取"));
         if (!Objects.equals(record.getBindingUserId(), bindingUserId)
+                || !Objects.equals(record.getChallengeId(), challengeId)
                 || (bindingUserId == null && record.getPurpose() != purpose)) {
             throw ApiException.badRequest(
                     "EMAIL_VERIFICATION_INVALID", "邮箱验证码无效或已过期，请重新获取");
@@ -211,8 +227,8 @@ public class EmailVerificationService {
         sendLimitRepository.deleteOlderThan(now.minus(dailyWindow));
     }
 
-    private void reserveSend(String email, String code, EmailVerificationPurpose purpose, Long bindingUserId,
-                             Instant now) {
+    private void reserveSend(String email, String code, EmailVerificationPurpose purpose,
+                             Long bindingUserId, String challengeId, Instant now) {
         EmailVerificationSendLimit limit = sendLimitRepository.findByEmailForUpdate(email).orElse(null);
         if (limit == null) {
             limit = new EmailVerificationSendLimit();
@@ -254,6 +270,7 @@ public class EmailVerificationService {
         record.setCodeHash(hashCode(email, code));
         record.setPurpose(purpose);
         record.setBindingUserId(bindingUserId);
+        record.setChallengeId(challengeId);
         record.setExpiresAt(now.plus(codeTtl));
         record.setLastSentAt(now);
         record.setAttempts(0);

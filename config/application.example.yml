@@ -27,6 +27,13 @@ auth:
     username: admin
     email: admin@fantasy.network
     password: ${admin_password}
+  risk:
+    step-up-threshold: 50
+    deny-threshold: 90
+    history-window: 90d
+    trust-ttl: 30d
+    challenge-ttl: 10m
+    challenge-attempts: 5
   setup:
     enabled: false
 

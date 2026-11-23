@@ -74,6 +74,19 @@ public class MailService {
                 """.formatted(code, ttl.toMinutes()));
     }
 
+    public void sendLoginStepUpCode(String recipient, SettingsService.SmtpConfig config,
+                                    String code, Duration ttl) {
+        send(config, recipient, "[" + config.serviceName() + "] 新设备登录验证码", """
+                你的新设备登录验证码是：
+
+                %s
+
+                验证码 %d 分钟内有效且只能使用一次。你的账户刚刚通过密码验证，
+                但当前登录环境或网络与此前不同，因此需要完成这一步确认。
+                如果这不是你本人操作，请立即修改密码并退出所有设备。
+                """.formatted(code, ttl.toMinutes()));
+    }
+
     private void send(SettingsService.SmtpConfig config, String recipient,
                       String subject, String text) {
         JavaMailSenderImpl sender = new JavaMailSenderImpl();

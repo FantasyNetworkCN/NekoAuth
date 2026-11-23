@@ -31,7 +31,7 @@ public class SmsRegistrationService {
     private static final Logger log = LoggerFactory.getLogger(SmsRegistrationService.class);
     static final Duration TTL = Duration.ofSeconds(360);
     static final Duration COOLDOWN = Duration.ofMinutes(1);
-    private static final Duration SEND_WINDOW = Duration.ofDays(1);
+    private static final Duration SEND_WINDOW = Duration.ofHours(1);
     // 阿里云号码认证模板按用途固定，不能混用。
     private static final String PHONE_BINDING_TEMPLATE = "100005"; // 首次绑定手机号
     private static final String PASSWORD_RESET_TEMPLATE = "100003"; // 短信重置密码
@@ -104,6 +104,19 @@ public class SmsRegistrationService {
                 TTL.toSeconds(), COOLDOWN.toSeconds());
     }
 
+    @Transactional(noRollbackFor = ApiException.class)
+    public ApiResponses.VerificationCodeSent sendLoginStepUpCode(String phone, String clientIp, String challengeId) {
+        var config = settingsService.getSmsVerificationConfig();
+        Instant now = Instant.now();
+        var challenge = reserveSend(phone, clientIp, now);
+        challenge.consume();
+        challenges.flush();
+        String outId = UUID.randomUUID().toString();
+        smsClient.send(config, phone, outId, SettingsService.LOGIN_REGISTRATION_SMS_TEMPLATE);
+        challenge.activateLoginStepUp(outId, now.plus(TTL), challengeId);
+        return new ApiResponses.VerificationCodeSent("验证码已发送，请查收短信", TTL.toSeconds(), COOLDOWN.toSeconds());
+    }
+
     private ApiResponses.VerificationCodeSent send(String phone, String clientIp, SettingsService.SmsConfig config,
                                                    String templateCode, Long bindingUserId) {
         Instant now = Instant.now();
@@ -120,11 +133,11 @@ public class SmsRegistrationService {
         var stored = challenges.findForUpdate(phone);
         var challenge = stored.orElseGet(() -> new SmsRegistrationChallenge(phone, now));
         if (challenge.coolingDown(now, COOLDOWN)) {
-            throw ApiException.tooManyRequests("SMS_CODE_COOLDOWN", "请等 60 秒后再发送验证码");
+            throw tooFrequent();
         }
         challenge.resetSendWindowIfExpired(now, SEND_WINDOW);
         if (challenge.getSendCount() >= MAX_SENDS_PER_PHONE) {
-            throw ApiException.tooManyRequests("SMS_CODE_DAILY_LIMIT", "该手机号 24 小时内最多发送 5 次验证码");
+            throw tooFrequent();
         }
         reserveIpAndServiceQuota(clientIp, now);
         challenge.reserveSend(now);
@@ -137,28 +150,35 @@ public class SmsRegistrationService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public void verifyAndConsume(String phone, String code) {
-        verifyAndConsume(phone, code, null, null);
+        verifyAndConsume(phone, code, null, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public void verifyBindingCode(String phone, String code, Long userId) {
-        verifyAndConsume(phone, code, userId, null);
+        verifyAndConsume(phone, code, userId, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
     public void verifyPasswordResetCode(String phone, String code, Long userId) {
-        verifyAndConsume(phone, code, null, userId);
+        verifyAndConsume(phone, code, null, userId, null);
     }
 
-    private void verifyAndConsume(String phone, String code, Long bindingUserId, Long passwordResetUserId) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = ApiException.class)
+    public void verifyLoginStepUpCode(String phone, String code, String challengeId) {
+        verifyAndConsume(phone, code, null, null, challengeId);
+    }
+
+    private void verifyAndConsume(String phone, String code, Long bindingUserId,
+                                  Long passwordResetUserId, String loginChallengeId) {
         var challenge = challenges.findForUpdate(phone).orElseThrow(SmsRegistrationService::invalidCode);
         if (challenge.getOutId() == null
                 || !Objects.equals(challenge.getBindingUserId(), bindingUserId)
-                || !Objects.equals(challenge.getPasswordResetUserId(), passwordResetUserId)) {
+                || !Objects.equals(challenge.getPasswordResetUserId(), passwordResetUserId)
+                || !Objects.equals(challenge.getLoginChallengeId(), loginChallengeId)) {
             throw invalidCode();
         }
         requireUnexpired(challenge);
-        var config = bindingUserId == null && passwordResetUserId == null
+        var config = loginChallengeId == null && bindingUserId == null && passwordResetUserId == null
                 ? settingsService.getSmsConfig() : settingsService.getSmsVerificationConfig();
         boolean verified = smsClient.verify(config, phone, challenge.getOutId(), code);
         requireUnexpired(challenge);
@@ -197,6 +217,10 @@ public class SmsRegistrationService {
 
     private static ApiException invalidCode() {
         return ApiException.badRequest("SMS_CODE_INVALID", "短信验证码不正确或已过期");
+    }
+
+    private static ApiException tooFrequent() {
+        return ApiException.tooManyRequests("SMS_CODE_RATE_LIMIT", "短信发送过于频繁，请稍后再试");
     }
 
     private static void requireUnexpired(SmsRegistrationChallenge challenge) {

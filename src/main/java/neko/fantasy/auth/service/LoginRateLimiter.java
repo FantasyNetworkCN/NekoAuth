@@ -64,6 +64,22 @@ public class LoginRateLimiter {
         attempts.remove(clientKey);
     }
 
+    public int failures(String clientKey) {
+        if (redisEnabled) {
+            String value = redisTemplate.opsForValue().get(redisKeyPrefix + clientKey);
+            if (!StringUtils.hasText(value)) return 0;
+            try {
+                return Math.max(0, Integer.parseInt(value));
+            } catch (NumberFormatException exception) {
+                redisTemplate.delete(redisKeyPrefix + clientKey);
+                return 0;
+            }
+        }
+        AttemptWindow window = attempts.get(clientKey);
+        return window != null && window.expiresAt().isAfter(Instant.now())
+                ? window.failures() : 0;
+    }
+
     @Scheduled(fixedDelay = 600_000)
     void removeExpiredWindows() {
         Instant now = Instant.now();

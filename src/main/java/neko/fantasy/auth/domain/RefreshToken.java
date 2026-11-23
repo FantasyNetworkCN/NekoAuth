@@ -62,6 +62,15 @@ public class RefreshToken {
     @Column(name = "family_id", length = 64)
     private String familyId;
 
+    @Column(name = "risk_score")
+    private Integer riskScore;
+
+    @Column(name = "risk_level", length = 16)
+    private String riskLevel;
+
+    @Column(name = "risk_reasons", length = 1000)
+    private String riskReasons;
+
     protected RefreshToken() {
     }
 
@@ -147,6 +156,24 @@ public class RefreshToken {
 
     public String getFamilyId() {
         return familyId;
+    }
+
+    public Integer getRiskScore() {
+        return riskScore;
+    }
+
+    public String getRiskLevel() {
+        return riskLevel;
+    }
+
+    public String getRiskReasons() {
+        return riskReasons;
+    }
+
+    public void setRisk(Integer riskScore, String riskLevel, String riskReasons) {
+        this.riskScore = riskScore;
+        this.riskLevel = riskLevel;
+        this.riskReasons = riskReasons;
     }
 
     public boolean isActive(Instant now) {

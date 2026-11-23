@@ -27,6 +27,9 @@ public class EmailVerificationCode {
     @Column(name = "binding_user_id")
     private Long bindingUserId;
 
+    @Column(name = "challenge_id", length = 36)
+    private String challengeId;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
@@ -66,6 +69,14 @@ public class EmailVerificationCode {
 
     public void setBindingUserId(Long bindingUserId) {
         this.bindingUserId = bindingUserId;
+    }
+
+    public String getChallengeId() {
+        return challengeId;
+    }
+
+    public void setChallengeId(String challengeId) {
+        this.challengeId = challengeId;
     }
 
     public Instant getExpiresAt() {
