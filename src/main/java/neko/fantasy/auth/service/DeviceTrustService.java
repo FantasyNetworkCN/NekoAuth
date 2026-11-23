@@ -5,6 +5,7 @@ import neko.fantasy.auth.domain.KnownDevice;
 import neko.fantasy.auth.domain.User;
 import neko.fantasy.auth.dto.ApiResponses;
 import neko.fantasy.auth.repository.KnownDeviceRepository;
+import neko.fantasy.auth.security.ClientIpResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -26,17 +27,20 @@ public class DeviceTrustService {
     private final KnownDeviceRepository devices;
     private final AuthCookieService cookies;
     private final DeviceProfileService deviceProfiles;
+    private final ClientIpResolver clientIps;
     private final Duration trustTtl;
 
     public DeviceTrustService(
             KnownDeviceRepository devices,
             AuthCookieService cookies,
             DeviceProfileService deviceProfiles,
+            ClientIpResolver clientIps,
             @Value("${auth.risk.trust-ttl:30d}") Duration trustTtl
     ) {
         this.devices = devices;
         this.cookies = cookies;
         this.deviceProfiles = deviceProfiles;
+        this.clientIps = clientIps;
         this.trustTtl = trustTtl;
     }
 
@@ -63,7 +67,7 @@ public class DeviceTrustService {
                 device == null ? null : device.type(),
                 device == null ? null : device.platform(),
                 device == null ? null : device.browser(),
-                request.getRemoteAddr(),
+                clientIps.resolve(request),
                 truncate(request.getHeader("User-Agent"), 512),
                 now);
         if (verifiedByStepUp) {

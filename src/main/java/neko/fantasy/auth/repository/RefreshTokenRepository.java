@@ -31,6 +31,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     boolean existsByUserId(Long userId);
 
+    Optional<RefreshToken> findFirstByUserIdOrderByCreatedAtDesc(Long userId);
+
     List<RefreshToken> findAllByUserIdAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
             Long userId, Instant now);
 

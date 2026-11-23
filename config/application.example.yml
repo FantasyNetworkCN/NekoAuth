@@ -27,6 +27,11 @@ auth:
     username: admin
     email: admin@fantasy.network
     password: ${admin_password}
+  client-ip:
+    trusted-header: auto
+    extra-headers: ""
+  geoip:
+    directory: /app/GeoIP
   risk:
     step-up-threshold: 50
     deny-threshold: 90

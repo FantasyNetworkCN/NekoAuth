@@ -9,6 +9,7 @@ import neko.fantasy.auth.settings.MailSecurity;
 import neko.fantasy.auth.settings.SettingsRequests;
 import neko.fantasy.auth.settings.SettingsService;
 import neko.fantasy.auth.settings.SettingsService.SmsConfig;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -49,6 +50,7 @@ class LoginRiskIntegrationTest {
     @Autowired SettingsService settings;
     @MockitoBean EmailVerificationService emailVerification;
     @MockitoBean DypnsSmsClient sms;
+    @MockitoBean IpGeoService ipGeo;
 
     @BeforeEach
     void configureDelivery() {
@@ -63,6 +65,7 @@ class LoginRiskIntegrationTest {
         ));
         when(emailVerification.sendLoginStepUpCode(anyString(), anyString()))
                 .thenReturn(new EmailVerificationService.CodeDelivery("验证码已发送", 300, 60));
+        when(ipGeo.resolve(anyString())).thenReturn(IpGeoService.IpLocation.unknown());
     }
 
     @Test
@@ -139,6 +142,40 @@ class LoginRiskIntegrationTest {
                 .andExpect(jsonPath("$.accessToken").isNotEmpty());
 
         verify(emailVerification).verifyLoginStepUpCode(eq(email), eq("123456"), eq(challengeId));
+    }
+
+    @Test
+    void knownDeviceMovingFromShanghaiToMacauInSecondsRequiresStepUp() throws Exception {
+        String username = "travel_" + UUID.randomUUID().toString().substring(0, 8);
+        String email = username + "@gmail.com";
+        IpGeoService.IpLocation shanghai = new IpGeoService.IpLocation(
+                "CN", "中国", "上海", "上海", 31.2304, 121.4737, null, "", "test");
+        IpGeoService.IpLocation macau = new IpGeoService.IpLocation(
+                "MO", "中国澳门", "", "澳门", 22.1987, 113.5439, null, "", "test");
+        when(ipGeo.resolve("198.51.100.8")).thenReturn(shanghai);
+        when(ipGeo.resolve("203.0.113.99")).thenReturn(macau);
+
+        MvcResult registration = mvc.perform(post("/api/auth/register")
+                        .with(remoteAddress("198.51.100.8"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","email":"%s","password":"Password123"}
+                                """.formatted(username, email)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Cookie device = registration.getResponse().getCookie("nekoauth_device");
+        assertThat(device).isNotNull();
+
+        mvc.perform(post("/api/auth/login")
+                        .with(remoteAddress("203.0.113.99"))
+                        .cookie(device)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identifier":"%s","password":"Password123"}
+                                """.formatted(email)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("STEP_UP_REQUIRED"))
+                .andExpect(jsonPath("$.method").value("email"));
     }
 
     private MvcResult register(String prefix) throws Exception {

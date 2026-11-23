@@ -56,6 +56,11 @@ auth:
   rate-limit:
     attempts: 20
     window: 5m
+  client-ip:
+    trusted-header: auto
+    extra-headers: ""
+  geoip:
+    directory: /app/GeoIP
   risk:
     step-up-threshold: 50
     deny-threshold: 90

@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import neko.fantasy.auth.dto.ApiResponses;
 import neko.fantasy.auth.dto.AuthRequests;
 import neko.fantasy.auth.security.UserPrincipal;
+import neko.fantasy.auth.security.ClientIpResolver;
 import neko.fantasy.auth.service.ContactBindingService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,9 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ContactBindingController {
 
     private final ContactBindingService binding;
+    private final ClientIpResolver clientIps;
 
-    public ContactBindingController(ContactBindingService binding) {
+    public ContactBindingController(ContactBindingService binding, ClientIpResolver clientIps) {
         this.binding = binding;
+        this.clientIps = clientIps;
     }
 
     @PostMapping("/email/code")
@@ -34,7 +37,7 @@ public class ContactBindingController {
             @Valid @RequestBody AuthRequests.PhoneRegistrationCode request,
             HttpServletRequest servletRequest) {
         return binding.sendPhoneCode(principal.id(), request.phone(), request.captchaId(), request.captchaAnswer(),
-                servletRequest.getRemoteAddr());
+                clientIps.resolve(servletRequest));
     }
 
     @PostMapping("/email")

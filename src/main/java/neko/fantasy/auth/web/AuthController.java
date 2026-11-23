@@ -7,6 +7,7 @@ import neko.fantasy.auth.dto.ApiResponses;
 import neko.fantasy.auth.dto.AuthRequests;
 import neko.fantasy.auth.exception.ApiException;
 import neko.fantasy.auth.security.UserPrincipal;
+import neko.fantasy.auth.security.ClientIpResolver;
 import neko.fantasy.auth.service.AuthCookieService;
 import neko.fantasy.auth.service.AuthService;
 import neko.fantasy.auth.service.EmailVerificationService;
@@ -39,17 +40,19 @@ public class AuthController {
     private final RegistrationCaptchaService captchaService;
     private final SmsRegistrationService smsRegistrationService;
     private final SettingsService settingsService;
+    private final ClientIpResolver clientIps;
 
     public AuthController(AuthService authService, AuthCookieService cookieService,
                           EmailVerificationService emailVerificationService,
                           RegistrationCaptchaService captchaService, SmsRegistrationService smsRegistrationService,
-                          SettingsService settingsService) {
+                          SettingsService settingsService, ClientIpResolver clientIps) {
         this.authService = authService;
         this.cookieService = cookieService;
         this.emailVerificationService = emailVerificationService;
         this.captchaService = captchaService;
         this.smsRegistrationService = smsRegistrationService;
         this.settingsService = settingsService;
+        this.clientIps = clientIps;
     }
 
     @PostMapping("/register/phone")
@@ -66,7 +69,7 @@ public class AuthController {
     ) {
         smsRegistrationService.requireEnabled();
         captchaService.verifyAndConsume(request.captchaId(), request.captchaAnswer());
-        return smsRegistrationService.send(request.phone(), servletRequest.getRemoteAddr());
+        return smsRegistrationService.send(request.phone(), clientIps.resolve(servletRequest));
     }
 
     @PostMapping("/register")
@@ -193,7 +196,7 @@ public class AuthController {
     public ApiResponses.VerificationCodeSent phonePasswordResetCode(
             @Valid @RequestBody AuthRequests.PhoneRegistrationCode request, HttpServletRequest servletRequest) {
         captchaService.verifyAndConsume(request.captchaId(), request.captchaAnswer());
-        return smsRegistrationService.sendPasswordResetCode(request.phone(), servletRequest.getRemoteAddr());
+        return smsRegistrationService.sendPasswordResetCode(request.phone(), clientIps.resolve(servletRequest));
     }
 
     @PostMapping("/password/phone/reset")

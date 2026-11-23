@@ -14,6 +14,7 @@ import neko.fantasy.auth.oauth.OAuthRefreshTokenRepository;
 import neko.fantasy.auth.repository.RefreshTokenRepository;
 import neko.fantasy.auth.repository.UserRepository;
 import neko.fantasy.auth.security.JwtService;
+import neko.fantasy.auth.security.ClientIpResolver;
 import neko.fantasy.auth.settings.SettingsService;
 import neko.fantasy.auth.util.NicknameValidator;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -54,6 +55,8 @@ public class AuthService {
     private final LoginRiskService loginRisk;
     private final LoginChallengeService loginChallenges;
     private final AuthCookieService cookies;
+    private final ClientIpResolver clientIps;
+    private final IpGeoService ipGeo;
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
@@ -64,7 +67,7 @@ public class AuthService {
                        EmailVerificationService emailVerificationService, SmsRegistrationService smsRegistrationService,
                        DeviceProfileService deviceProfiles, DeviceTrustService deviceTrust,
                        LoginRiskService loginRisk, LoginChallengeService loginChallenges,
-                       AuthCookieService cookies) {
+                       AuthCookieService cookies, ClientIpResolver clientIps, IpGeoService ipGeo) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.oauthRefreshTokenRepository = oauthRefreshTokenRepository;
@@ -81,6 +84,8 @@ public class AuthService {
         this.loginRisk = loginRisk;
         this.loginChallenges = loginChallenges;
         this.cookies = cookies;
+        this.clientIps = clientIps;
+        this.ipGeo = ipGeo;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-42");
     }
 
@@ -302,6 +307,9 @@ public class AuthService {
                 familyId
         );
         refreshed.setRisk(stored.getRiskScore(), stored.getRiskLevel(), stored.getRiskReasons());
+        refreshed.setLoginLocation(stored.getLoginCountryCode(), stored.getLoginCountryName(),
+                stored.getLoginRegion(), stored.getLoginCity(), stored.getLoginLatitude(),
+                stored.getLoginLongitude(), stored.getLoginAsn(), stored.getLoginAsnOrganization());
         refreshTokenRepository.save(refreshed);
 
         return authResult(user, newRawToken, authenticatedAt, familyId, null);
@@ -527,12 +535,14 @@ public class AuthService {
         ApiResponses.DeviceInfo device = deviceProfiles.fromJson(deviceInfoJson);
         DeviceTrustService.DeviceResolution deviceResolution = deviceTrust.record(
                 user, request, device, verifiedByStepUp);
+        String ipAddress = clientIp(request);
+        IpGeoService.IpLocation location = ipGeo.resolve(ipAddress);
         RefreshToken refreshToken = new RefreshToken(
                 user,
                 hashToken(rawToken),
                 authenticatedAt,
                 Instant.now().plus(properties.jwt().refreshTtl()),
-                clientIp(request),
+                ipAddress,
                 truncate(request.getHeader("User-Agent"), 512),
                 deviceInfoJson,
                 familyId
@@ -540,6 +550,9 @@ public class AuthService {
         if (risk != null) {
             refreshToken.setRisk(risk.score(), risk.level(), risk.reasonText());
         }
+        refreshToken.setLoginLocation(location.countryCode(), location.countryName(),
+                location.region(), location.city(), location.latitude(), location.longitude(),
+                location.asn(), location.organization());
         refreshTokenRepository.save(refreshToken);
         return authResult(user, rawToken, authenticatedAt, familyId, deviceResolution.newToken());
     }
@@ -624,11 +637,11 @@ public class AuthService {
         }
     }
 
-    private static String clientIp(HttpServletRequest request) {
-        return truncate(request.getRemoteAddr(), 64);
+    private String clientIp(HttpServletRequest request) {
+        return truncate(clientIps.resolve(request), 64);
     }
 
-    private static String clientKey(HttpServletRequest request) {
+    private String clientKey(HttpServletRequest request) {
         return clientIp(request);
     }
 

@@ -16,6 +16,10 @@ services:
         {"auth":{"cors":{"allowed-origins":["${NEKO_CORS_ORIGIN:-https://auth.nekocore.cn}"]}}}
     volumes:
       - nekoauth_data:/app/data
+      - ${NEKO_GEOIP_DIR:-../NekoMusic/backend/src/main/resources}/GeoLite2-City.mmdb:/app/GeoIP/GeoLite2-City.mmdb:ro
+      - ${NEKO_GEOIP_DIR:-../NekoMusic/backend/src/main/resources}/GeoLite2-ASN.mmdb:/app/GeoIP/GeoLite2-ASN.mmdb:ro
+      - ${NEKO_GEOIP_DIR:-../NekoMusic/backend/src/main/resources}/GeoIP/qqwry.dat:/app/GeoIP/qqwry.dat:ro
+      - ${NEKO_GEOIP_DIR:-../NekoMusic/backend/src/main/resources}/GeoIP/asn_regions.tsv:/app/GeoIP/asn_regions.tsv:ro
     restart: unless-stopped
 
 volumes:

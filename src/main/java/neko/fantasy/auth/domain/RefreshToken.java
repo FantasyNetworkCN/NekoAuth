@@ -71,6 +71,30 @@ public class RefreshToken {
     @Column(name = "risk_reasons", length = 1000)
     private String riskReasons;
 
+    @Column(name = "login_country_code", length = 8)
+    private String loginCountryCode;
+
+    @Column(name = "login_country_name", length = 80)
+    private String loginCountryName;
+
+    @Column(name = "login_region", length = 80)
+    private String loginRegion;
+
+    @Column(name = "login_city", length = 80)
+    private String loginCity;
+
+    @Column(name = "login_latitude")
+    private Double loginLatitude;
+
+    @Column(name = "login_longitude")
+    private Double loginLongitude;
+
+    @Column(name = "login_asn")
+    private Long loginAsn;
+
+    @Column(name = "login_asn_organization", length = 160)
+    private String loginAsnOrganization;
+
     protected RefreshToken() {
     }
 
@@ -174,6 +198,50 @@ public class RefreshToken {
         this.riskScore = riskScore;
         this.riskLevel = riskLevel;
         this.riskReasons = riskReasons;
+    }
+
+    public String getLoginCountryCode() {
+        return loginCountryCode;
+    }
+
+    public String getLoginCountryName() {
+        return loginCountryName;
+    }
+
+    public String getLoginRegion() {
+        return loginRegion;
+    }
+
+    public String getLoginCity() {
+        return loginCity;
+    }
+
+    public Double getLoginLatitude() {
+        return loginLatitude;
+    }
+
+    public Double getLoginLongitude() {
+        return loginLongitude;
+    }
+
+    public Long getLoginAsn() {
+        return loginAsn;
+    }
+
+    public String getLoginAsnOrganization() {
+        return loginAsnOrganization;
+    }
+
+    public void setLoginLocation(String countryCode, String countryName, String region, String city,
+                                 Double latitude, Double longitude, Long asn, String organization) {
+        this.loginCountryCode = countryCode;
+        this.loginCountryName = countryName;
+        this.loginRegion = region;
+        this.loginCity = city;
+        this.loginLatitude = latitude;
+        this.loginLongitude = longitude;
+        this.loginAsn = asn;
+        this.loginAsnOrganization = organization;
     }
 
     public boolean isActive(Instant now) {

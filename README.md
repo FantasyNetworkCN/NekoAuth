@@ -464,6 +464,9 @@ docker compose down
 | `auth.cors.allowed-origins` | `http://localhost:5173`, `https://auth.nekocore.cn` | 认证站点的浏览器 Origin；OIDC/OAuth 端点还会自动允许已启用客户端回调地址的 Origin |
 | `auth.rate-limit.attempts` | `20` | 单 IP 限流窗口内失败次数 |
 | `auth.rate-limit.window` | `5m` | 登录限流窗口 |
+| `auth.client-ip.trusted-header` | `auto` | 可信客户端 IP 解析方式；`auto` 仅在本机/内网反向代理回源时采信 CDN 转发头，公网直连只使用 socket 地址 |
+| `auth.client-ip.extra-headers` | 空 | `auto` 模式下额外优先尝试的单值客户端 IP 请求头，逗号分隔 |
+| `auth.geoip.directory` | `/app/GeoIP` | 本地 MaxMind / qqwry / ASN 映射数据库目录；库文件缺失时仅降级地理风控，不影响登录 |
 | `auth.risk.step-up-threshold` | `50` | 登录风险分达到该值时要求邮箱或短信验证码二次确认 |
 | `auth.risk.deny-threshold` | `90` | 登录风险分达到该值时直接拒绝登录 |
 | `auth.risk.history-window` | `90d` | 判断登录 IP 是否为常用网络的历史窗口 |
@@ -622,6 +625,7 @@ docker compose down
 - JWT 仅存 JS 内存。刷新令牌不暴露给 JavaScript，数据库只保存其 SHA-256 哈希。
 - 登录设备画像是客户端“尽力提供”的信息，只用于服务端风控判断，不是不可伪造的身份凭证。服务端同时记录本次请求实际收到的 Client Hints、语言、DNT/GPC 与代理头是否存在，并与客户端上报值做冲突标记；需要强设备认证时应叠加 WebAuthn/Passkey 或原生应用设备密钥。
 - 服务端签发 host-only `nekoauth_device` 随机 Cookie，数据库只保存其 SHA-256 摘要，并按账号维护设备画像摘要、首次/最近出现时间和可信期限。风险评分综合未知设备、网络变化、近期密码失败、Client Hints 冲突、WebDriver 与代理头等信号；达到阈值时先校验密码，再通过已绑定邮箱或手机号完成升级验证，只有验证成功后才签发 refresh token。验证成功后的设备默认可信 30 天，修改密码会撤销全部设备信任。
+- IP 风控复用 NekoMusic 的本地定位方案：先解析可信客户端 IP，再以 MaxMind City 经纬度计算跨地区移动速度，ASN 省级运营商映射修正国内省份，IPv4 再由 qqwry 补充。上海到澳门这类在异常短时间内跨越上千公里的登录会被标记为不可达旅行，即使设备 Cookie 已知也会强制升级验证。数据库只从本地读取，不调用第三方定位 API；库文件不提交仓库，Compose 默认从同级 `NekoMusic/backend/src/main/resources` 只读挂载。
 - 每次刷新都会撤销旧刷新令牌；已轮换令牌再次出现时，只撤销该设备对应的刷新令牌链，不影响同一用户的其他设备或 OAuth 客户端。
 - Web 端刷新通过 Web Locks 串行化同一浏览器的多个标签页，避免并发轮换被误判为令牌重放。
 - 用户 `tokenVersion` 使密码修改、密码重置、角色变化或停用立即让旧 JWT 失效；修改或重置密码还会撤销全部 Auth refresh token 与 OAuth refresh token。

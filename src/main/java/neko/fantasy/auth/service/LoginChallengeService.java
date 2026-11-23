@@ -7,6 +7,7 @@ import neko.fantasy.auth.dto.ApiResponses;
 import neko.fantasy.auth.exception.ApiException;
 import neko.fantasy.auth.repository.LoginChallengeRepository;
 import neko.fantasy.auth.settings.SettingsService;
+import neko.fantasy.auth.security.ClientIpResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class LoginChallengeService {
     private final EmailVerificationService emailVerification;
     private final SmsRegistrationService smsVerification;
     private final SettingsService settings;
+    private final ClientIpResolver clientIps;
     private final Duration challengeTtl;
     private final int maxAttempts;
 
@@ -34,6 +36,7 @@ public class LoginChallengeService {
             EmailVerificationService emailVerification,
             SmsRegistrationService smsVerification,
             SettingsService settings,
+            ClientIpResolver clientIps,
             @Value("${auth.risk.challenge-ttl:10m}") Duration challengeTtl,
             @Value("${auth.risk.challenge-attempts:5}") int maxAttempts
     ) {
@@ -41,6 +44,7 @@ public class LoginChallengeService {
         this.emailVerification = emailVerification;
         this.smsVerification = smsVerification;
         this.settings = settings;
+        this.clientIps = clientIps;
         this.challengeTtl = challengeTtl;
         this.maxAttempts = Math.max(1, maxAttempts);
     }
@@ -166,7 +170,8 @@ public class LoginChallengeService {
 
     private Delivery send(User user, String method, String challengeId, HttpServletRequest request) {
         if ("sms".equals(method)) {
-            var delivery = smsVerification.sendLoginStepUpCode(user.getPhone(), request.getRemoteAddr(), challengeId);
+            var delivery = smsVerification.sendLoginStepUpCode(
+                    user.getPhone(), clientIps.resolve(request), challengeId);
             return new Delivery("sms", user.getPhone(), delivery.resendAfterSeconds());
         }
         var delivery = emailVerification.sendLoginStepUpCode(user.getEmail(), challengeId);

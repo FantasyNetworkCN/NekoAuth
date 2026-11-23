@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import neko.fantasy.auth.dto.ApiResponses;
 import neko.fantasy.auth.dto.AuthRequests;
 import neko.fantasy.auth.security.UserPrincipal;
+import neko.fantasy.auth.security.ClientIpResolver;
 import neko.fantasy.auth.service.AdminService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,9 +23,11 @@ import jakarta.servlet.http.HttpServletRequest;
 public class AdminController {
 
     private final AdminService adminService;
+    private final ClientIpResolver clientIps;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, ClientIpResolver clientIps) {
         this.adminService = adminService;
+        this.clientIps = clientIps;
     }
 
     @GetMapping
@@ -43,6 +46,7 @@ public class AdminController {
             @PathVariable Long id,
             @Valid @RequestBody AuthRequests.AdminUpdateUser request
     ) {
-        return adminService.updateUser(principal.id(), principal.username(), servletRequest.getRemoteAddr(), id, request);
+        return adminService.updateUser(
+                principal.id(), principal.username(), clientIps.resolve(servletRequest), id, request);
     }
 }
