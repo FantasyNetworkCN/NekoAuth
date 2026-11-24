@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -54,7 +55,12 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiResponses.Error> handleConflict(DataIntegrityViolationException exception) {
+    public ResponseEntity<ApiResponses.Error> handleDataIntegrityViolation(
+            DataIntegrityViolationException exception) {
+        log.warn("Database integrity violation: {}", exception.getMostSpecificCause().getMessage());
+        if (isDataTooLong(exception)) {
+            return error(HttpStatus.BAD_REQUEST, "DATA_TOO_LONG", "提交的数据过长", null);
+        }
         return error(HttpStatus.CONFLICT, "CONFLICT", "数据已存在或与现有记录冲突", null);
     }
 
@@ -78,5 +84,20 @@ public class ApiExceptionHandler {
             HttpStatus status, String code, String message, Map<String, String> fields) {
         return ResponseEntity.status(status).body(
                 new ApiResponses.Error(Instant.now(), status.value(), code, message, fields));
+    }
+
+    static boolean isDataTooLong(Throwable exception) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sqlException) {
+                for (SQLException current = sqlException;
+                     current != null;
+                     current = current.getNextException()) {
+                    if ("22001".equals(current.getSQLState()) || current.getErrorCode() == 1406) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }
