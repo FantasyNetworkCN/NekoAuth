@@ -21,8 +21,38 @@
         <java.version>27</java.version>
         <jjwt.version>0.13.0</jjwt.version>
         <sensitive-word.version>0.29.5</sensitive-word.version>
+        <bouncycastle.version>1.87</bouncycastle.version>
+        <aliyun.tea.version>1.4.3</aliyun.tea.version>
+        <okhttp.version>4.12.0</okhttp.version>
+        <okio.version>3.6.0</okio.version>
         <neko.frontend.skip>false</neko.frontend.skip>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Aliyun SDK transitive dependencies: keep crypto and HTTP clients on patched releases. -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aliyun</groupId>
+                <artifactId>tea</artifactId>
+                <version>${aliyun.tea.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.squareup.okhttp3</groupId>
+                <artifactId>okhttp</artifactId>
+                <version>${okhttp.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.squareup.okio</groupId>
+                <artifactId>okio</artifactId>
+                <version>${okio.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
